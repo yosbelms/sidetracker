@@ -33,8 +33,15 @@ struct strWavFileHeader
     uint32_t subchunk2Size; // 40
 };
 
-void readHeader(strWavFileHeader* header, FileSystem::FileHandle fileHandle);
-// Explicit storage access also allows streaming and tests to use their own device.
-bool readHeader(strWavFileHeader* header, FileSystem::FileHandle fileHandle, FileSystem& fileSystem);
+bool readHeader(strWavFileHeader* header, FileSystem::FileHandle fileHandle);
+bool readHeader(strWavFileHeader* header,
+                FileSystem* fileSystem,
+                FileSystem::FileHandle fileHandle);
+
+// Convenience overload for callers that hold a FileSystem reference.
+inline bool readHeader(strWavFileHeader* header, FileSystem::FileHandle file, FileSystem& fs)
+{
+    return readHeader(header, &fs, file);
+}
 
 #endif /* SOURCE_WAVHEADERREADER_H_ */

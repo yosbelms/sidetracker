@@ -1,46 +1,156 @@
 #include "wavHeaderReader.h"
-#include <climits>
 
-bool readHeader(strWavFileHeader* header, FileSystem::FileHandle file, FileSystem& fs)
+#include <limits.h>
+#include <string.h>
+
+namespace
 {
-    *header = {};
-    strWavFileHeader parsed{};
-    struct Chunk
-    {
-        uint32_t id;
-        uint32_t size;
-    } chunk{};
+constexpr uint32_t kRiffId = 0x46464952;
+constexpr uint32_t kFmtId = 0x20746D66;
+constexpr uint32_t kDataId = 0x61746164;
+constexpr uint32_t kMinimumFmtSize = 16;
 
-    if (fs.readFile(&parsed, 12, file) != 12 || parsed.chunkId != 0x46464952 ||
-        parsed.waveId != WAVEID)
+uint16_t readLe16(const uint8_t* bytes)
+{
+    return (uint16_t)bytes[0] | ((uint16_t)bytes[1] << 8);
+}
+
+uint32_t readLe32(const uint8_t* bytes)
+{
+    return (uint32_t)bytes[0] | ((uint32_t)bytes[1] << 8) | ((uint32_t)bytes[2] << 16) |
+           ((uint32_t)bytes[3] << 24);
+}
+
+bool readExact(FileSystem* fileSystem,
+               FileSystem::FileHandle fileHandle,
+               void* destination,
+               size_t size)
+{
+    int32_t bytesRead = fileSystem->readFile(destination, size, fileHandle);
+    return bytesRead >= 0 && static_cast<size_t>(bytesRead) == size;
+}
+
+bool seekTo(FileSystem* fileSystem,
+            FileSystem::FileHandle fileHandle,
+            uint64_t position,
+            uint64_t fileSize)
+{
+    return position <= fileSize && position <= UINT32_MAX &&
+           fileSystem->seekFile((uint32_t)position, fileHandle);
+}
+} // namespace
+
+bool readHeader(strWavFileHeader* header, FileSystem* fileSystem, FileSystem::FileHandle wavfile)
+{
+    if (header == nullptr)
+    {
         return false;
+    }
 
-    auto findChunk = [&](uint32_t id)
+    memset(header, 0, sizeof(*header));
+
+    if (fileSystem == nullptr || wavfile == nullptr)
     {
-        for (int count = 0; count < 10; ++count)
+        return false;
+    }
+
+    const uint64_t fileSize = fileSystem->getFileSize(wavfile);
+    if (fileSize < 12 || fileSize > UINT32_MAX)
+    {
+        return false;
+    }
+
+    uint8_t riffHeader[12];
+    if (!readExact(fileSystem, wavfile, riffHeader, sizeof(riffHeader)))
+    {
+        return false;
+    }
+
+    strWavFileHeader parsedHeader{};
+    parsedHeader.chunkId = readLe32(riffHeader);
+    parsedHeader.chunkSize = readLe32(riffHeader + 4);
+    parsedHeader.waveId = readLe32(riffHeader + 8);
+
+    if (parsedHeader.chunkId != kRiffId || parsedHeader.waveId != WAVEID)
+    {
+        return false;
+    }
+
+    const uint64_t riffEnd = (uint64_t)parsedHeader.chunkSize + 8;
+    if (riffEnd < sizeof(riffHeader) || riffEnd > fileSize || riffEnd > UINT32_MAX)
+    {
+        return false;
+    }
+
+    uint64_t position = sizeof(riffHeader);
+    bool foundFmt = false;
+
+    while (position < riffEnd)
+    {
+        if (riffEnd - position < 8)
         {
-            if (fs.readFile(&chunk, sizeof(chunk), file) != sizeof(chunk) ||
-                chunk.size > fs.getFileAvailable(file))
-                return false;
-            if (chunk.id == id)
-                return true;
-            const uint64_t padded = uint64_t(chunk.size) + (chunk.size & 1);
-            if (padded > INT_MAX || !fs.seekFileCur(int(padded), file))
-                return false;
+            return false;
         }
-        return false;
-    };
 
-    if (!findChunk(0x20746d66) || chunk.size < 16 ||
-        fs.readFile(&parsed.AudioFormat, 16, file) != 16)
-        return false;
-    parsed.subchunk1Id = chunk.id;
-    parsed.subchunk1Size = chunk.size;
-    const uint64_t extra = uint64_t(chunk.size) - 16 + (chunk.size & 1);
-    if (extra > INT_MAX || !fs.seekFileCur(int(extra), file) || !findChunk(0x61746164))
-        return false;
-    parsed.subchunk2Id = chunk.id;
-    parsed.subchunk2Size = chunk.size;
-    *header = parsed;
-    return true;
+        uint8_t chunkHeader[8];
+        if (!readExact(fileSystem, wavfile, chunkHeader, sizeof(chunkHeader)))
+        {
+            return false;
+        }
+
+        position += sizeof(chunkHeader);
+        const uint32_t chunkId = readLe32(chunkHeader);
+        const uint32_t chunkSize = readLe32(chunkHeader + 4);
+        const uint64_t chunkEnd = position + chunkSize;
+        const uint64_t paddedChunkEnd = chunkEnd + (chunkSize & 1U);
+
+        if (chunkEnd < position || paddedChunkEnd < chunkEnd || paddedChunkEnd > riffEnd ||
+            paddedChunkEnd > fileSize)
+        {
+            return false;
+        }
+
+        if (chunkId == kFmtId && !foundFmt)
+        {
+            if (chunkSize < kMinimumFmtSize)
+            {
+                return false;
+            }
+
+            uint8_t fmtData[kMinimumFmtSize];
+            if (!readExact(fileSystem, wavfile, fmtData, sizeof(fmtData)))
+            {
+                return false;
+            }
+
+            parsedHeader.subchunk1Id = chunkId;
+            parsedHeader.subchunk1Size = chunkSize;
+            parsedHeader.AudioFormat = readLe16(fmtData);
+            parsedHeader.numChannels = readLe16(fmtData + 2);
+            parsedHeader.sampleRate = readLe32(fmtData + 4);
+            parsedHeader.byteRate = readLe32(fmtData + 8);
+            parsedHeader.blockAlign = readLe16(fmtData + 12);
+            parsedHeader.bitsPerSample = readLe16(fmtData + 14);
+            foundFmt = true;
+            position += sizeof(fmtData);
+        }
+        else if (chunkId == kDataId && foundFmt)
+        {
+            parsedHeader.subchunk2Id = chunkId;
+            parsedHeader.subchunk2Size = chunkSize;
+            *header = parsedHeader;
+            return true;
+        }
+
+        if (position != paddedChunkEnd)
+        {
+            if (!seekTo(fileSystem, wavfile, paddedChunkEnd, fileSize))
+            {
+                return false;
+            }
+            position = paddedChunkEnd;
+        }
+    }
+
+    return false;
 }

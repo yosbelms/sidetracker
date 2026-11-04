@@ -19,7 +19,8 @@ CORE_SOURCES := $(addprefix libs/Audio/,AudioStream.cpp filter_variable.cpp ampl
     monoToStereo.cpp dspApplyGain.cpp mixer.cpp effect_bitDepth.cpp) \
     source/wavHeaderReader.cpp source/SdStream.cpp source/util_string.cpp source/scales.cpp \
     source/mtEnvelopeGenerator.cpp source/mtWavetableEnvelopes.cpp source/util_math.cpp \
-    libs/ElapsedMillis/elapsedMillis.cpp AudioEngine/padToBeatNoteConverter.cpp
+    libs/ElapsedMillis/elapsedMillis.cpp AudioEngine/padToBeatNoteConverter.cpp \
+    FileManager/instrumentFileValidation.cpp
 CORE_OBJECTS := $(addprefix $(OUT)/core/,$(CORE_SOURCES:.cpp=.o))
 TEST_SOURCES := $(wildcard *_test.cpp)
 TEST_BINS := $(patsubst %.cpp,$(OUT)/%,$(TEST_SOURCES))

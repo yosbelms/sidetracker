@@ -1,7 +1,7 @@
 #include "wavHeaderReader.h"
 #include "TrackerImpl.h"
 
-void readHeader(strWavFileHeader* header, FileSystem::FileHandle file)
+bool readHeader(strWavFileHeader* header, FileSystem::FileHandle file)
 {
-    readHeader(header, file, *TrackerImpl::getInstance()->getPlatform()->getFileSystem());
+    return readHeader(header, TrackerImpl::getInstance()->getPlatform()->getFileSystem(), file);
 }

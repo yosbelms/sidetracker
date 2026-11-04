@@ -23,8 +23,8 @@ public:
     size_t getFileSize(FileHandle file) override;
     size_t getFileAvailable(FileHandle file) override;
     std::tuple<bool, FileHandle> openFile(const char* path, FileOpenMode mode, FileHandle* reuse) override;
-    size_t readFile(void* data, size_t length, FileHandle file) override;
-    size_t writeFile(const void* data, size_t length, FileHandle file) override;
+    int32_t readFile(void* data, size_t length, FileHandle file) override;
+    int32_t writeFile(const void* data, size_t length, FileHandle file) override;
     bool seekFileCur(int offset, FileHandle file) override;
     bool seekFile(uint32_t pos, FileHandle file) override;
     void closeFile(FileHandle file, bool destroy) override;

@@ -116,7 +116,7 @@ TEST_F(WavTest, RejectsShortDeviceReads)
     EXPECT_EQ(header.chunkId, 0u);
 }
 
-TEST_F(WavTest, BoundedScanAcceptsFormatAsTheTenthChunk)
+TEST_F(WavTest, MetadataChunkScanUsesTheDeclaredRiffBounds)
 {
     auto bytes = makeWav({1});
     const std::vector<uint8_t> junk = {'J', 'U', 'N', 'K', 0, 0, 0, 0};
@@ -125,5 +125,14 @@ TEST_F(WavTest, BoundedScanAcceptsFormatAsTheTenthChunk)
     EXPECT_TRUE(parse(bytes));
     bytes.insert(bytes.begin() + 12, junk.begin(), junk.end());
     bytes[4] += 8;
+    EXPECT_TRUE(parse(bytes));
+    bytes[4] -= 8;
     EXPECT_FALSE(parse(bytes));
+}
+
+TEST_F(WavTest, SignedReadErrorsAreRejectedAndClearTheHeader)
+{
+    fs.failRead = true;
+    EXPECT_FALSE(parse(makeWav({1})));
+    EXPECT_EQ(header.chunkId, 0u);
 }

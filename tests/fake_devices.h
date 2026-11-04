@@ -47,6 +47,7 @@ class FakeFileSystem final : public FileSystem
     std::set<std::string> directories;
     bool inserted = true;
     bool failOpen = false;
+    bool failRead = false;
     size_t maxReadSize = std::numeric_limits<size_t>::max();
     FakeTimer* timer = nullptr;
     uint32_t readDelayUs = 0;
@@ -101,26 +102,27 @@ class FakeFileSystem final : public FileSystem
         if (reuse) *reuse = h;
         return {true, h};
     }
-    size_t readFile(void* destination, size_t length, FileHandle file) override
+    int32_t readFile(void* destination, size_t length, FileHandle file) override
     {
         ++readCalls;
         if (timer) timer->advanceUs(readDelayUs);
-        if (!inserted || !isFileOpen(file)) return 0;
+        if (!inserted || failRead || !isFileOpen(file)) return -1;
         auto* h = static_cast<Handle*>(file);
-        const size_t count = std::min({length, getFileAvailable(file), maxReadSize});
+        const size_t count = std::min({length, getFileAvailable(file), maxReadSize, size_t(INT32_MAX)});
         if (count) std::memcpy(destination, h->bytes->data() + h->position, count);
         h->position += count;
-        return count;
+        return int32_t(count);
     }
-    size_t writeFile(const void* source, size_t length, FileHandle file) override
+    int32_t writeFile(const void* source, size_t length, FileHandle file) override
     {
-        if (!inserted || !isFileOpen(file)) return 0;
+        if (!inserted || !isFileOpen(file)) return -1;
         auto* h = static_cast<Handle*>(file);
-        if (!h->writable) return 0;
+        if (!h->writable) return -1;
+        length = std::min(length, size_t(INT32_MAX));
         h->bytes->resize(std::max(h->bytes->size(), h->position + length));
         if (length) std::memcpy(h->bytes->data() + h->position, source, length);
         h->position += length;
-        return length;
+        return int32_t(length);
     }
     bool seekFileCur(int offset, FileHandle file) override
     {

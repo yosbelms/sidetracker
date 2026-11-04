@@ -167,14 +167,20 @@ void DesktopStorage::endFile(FileHandle file)
         fflush(static_cast<OpenFile*>(file)->stream);
 }
 
-size_t DesktopStorage::readFile(void* data, size_t length, FileHandle file)
+int32_t DesktopStorage::readFile(void* data, size_t length, FileHandle file)
 {
-    return isFileOpen(file) ? fread(data, 1, length, static_cast<OpenFile*>(file)->stream) : 0;
+    if (!isFileOpen(file)) return -1;
+    FILE* stream = static_cast<OpenFile*>(file)->stream;
+    const size_t count = fread(data, 1, std::min(length, size_t(INT32_MAX)), stream);
+    return ferror(stream) ? -1 : int32_t(count);
 }
 
-size_t DesktopStorage::writeFile(const void* data, size_t length, FileHandle file)
+int32_t DesktopStorage::writeFile(const void* data, size_t length, FileHandle file)
 {
-    return isFileOpen(file) ? fwrite(data, 1, length, static_cast<OpenFile*>(file)->stream) : 0;
+    if (!isFileOpen(file)) return -1;
+    FILE* stream = static_cast<OpenFile*>(file)->stream;
+    const size_t count = fwrite(data, 1, std::min(length, size_t(INT32_MAX)), stream);
+    return ferror(stream) ? -1 : int32_t(count);
 }
 
 bool DesktopStorage::seekFileCur(int offset, FileHandle file)

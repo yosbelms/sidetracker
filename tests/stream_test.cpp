@@ -49,6 +49,15 @@ TEST_F(StreamTest, InvalidWaveReleasesItsHandle)
     EXPECT_EQ(fs.openHandles(), 0);
 }
 
+TEST_F(StreamTest, HeaderReadFailureReleasesTheHandleImmediately)
+{
+    fs.files["sample.wav"] = makeWav({1, 2});
+    fs.failRead = true;
+    EXPECT_FALSE(start());
+    EXPECT_FALSE(stream.isStreamActive());
+    EXPECT_EQ(fs.openHandles(), 0);
+}
+
 TEST_F(StreamTest, InvalidChannelOrSampleSizeDoesNotDivideByZero)
 {
     auto wav = makeWav({1, 2});
