@@ -336,9 +336,11 @@ void cPatternEditor::showPattern(uint8_t forceShow, uint8_t shiftPressed)
     uint16_t patternToShow = sequencer.isPerformanceMode() ? 4444 : mtProject.values.actualPattern;
     uint16_t nextSequential = sequencer.sequencialSwitch_GetNext();
 
-    if (lastShownPatternOnTitleBar != patternToShow || forceShow)
+    if (lastShownPatternOnTitleBar != patternToShow || lastShownMicVolView != isMicVolView ||
+        forceShow)
     {
         lastShownPatternOnTitleBar = patternToShow;
+        lastShownMicVolView = isMicVolView;
         showTitleBarPattern();
     }
 
@@ -1644,6 +1646,7 @@ void cPatternEditor::showTitleBarPattern()
         return;
     }
 
+    const char* viewSuffix = isMicVolView ? "  [mV]" : "  [FX]";
     char* patternName =
       newFileManager.getPatternsMetadata()->getPatternName(mtProject.values.actualPattern);
 
@@ -1651,19 +1654,24 @@ void cPatternEditor::showTitleBarPattern()
     {
         snprintf(cTitlePattern,
                  sizeof(cTitlePattern),
-                 mtConfig.general.numberingMode == NumberingMode::kHexadecimal ? "Pattern %02X"
-                                                                               : "Pattern %d",
-                 mtProject.values.actualPattern);
+                 mtConfig.general.numberingMode == NumberingMode::kHexadecimal ? "Pattern %02X%s"
+                                                                               : "Pattern %d%s",
+                 mtProject.values.actualPattern,
+                 viewSuffix);
     }
     else
     {
-        snprintf(cTitlePattern, sizeof(cTitlePattern), "%s", patternName);
+        snprintf(cTitlePattern,
+                 sizeof(cTitlePattern),
+                 "%.*s%s",
+                 static_cast<int>(sizeof(cTitlePattern) - strlen(viewSuffix) - 1),
+                 patternName,
+                 viewSuffix);
     }
 
     if (sequencer.isPerformancePatternChanged())
     {
-        strncpy(cTitlePattern, "Pattern PERF", 13);
-        cTitlePattern[13] = 0;
+        snprintf(cTitlePattern, sizeof(cTitlePattern), "Pattern PERF%s", viewSuffix);
     }
 
     titleBar->setTitle(cTitlePattern);

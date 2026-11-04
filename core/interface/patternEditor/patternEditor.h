@@ -180,6 +180,7 @@ class cPatternEditor : public ModuleBase
     uint8_t refreshPlayheadOnScreen();
 
     uint16_t lastShownPatternOnTitleBar = 0;
+    bool lastShownMicVolView = false;
     uint16_t lastShownPattern = 0;
     uint16_t lastShownPattern_blinkState = 0;
 
