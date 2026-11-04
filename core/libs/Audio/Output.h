@@ -16,6 +16,7 @@ class AudioOutputStream : public AudioStream
     void begin(void);
     void selectSource(int channel, int idx);
     void setOutBuffers(void* left, void* right);
+    uint32_t readPeak();
 
   private:
     static constexpr int kOutChannels = 2;
@@ -24,6 +25,7 @@ class AudioOutputStream : public AudioStream
     audio_block_t* inputQueueArray[kOutChannels * kSources];
     void* outBuffers[kOutChannels];
     int source[kOutChannels];
+    volatile uint32_t peak = 0;
 };
 
 #endif /* OUTPUT_H_ */

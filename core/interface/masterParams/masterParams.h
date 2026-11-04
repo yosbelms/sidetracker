@@ -46,6 +46,7 @@ class cMasterParams : public ModuleBase
     void shiftHandler();
     // master
     void showVolume();
+    void showFinalOutputLevel();
     void showBassBoost();
     void showStereoBoost();
     void showSaturationType();
@@ -170,6 +171,7 @@ class cMasterParams : public ModuleBase
         elapsedMillis redColorTimer = 0;
         uint8_t value;
         uint8_t lastValue;
+        int16_t dbTenths = INT16_MIN;
 
     } trackLevel[8], reverbLevel[2], delayLevel[2], dryMixLevel[2], lineInLevel[2];
 #ifdef FEATURE_SYNTH
@@ -377,6 +379,9 @@ class cMasterParams : public ModuleBase
     hControl delayPingpongEnableList;
     hControl delaySyncEnableList;
     hControl delaySyncRateList;
+    elapsedMillis trackRmsAge[8];
+    int16_t shownTrackDb[8]{};
+    char trackDbText[8][10]{};
     hControl trackNameLabel[8];
     hControl trackVolumeBar[8];
     hControl limiterSidechainList;
@@ -397,6 +402,8 @@ class cMasterParams : public ModuleBase
     //----------------------------------
 
     char volumeVal[12];
+    char finalOutputLevelText[16]{};
+    elapsedMillis finalOutputRefreshTimer;
     char delayFeedbackVal[4];
     char delayTimeVal[9];
     char delayFilterFreqVal[9];

@@ -5,8 +5,10 @@
 
 struct strBarData
 {
+    static constexpr uint16_t kMeterTextHeight = 16;
     uint8_t changingColor = 0;
     int value = 0xFFFFFF;
+    const char* meterText = nullptr;
 };
 
 //--------------------------------------------------------------------
