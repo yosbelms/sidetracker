@@ -4,6 +4,7 @@
 #include "TrackerImpl.h"
 #include "mtAudioEngine.h"
 #include "mtStructs.h"
+#include "ptfx_validation.h"
 
 #include <cmath>
 #include <cstring>
@@ -147,12 +148,13 @@ bool PtfxLoader::readHeader(const char* filepath, PtfxHeader& outHeader)
 
     alignas(32) PtfxHeader tempHeader;
     int32_t bytesRead = fs->readFile(&tempHeader, sizeof(PtfxHeader), fileHandle);
+    size_t fileSize = fs->getFileSize(fileHandle);
     fs->closeFile(fileHandle);
 
     if (bytesRead != static_cast<int32_t>(sizeof(PtfxHeader)))
         return false;
 
-    if (tempHeader.magic != PTFX_MAGIC || tempHeader.format_version != 1)
+    if (!ptfx::validateHeader(tempHeader, fileSize, getMaxCodeSize(), getMaxScratchSize()))
         return false;
 
     memcpy(&outHeader, &tempHeader, sizeof(PtfxHeader));
@@ -168,6 +170,11 @@ bool PtfxLoader::loadPlugin(const char* filepath,
     outInit         = nullptr;
     outSetParam     = nullptr;
     outProcessBlock = nullptr;
+
+#ifdef TRACKER_DESKTOP
+    // ARM plugin binaries cannot execute in the native desktop process.
+    return false;
+#endif
 
     FileSystem* fs = getFileSystem();
     if (!filepath || !fs)
@@ -194,7 +201,7 @@ bool PtfxLoader::loadPlugin(const char* filepath,
         headerBytesRead += static_cast<size_t>(n);
     }
 
-    if (outHeader.magic != PTFX_MAGIC || outHeader.format_version != 1)
+    if (!ptfx::validateHeader(outHeader, fs->getFileSize(fileHandle), getMaxCodeSize(), getMaxScratchSize()))
     {
         fs->closeFile(fileHandle);
         return false;
@@ -246,6 +253,8 @@ bool PtfxLoader::loadPlugin(const char* filepath,
     fs->closeFile(fileHandle);
 
     if (bytesRead != outHeader.code_size)
+        return false;
+    if (!ptfx::validateStrings(outHeader, codeBuf))
         return false;
 
     // Zero-initialize .bss region immediately after code payload

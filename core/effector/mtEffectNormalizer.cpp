@@ -1,5 +1,6 @@
 #include "mtEffectNormalizer.h"
 #include "util_math.h"
+#include <algorithm>
 mtEffectNormalizer sampleEditorNormalizer;
 
 void mtEffectNormalizer::setParameter(float& value, int idx)
@@ -16,9 +17,8 @@ bool mtEffectNormalizer::startProcess()
     {
         channelParams[channel].srcAddr = confirmed[channel].selection.addr;
         channelParams[channel].dstAddr = processed[channel].selection.addr;
-        int max_peak = find_max(channelParams[channel].srcAddr, length);
-        int norm_peak = map<int>(norm_level, 0, 100, 0, MAX_SIGNED_16BIT);
-        channelParams[channel].amp = (float)norm_peak / max_peak;
+        channelParams[channel].peak = 0;
+        channelParams[channel].amp = 0;
     }
 
     processedSamples = 0;
@@ -31,6 +31,22 @@ int32_t mtEffectNormalizer::processBlock()
     if (!state)
         return -1;
 
+    if (analyzing)
+    {
+        const uint32_t count = std::min<uint32_t>(8192, length - analysisSamples);
+        for (int ch = 0; ch < kChannels; ++ch)
+            channelParams[ch].peak = std::max(channelParams[ch].peak,
+                find_max(channelParams[ch].srcAddr + analysisSamples, count));
+        analysisSamples += count;
+        if (analysisSamples == length)
+        {
+            const int target = map<int>(norm_level, 0, 100, 0, MAX_SIGNED_16BIT);
+            for (int ch = 0; ch < kChannels; ++ch)
+                channelParams[ch].amp = channelParams[ch].peak > 0 ? float(target) / channelParams[ch].peak : 0;
+            analyzing = false;
+        }
+        return 0;
+    }
     uint32_t dif = length - processedSamples;
     uint32_t processedBlockLength = dif > 8192 ? 8192 : dif;
 

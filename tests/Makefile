@@ -2,12 +2,16 @@ ROOT := ..
 CORE := $(ROOT)/core
 GTEST := $(ROOT)/util/3rdparty/googletest
 SANITIZE ?= address,undefined
-OUT ?= $(ROOT)/build/host-tests$(if $(SANITIZE),,-release)
+STEREO ?= 0
+OUT ?= $(ROOT)/build/host-tests$(if $(SANITIZE),,-release)$(if $(filter 1,$(STEREO)),-stereo)
 
 CPPFLAGS += -DTRACKER_DESKTOP -isystem $(GTEST)/include -I$(GTEST) -I. \
     $(addprefix -I$(CORE)/,config include source libs/Audio libs/Audio/utility libs/ElapsedMillis AudioEngine FileManager) \
-    -I$(ROOT)/util/include -I$(ROOT)/util/3rdparty
+    -I$(CORE)/effector -I$(ROOT)/util/include -I$(ROOT)/util/3rdparty
 CXXFLAGS += -std=c++20 -O1 -g -Wall -Wextra -Wno-unused-parameter -MMD -MP -pthread
+ifeq ($(STEREO),1)
+CPPFLAGS += -DPLATFORM_IMX
+endif
 LDLIBS += -pthread
 ifneq ($(SANITIZE),)
 CXXFLAGS += -fno-omit-frame-pointer -fsanitize=$(SANITIZE) -fno-sanitize-recover=all
@@ -20,7 +24,11 @@ CORE_SOURCES := $(addprefix libs/Audio/,AudioStream.cpp filter_variable.cpp ampl
     source/wavHeaderReader.cpp source/SdStream.cpp source/util_string.cpp source/scales.cpp \
     source/mtEnvelopeGenerator.cpp source/mtWavetableEnvelopes.cpp source/util_math.cpp \
     libs/ElapsedMillis/elapsedMillis.cpp AudioEngine/padToBeatNoteConverter.cpp \
-    FileManager/instrumentFileValidation.cpp
+    FileManager/instrumentFileValidation.cpp effector/SampleFxChain.cpp effector/ptfx_validation.cpp \
+    $(addprefix effector/,mtDataCopyier.cpp mtEffectModular.cpp mtEffectAmplifier.cpp mtEffectNormalizer.cpp \
+    mtEffectDelay.cpp mtEffectEQ.cpp mtEffectChorus.cpp mtEffectFlanger.cpp \
+    mtEffectBitcrusher.cpp mtEffectFadeIn.cpp mtEffectFadeOut.cpp mtEffectCompresor.cpp \
+    mtEffectLimiter.cpp mtEffectOverdrive.cpp)
 CORE_OBJECTS := $(addprefix $(OUT)/core/,$(CORE_SOURCES:.cpp=.o))
 TEST_SOURCES := $(wildcard *_test.cpp)
 TEST_BINS := $(patsubst %.cpp,$(OUT)/%,$(TEST_SOURCES))

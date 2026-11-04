@@ -10,6 +10,7 @@
 #include "sampleEditor/sampleEditor.h"
 #include "ptfx_manager.h"
 #include "util_math.h"
+#include "SampleEditorChain.h"
 
 #include <cr_section_macros.h>
 
@@ -250,6 +251,7 @@ void cSampleEditor::start([[maybe_unused]] uint32_t options)
 
 void cSampleEditor::update()
 {
+    if (sampleChainIsOpen()) { sampleChainUpdate(); return; }
     if (needRefreshSpectrum)
     {
         needRefreshSpectrum = 0;
@@ -490,6 +492,7 @@ void cSampleEditor::setMainScreenFunctions()
         ip->setButtonObj(interfaceButton3, buttonPress, functUndo);
     }
     ip->setButtonObj(interfaceButton5, buttonPress, functApply);
+    ip->setButtonObj(interfaceButton4, buttonPress, [] { sampleChainOpen(SE); });
     ip->setButtonObj(interfaceButton6, buttonPress, functListUp);
     ip->setButtonObj(interfaceButton7, buttonPress, functListDown);
 

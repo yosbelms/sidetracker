@@ -165,7 +165,7 @@ void cSampleEditor::showMainScreen()
     display.setControlText(label[2], "Zoom");
     display.setControlText(label[3], "Undo");
     display.setControlText2(label[3], "");
-    display.setControlText(label[4], "");
+    display.setControlText(label[4], "Chain");
     display.setControlText2(label[4], "");
 
     if (isParametersScreen())
@@ -245,6 +245,7 @@ void cSampleEditor::showMainScreen()
     }
 
     display.setRemoveControlStyle(label[4], controlStyleSpecialFx2);
+    display.setControlColors(label[4], display.getTheme().activeButtonLabelsColors);
 
     display.setControlValue(label[3], 0);
     display.setControlValue(label[6], 0);

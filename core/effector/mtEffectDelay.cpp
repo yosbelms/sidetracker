@@ -1,6 +1,7 @@
 #include "mtEffectDelay.h"
 #include "mtStructs.h"
 #include <cmath>
+#include <algorithm>
 #include <cr_section_macros.h>
 #include <string.h>
 
@@ -21,30 +22,16 @@ void mtEffectDelay::setParameter(float& value, int idx)
 
 bool mtEffectDelay::startProcess()
 {
-    if (effectDelayParams.feedback == 0 || effectDelayParams.time == 0)
+    if (effectDelayParams.feedback <= 0 || effectDelayParams.time <= 0 ||
+        getExpectedProcessLength() > EDIT_BUFF_SIZE / 2)
     {
         return false;
     }
 
-    constexpr float MILISECOND_SAMPLES = 44.1f;
-
-    uint32_t timeInSamples = (uint32_t)((float)effectDelayParams.time * MILISECOND_SAMPLES);
-
     for (int channel = 0; channel < kChannels; channel++)
     {
-        channelParams[channel].currentDstAddr = processed[channel].selection.addr;
-        channelParams[channel].lastSrcAddr =
-          confirmed[channel].selection.addr + confirmed[channel].selection.length;
-
-        channelParams[channel].firstActiveVoiceIdx = 0;
-        channelParams[channel].lastActiveVoiceIdx = 0;
-
-        for (uint8_t i = 0; i < MAX_DELAY_VOICE_NUMBER; i++)
-        {
-            channelParams[channel].sourceVoicePointer[i] = confirmed[channel].selection.addr;
+        for (uint8_t i = 0; i <= lastVoiceIdx; i++)
             channelParams[channel].feedbackVoiceMult[i] = powf(effectDelayParams.feedback, i);
-            channelParams[channel].lastIndexInVoice[i] = i * timeInSamples;
-        }
         channelParams[channel].processedSamples = 0;
     }
 
@@ -53,70 +40,37 @@ bool mtEffectDelay::startProcess()
 }
 int32_t mtEffectDelay::processBlock()
 {
-    if (!state)
-        return -1;
-
-    int32_t processedBlockLength = 0;
-
-    for (int channel = 0; channel < kChannels; channel++)
+    if (!state) return -1;
+    const uint32_t delaySamples = uint32_t(effectDelayParams.time * 44.1f);
+    const uint32_t total = getExpectedProcessLength();
+    const uint32_t position = channelParams[0].processedSamples;
+    const uint32_t count = std::min<uint32_t>(8192, total - position);
+    for (int channel = 0; channel < kChannels; ++channel)
     {
-        processedBlockLength = 0;
-        for (uint32_t i = 0; i < 8192; i++)
+        const int16_t* src = confirmed[channel].selection.addr;
+        int16_t* dst = processed[channel].selection.addr;
+        const uint32_t inputLength = confirmed[channel].selection.length;
+        for (uint32_t i = position; i < position + count; ++i)
         {
-            if ((channelParams[channel].sourceVoicePointer[lastVoiceIdx] <
-                 channelParams[channel].lastSrcAddr) &&
-                (channelParams[channel].processedSamples <= EDIT_BUFF_SIZE / 2))
-            {
-                int32_t currentSum = 0;
-
-                for (uint8_t i = channelParams[channel].firstActiveVoiceIdx;
-                     i <= channelParams[channel].lastActiveVoiceIdx;
-                     i++)
-                {
-                    currentSum += *channelParams[channel].sourceVoicePointer[i] *
-                                  channelParams[channel].feedbackVoiceMult[i];
-                    channelParams[channel].sourceVoicePointer[i]++;
-                }
-
-                if (currentSum > MAX_SIGNED_16BIT)
-                    currentSum = MAX_SIGNED_16BIT;
-                else if (currentSum < MIN_SIGNED_16BIT)
-                    currentSum = MIN_SIGNED_16BIT;
-
-                *channelParams[channel].currentDstAddr++ = (int16_t)currentSum;
-
-                processedBlockLength++;
-                channelParams[channel].processedSamples++;
-
-                if ((channelParams[channel].processedSamples >
-                     channelParams[channel]
-                       .lastIndexInVoice[channelParams[channel].lastActiveVoiceIdx]))
-                    channelParams[channel].lastActiveVoiceIdx++;
-                if (channelParams[channel]
-                      .sourceVoicePointer[channelParams[channel].firstActiveVoiceIdx] >=
-                    channelParams[channel].lastSrcAddr)
-                    channelParams[channel].firstActiveVoiceIdx++;
-
-                if (channelParams[channel].lastActiveVoiceIdx > MAX_DELAY_VOICE_NUMBER - 1)
-                    channelParams[channel].lastActiveVoiceIdx = MAX_DELAY_VOICE_NUMBER - 1;
-                if (channelParams[channel].firstActiveVoiceIdx > MAX_DELAY_VOICE_NUMBER - 1)
-                    channelParams[channel].firstActiveVoiceIdx = MAX_DELAY_VOICE_NUMBER - 1;
-            }
-            else
-            {
-                state = false;
-                processed[channel].selection.length =
-                  channelParams[channel].processedSamples; // redundancy
-                processed[channel].area.length =
-                  confirmed[channel].area.length +
-                  (processed[channel].selection.length -
-                   confirmed[channel].selection.length); // redundancy
-                break;
-            }
+            int32_t sum = 0;
+            const uint32_t first = i < inputLength ? 0 : (i - inputLength) / delaySamples + 1;
+            const uint32_t last = std::min<uint32_t>(lastVoiceIdx, i / delaySamples);
+            for (uint32_t echo = first; echo <= last; ++echo)
+                sum += src[i - echo * delaySamples] * channelParams[channel].feedbackVoiceMult[echo];
+            dst[i] = std::clamp<int32_t>(sum, MIN_SIGNED_16BIT, MAX_SIGNED_16BIT);
+        }
+        channelParams[channel].processedSamples += count;
+    }
+    if (position + count == total)
+    {
+        state = false;
+        for (int channel = 0; channel < kChannels; ++channel)
+        {
+            processed[channel].selection.length = total;
+            processed[channel].area.length = confirmed[channel].area.length + total - confirmed[channel].selection.length;
         }
     }
-
-    return processedBlockLength;
+    return count;
 }
 bool mtEffectDelay::getProcessState()
 {
@@ -127,7 +81,7 @@ uint32_t mtEffectDelay::getExpectedProcessLength()
     constexpr float MILISECOND_TIME = 44.1f;
     uint32_t timeInSamples = (uint32_t)((float)effectDelayParams.time * MILISECOND_TIME);
 
-    return confirmed[0].selection.length + (lastVoiceIdx - 1) * timeInSamples;
+    return confirmed[0].selection.length + lastVoiceIdx * timeInSamples;
 }
 
 void mtEffectDelay::calcLastVoiceIdx()

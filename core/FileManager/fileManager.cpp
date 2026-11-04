@@ -61,7 +61,7 @@ void cFileManager::update()
 {
     if (currentOperation == fmNoOperation && !sequencer.isRenderMode())
     {
-        autoSaveProjectToWorkspace();
+        if (!autosaveSuspended) autoSaveProjectToWorkspace();
 
         return;
     }

@@ -25,14 +25,7 @@ class mtEffectDelay : public mtEffect
 
     struct ChannelParams
     {
-        int16_t* currentDstAddr;
-        int16_t* sourceVoicePointer[MAX_DELAY_VOICE_NUMBER];
         float feedbackVoiceMult[MAX_DELAY_VOICE_NUMBER];
-        uint32_t lastIndexInVoice[MAX_DELAY_VOICE_NUMBER];
-        int16_t* lastSrcAddr;
-
-        uint8_t firstActiveVoiceIdx;
-        uint8_t lastActiveVoiceIdx;
         uint32_t processedSamples;
     };
 

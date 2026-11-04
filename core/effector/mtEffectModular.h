@@ -23,6 +23,8 @@ class mtEffectModular : public mtEffect
     virtual int32_t processBlock() override;
     virtual bool getProcessState() override;
     virtual uint32_t getExpectedProcessLength() override;
+    bool hasProcessingError() const override { return m_failed; }
+    void setOfflineChannels(uint8_t channels) override { m_channels = channels; }
 
     void onApplyCommitted(int instrumentIdx);
 
@@ -44,6 +46,8 @@ class mtEffectModular : public mtEffect
     uint32_t m_length = 0;
     uint32_t m_processedSamples = 0;
     bool     m_state = false;
+    bool m_failed = false;
+    uint8_t m_channels = kChannels;
     float    m_paramValues[12] = { 0.0f };
     const int16_t* m_srcAddr[kChannels] = { nullptr };
     int16_t*       m_dstAddr[kChannels] = { nullptr };

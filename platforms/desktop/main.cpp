@@ -5,6 +5,8 @@
 #include "core/interfaceDefs.h"
 #include "FT812.h"
 #include "display.h"
+#include "fileManager.h"
+#include "sampleEditor/SampleEditorChain.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -12,6 +14,8 @@
 #include <memory>
 #include <stdexcept>
 #include <string_view>
+#include <fstream>
+#include <sstream>
 
 namespace
 {
@@ -205,6 +209,7 @@ struct Options
 {
     const char* screenshot = nullptr;
     const char* card = nullptr;
+    const char* script = nullptr;
     bool panel = false, audio = true;
     int tap = -1;
     int scale = 3;
@@ -338,6 +343,60 @@ int run(const Options& options)
                 send(platform, {options.tap}, false);
             update();
             platform.timer.advance(1);
+        }
+        if (options.script)
+        {
+            const auto advance = [&](unsigned ms)
+            {
+                for (unsigned i = 0; i < ms && platform.running; ++i)
+                { update(); platform.timer.advance(1); }
+            };
+            std::ifstream script(options.script);
+            if (!script) throw std::runtime_error("Cannot open desktop script");
+            std::string line;
+            while (std::getline(script, line))
+            {
+                if (line.empty() || line[0] == '#') continue;
+                std::istringstream fields(line);
+                std::string command; fields >> command;
+                if (command == "wait")
+                { unsigned ms = 0; fields >> ms; advance(std::min(ms, 60000u)); }
+                else if (command == "encoder")
+                { int value = 0; fields >> value; onPotChange(0, value); advance(50); }
+                else if (command == "import")
+                {
+                    std::string path; unsigned slot = 0; fields >> slot >> path;
+                    const auto slash = path.find_last_of('/');
+                    std::string directory = slash == std::string::npos ? "/" : path.substr(0, slash);
+                    std::string name = path.substr(slash == std::string::npos ? 0 : slash + 1);
+                    if (name.size() > 4 && name.substr(name.size() - 4) == ".wav") name.resize(name.size() - 4);
+                    newFileManager.clearStatus();
+                    if (slot >= kSampleInstrumentsCount || !newFileManager.importSampleToProject(directory.data(), name.data(), slot))
+                        throw std::runtime_error("Desktop script sample import failed");
+                    advance(2000);
+                    if (newFileManager.getStatus() >= fmError) throw std::runtime_error("Sample import error");
+                    newFileManager.clearStatus();
+                    mtProject.values.lastUsedInstrument = slot;
+                }
+                else if (command == "button")
+                {
+                    std::string name; std::getline(fields >> std::ws, name);
+                    int id = -1;
+                    if (name.size() == 1 && name[0] >= '0' && name[0] <= '7') id = name[0] - '0';
+                    else for (unsigned i = 0; i < std::size(keys); ++i)
+                        if (name == keys[i].label) id = buttonIds[i];
+                    if (id < 0) throw std::runtime_error("Unknown desktop script button");
+                    send(platform, {id}, true); advance(60);
+                    send(platform, {id}, false); advance(80);
+                }
+                else if (command == "assert-chain")
+                {
+                    std::string state; fields >> state;
+                    if (sampleChainIsOpen() != (state == "open"))
+                        throw std::runtime_error("Unexpected sample chain screen state");
+                }
+                else throw std::runtime_error("Unknown desktop script command");
+            }
         }
         if (panel)
             drawPanel(driver, platform, false);
@@ -482,6 +541,8 @@ int main(int argc, char** argv)
         const std::string_view arg = argv[i];
         if (arg == "--sd" && i + 1 < argc)
             options.card = argv[++i];
+        else if (arg == "--script" && i + 1 < argc)
+            options.script = argv[++i];
         else if (arg == "--screenshot" && i + 1 < argc)
             options.screenshot = argv[++i];
         else if (arg == "--tap-button" && i + 1 < argc)

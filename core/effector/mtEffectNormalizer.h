@@ -22,11 +22,14 @@ class mtEffectNormalizer : public mtEffect
         int16_t* srcAddr;
         int16_t* dstAddr;
         float amp;
+        int peak;
     };
 
     ChannelParams channelParams[kChannels];
 
     uint32_t processedSamples = 0;
+    uint32_t analysisSamples = 0;
+    bool analyzing = false;
 
     int norm_level;
     bool state = false;

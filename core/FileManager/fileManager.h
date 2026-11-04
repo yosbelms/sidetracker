@@ -210,6 +210,8 @@ class cFileManager
 
     // setery
     void autosaveProjectStruct_ASAP();
+    // Offline editor sessions own shared buffers until their source is restored.
+    void suspendAutosave(bool suspend) { autosaveSuspended = suspend; }
 
     void stopAudioEngine();
     void startAudioEngine();
@@ -427,6 +429,7 @@ class cFileManager
     void checkVersionAndTranslate(Sequencer::strPattern* pattern);
 
   private:
+    bool autosaveSuspended = false;
     friend FileManagerOperation;
     FileSystem* fileSystem = nullptr;
     Synth* synth;

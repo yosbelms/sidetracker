@@ -55,6 +55,24 @@ class mtEffect
     virtual int32_t processBlock() = 0;
     virtual bool getProcessState() = 0;
     virtual uint32_t getExpectedProcessLength() = 0;
+    virtual bool hasProcessingError() const { return false; }
+    virtual void setOfflineChannels(uint8_t) {}
+    // Private chain passes never apply an editor operation or create undo entries.
+    void bindOffline(int16_t* const* input, int16_t* const* output, uint32_t frames)
+    {
+        for (int ch = 0; ch < kChannels; ++ch)
+        {
+            confirmed[ch] = { { input[ch], frames }, { input[ch], frames } };
+            processed[ch] = { { output[ch], frames }, { output[ch], frames } };
+        }
+        operationType = operationTypeIdle;
+        processingState = idle;
+        endProcessingState = false;
+        processing = {};
+        processing.isLoadedData = true;
+        applyParams = {};
+        undoParams = {};
+    }
     void update();
     void switchToThisEffect(mtEffect* lastEffect);
     void setBaseSampleLength(uint32_t val);
@@ -69,7 +87,7 @@ class mtEffect
     uint8_t getProcessingSelectionProgress();
     bool getProcessingSelectionState();
     bool isDataProcessed();
-    void clearProcessedData();
+    void clearProcessedData() { applyParams.isProcessedData = false; }
     uint32_t getExpectedProcessedSampleLength();
     int16_t* const getSampleAddresToPreview(Channel channel = Channel::kLeft);
     uint32_t getSampleLengthToPreview();
@@ -110,7 +128,7 @@ class mtEffect
         ProcessingParams processParams;
     } processing;
 
-    bool processingWithoutCopying;
+    bool processingWithoutCopying = false;
 
     struct strMemoryAreaWithSelection
     {

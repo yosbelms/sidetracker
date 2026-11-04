@@ -16,6 +16,17 @@ files, SD streaming across buffer boundaries, envelopes, scales, beat-slice note
 mapping, natural sorting and seeded random values. `perf_tools_test.py` checks
 the performance gate's rejection paths.
 
+Sample-editor tests also cover chain ordering, bypass, duplicates, generation,
+recipe validation, invalidation/cancellation, real built-in DSP boundaries and
+reset behavior, native generator callbacks through the modular adapter, and
+plugin metadata validation. Run `make -C tests STEREO=1 test` to check the
+stereo platform in a separate build directory.
+
+`make desktop-check` additionally exercises the actual chain UI, saved recipe
+reload, bypass and Original audition, exact rendered sample bytes, and recovery
+from a failed source snapshot. Desktop scripts support `button`, `encoder`,
+`wait`, `import`, and `assert-chain` via `--script FILE` with `--screenshot`.
+
 `fake_devices.h` implements the existing `Timer` and `FileSystem` interfaces.
 Tests can control elapsed time and file bytes, simulate SD read latency, remove
 the card, fail opens and return short reads. Unsupported directory enumeration

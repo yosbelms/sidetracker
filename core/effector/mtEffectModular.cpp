@@ -1,6 +1,5 @@
 #include "mtEffectModular.h"
 #include "mtStructs.h"
-#include "fileManager.h"
 #include <cstring>
 #include <cstdio>
 
@@ -19,6 +18,8 @@ void mtEffectModular::configurePlugin(const PtfxHeader& hdr,
                                      PtfxProcessBlockFunc processBlockFunc)
 {
     m_flags            = hdr.flags;
+    m_channels         = kChannels;
+    m_failed           = false;
     m_targetLength     = 88200;
     m_prependSamples   = 0;
     m_appendSamples    = 0;
@@ -86,11 +87,13 @@ uint32_t mtEffectModular::getExpectedProcessLength()
     bool isGenerator = (m_flags & PTFX_FLAG_GENERATOR) != 0;
     if (isGenerator)
         return (m_targetLength > 0) ? m_targetLength : 44100;
-    return confirmed[0].selection.length + m_prependSamples + m_appendSamples;
+    uint64_t frames = uint64_t(confirmed[0].selection.length) + m_prependSamples + m_appendSamples;
+    return frames > UINT32_MAX ? UINT32_MAX : uint32_t(frames);
 }
 
 bool mtEffectModular::startProcess()
 {
+    m_failed = false;
 #ifndef PLATFORM_IMX
     // Guard against executing IMX-only plugins on MK66
     if (m_flags & PTFX_FLAG_IMX_ONLY)
@@ -119,7 +122,8 @@ bool mtEffectModular::startProcess()
 
     m_inputLength = isGenerator ? 0 : confirmed[0].selection.length;
     m_length = getExpectedProcessLength();
-    if (m_length == 0)
+    if (m_length == 0 || m_length > EDIT_BUFF_SIZE / 2 ||
+        m_channels == 0 || m_channels > kChannels)
         return false;
 
     m_processedSamples = 0;
@@ -180,11 +184,12 @@ int32_t mtEffectModular::processBlock()
         isGenerator ? m_srcAddr : inPtrs,
         m_dstAddr,
         blockSize,
-        kChannels
+        m_channels
     );
 
-    if (count <= 0)
+    if (count <= 0 || static_cast<uint32_t>(count) > blockSize)
     {
+        m_failed = true;
         m_state = false;
     }
     else
@@ -222,27 +227,6 @@ int32_t mtEffectModular::processBlock()
     }
 
     return (count > 0) ? count : 0;
-}
-
-void mtEffectModular::onApplyCommitted(int instrumentIdx)
-{
-    if (instrumentIdx >= 0)
-    {
-        if ((m_flags & PTFX_FLAG_GENERATOR))
-        {
-            if (mtProject.instrument[instrumentIdx].isActive == 0)
-            {
-                newFileManager.setDefaultActiveInstrument(&mtProject.instrument[instrumentIdx]);
-                snprintf(mtProject.instrument[instrumentIdx].sample.file_name, SAMPLE_NAME_SIZE, "Gen %02d", instrumentIdx + 1);
-            }
-            mtProject.instrument[instrumentIdx].isActive = 1;
-            mtProject.instrument[instrumentIdx].sample.length = getLengthToPolyphonicPlay();
-        }
-        if ((m_flags & PTFX_FLAG_WAVETABLE))
-        {
-            mtProject.instrument[instrumentIdx].playMode = playModeWavetable;
-        }
-    }
 }
 
 bool mtEffectModular::getProcessState()

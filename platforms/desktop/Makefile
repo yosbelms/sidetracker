@@ -25,6 +25,7 @@ check: $(OUT)/tracker-ce-desktop
 	   cmp -s $(OUT)/config.bmp $(OUT)/song.bmp; then \
 	    echo "Expected three different firmware screens" >&2; exit 1; \
 	fi
+	python3 $(ROOT)/tools/desktop_fx_chain_check.py $< --output $(OUT)
 
 $(OUT)/tracker-ce-desktop: $(OBJS) $(HOST)
 	$(CXX) $(LDFLAGS) $^ $(LDLIBS) -o $@

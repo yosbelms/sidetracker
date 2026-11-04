@@ -1,6 +1,7 @@
 #include "mtEffectFlanger.h"
 #include "platform_math.h"
 #include "string.h"
+#include <algorithm>
 #include <cr_section_macros.h>
 
 mtEffectFlanger sampleEditorFlanger;
@@ -53,42 +54,34 @@ bool mtEffectFlanger::startProcess()
 }
 int32_t mtEffectFlanger::processBlock()
 {
-    if (!state)
-        return -1;
-
-    uint32_t dif = length - processedSamples;
-    uint32_t processedBlockLength = dif > 8192 ? 8192 : dif;
-    uint32_t processingNumber = processedBlockLength / 128;
-    for (int channel = 0; channel < kChannels; channel++)
+    if (!state) return -1;
+    const uint32_t count = std::min<uint32_t>(8192, length - processedSamples);
+    for (int channel = 0; channel < kChannels; ++channel)
     {
-        for (int i = 0; i < (int)processingNumber; i++)
+        uint32_t offset = 0;
+        for (; offset + 128 <= count; offset += 128)
+            calculate(channelParams[channel].srcAddr + offset, channelParams[channel].dstAddr + offset, channel);
+        if (offset < count)
         {
-            calculate(channelParams[channel].srcAddr, channelParams[channel].dstAddr, channel);
-            channelParams[channel].srcAddr += 128;
-            channelParams[channel].dstAddr += 128;
+            int16_t input[128] = {}, output[128];
+            memcpy(input, channelParams[channel].srcAddr + offset, (count - offset) * sizeof(int16_t));
+            calculate(input, output, channel);
+            memcpy(channelParams[channel].dstAddr + offset, output, (count - offset) * sizeof(int16_t));
+        }
+        channelParams[channel].srcAddr += count;
+        channelParams[channel].dstAddr += count;
+    }
+    processedSamples += count;
+    if (processedSamples == length)
+    {
+        state = false;
+        for (int channel = 0; channel < kChannels; ++channel)
+        {
+            processed[channel].selection.length = length;
+            processed[channel].area.length = confirmed[channel].area.length;
         }
     }
-
-    if (processedBlockLength < 8192)
-    {
-        processedBlockLength = processingNumber * 128;
-        state = 0;
-    }
-
-    processedSamples += processedBlockLength;
-
-    if (!state)
-    {
-        for (int channel = 0; channel < kChannels; channel++)
-        {
-            processed[channel].selection.length = processedSamples; // redundancy
-            processed[channel].area.length =
-              confirmed[channel].area.length + (processed[channel].selection.length -
-                                                confirmed[channel].selection.length); // redundancy
-        }
-    }
-
-    return processedBlockLength;
+    return count;
 }
 bool mtEffectFlanger::getProcessState()
 {
@@ -96,7 +89,7 @@ bool mtEffectFlanger::getProcessState()
 }
 uint32_t mtEffectFlanger::getExpectedProcessLength()
 {
-    return confirmed[0].selection.length - confirmed[0].selection.length % 128;
+    return confirmed[0].selection.length;
 }
 
 void mtEffectFlanger::calculate(int16_t* src, int16_t* dst, int channel) // process 128 samples
@@ -133,10 +126,9 @@ void mtEffectFlanger::calculate(int16_t* src, int16_t* dst, int channel) // proc
         frac = SIN_Q15((int16_t)((channelParams[channel].l_delay_rate_index >> 16) & 0x7fff));
         idx = (frac * delay_depth) >> 15;
         idx = channelParams[channel].l_circ_idx - (channelParams[channel].delay_offset_idx + idx);
-        if (idx < 0)
-            idx += delay_length;
-        if (idx >= delay_length)
-            idx -= delay_length;
+        // Offset plus modulation can exceed one complete ring at UI extremes.
+        idx %= delay_length;
+        if (idx < 0) idx += delay_length;
 
         if (frac < 0)
             idx1 = idx - 1;

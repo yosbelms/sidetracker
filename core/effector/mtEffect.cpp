@@ -433,11 +433,6 @@ bool mtEffect::isDataProcessed()
     return applyParams.isProcessedData;
 }
 
-void mtEffect::clearProcessedData()
-{
-    applyParams.isProcessedData = false;
-}
-
 uint32_t mtEffect::getExpectedProcessedSampleLength()
 {
     uint32_t expectedSelectionLength = getExpectedProcessLength();
