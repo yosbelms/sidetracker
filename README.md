@@ -134,6 +134,10 @@ Run `make desktop` and launch `./build/desktop/tracker-ce-desktop` to run the Or
 Tracker CE application on desktop. See the [desktop guide](platforms/desktop/README.md)
 for the controls, SD card setup, and headless check.
 
+Run `make host-test` for the sanitized core tests and `make perf-gate` for audio
+benchmark checks. See the [testing guide](tests/README.md) for fixtures, fake
+devices, Cortex-M4 benchmarks, and adding tests.
+
 ## Documentation & Developer Guides
 
 Full user and developer documentation is available in [`docs/`](docs/Home.md) and on the repository **Wiki**:

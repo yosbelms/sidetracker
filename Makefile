@@ -23,7 +23,7 @@ MINI_POSTFIX     := $(EDITION_NAME)_$(MINI_VER_MAJOR).$(MINI_VER_MINOR).$(MINI_V
 
 .DEFAULT_GOAL := all
 
-.PHONY: all original plus mini desktop desktop-check ptfx clean version bump-patch bump-minor
+.PHONY: all original plus mini desktop desktop-check test host-test bench bench-m4 perf-gate ptfx clean version bump-patch bump-minor
 
 all: original plus mini
 
@@ -32,6 +32,12 @@ desktop:
 
 desktop-check:
 	$(MAKE) -C "$(ROOT_DIR)/platforms/desktop" check
+
+test host-test:
+	$(MAKE) -C "$(ROOT_DIR)/tests" test
+
+bench bench-m4 perf-gate:
+	$(MAKE) -C "$(ROOT_DIR)/tests" $@
 
 original:
 	@echo "=================================================================="

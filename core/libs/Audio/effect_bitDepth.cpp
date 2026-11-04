@@ -32,7 +32,7 @@ AUDIO_CORE_FLASH void AudioBitDepth::setBitDepth(uint8_t val)
     else
         bitDepth = val;
 
-    uint8_t maskSize = 16 - val;
+    uint8_t maskSize = 16 - bitDepth;
     uint16_t singleBitcrusherMask = ~((1 << maskSize) - 1);
     bitCrusherMask = singleBitcrusherMask | (singleBitcrusherMask << 16);
 }

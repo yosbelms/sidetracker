@@ -6,6 +6,8 @@
 #include "wavHeaderReader.h"
 #include <cstring>
 #include <limits>
+#include <algorithm>
+#include <cassert>
 
 void SdStream::init(FileSystem* fileSystem, void* buffer, int bufferSize)
 {
@@ -154,15 +156,23 @@ bool SdStream::handleFileDecapsulation(const char* path,
 {
     uint32_t pathLength = strlen(path);
 
+    if (pathLength < 4)
+    {
+        fileSystem->closeFile(wavfile, false);
+        isFileOpened = false;
+        return false;
+    }
+
     if (((path[pathLength - 1] == 'V') || (path[pathLength - 1] == 'v')) &&
         ((path[pathLength - 2] == 'A') || (path[pathLength - 2] == 'a')) &&
         ((path[pathLength - 3] == 'W') || (path[pathLength - 3] == 'w')) &&
         (path[pathLength - 4] == '.'))
     {
-        readHeader(header, wavfile);
+        readHeader(header, wavfile, *fileSystem);
 
         if (header->chunkId == 0x46464952 && header->waveId == WAVEID &&
-            header->subchunk1Id == 0x20746D66)
+            header->subchunk1Id == 0x20746D66 && header->numChannels > 0 &&
+            header->bitsPerSample >= 8 && header->bitsPerSample % 8 == 0)
         {
             uint32_t bytesPerSample = (header->bitsPerSample / 8) * header->numChannels;
             uint32_t totalSamplesCount = header->subchunk2Size / bytesPerSample;
@@ -220,7 +230,7 @@ bool SdStream::handleFileDecapsulation(const char* path,
             }
 
             dataLength = instrumentData.sample.length;
-            int channels =
+            int channels = instrumentData.sample.length == 0 ? 1 :
               instrumentSampleDataSize / (instrumentData.sample.length * sizeof(int16_t));
             // instruments with length != sample_data_size exception handling
             if (instrumentData.sample.length == 0 ||
@@ -339,7 +349,7 @@ void SdStream::switchBuffer()
     Buffer temp = readBuffer;
     readBuffer = writeBuffers[kNextReadBufferIdx];
 
-    memmove(&writeBuffers[0], &writeBuffers[1], sizeof(Buffer) * kWriteBuffers - 1);
+    memmove(&writeBuffers[0], &writeBuffers[1], sizeof(Buffer) * (kWriteBuffers - 1));
     writeBuffers[kWriteBuffers - 1] = temp;
 
     ENABLE_AUDIO_INTERRUPTS();

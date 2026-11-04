@@ -1,91 +1,46 @@
 #include "wavHeaderReader.h"
-#include "TrackerImpl.h"
+#include <climits>
 
-#include <string.h>
-
-void readHeader(strWavFileHeader* header, FileSystem::FileHandle wavfile)
+bool readHeader(strWavFileHeader* header, FileSystem::FileHandle file, FileSystem& fs)
 {
-
-    FileSystem* fileSystem = TrackerImpl::getInstance()->getPlatform()->getFileSystem();
-
-    struct strSubchunkHeader
+    *header = {};
+    strWavFileHeader parsed{};
+    struct Chunk
     {
-        uint8_t id[4];
+        uint32_t id;
         uint32_t size;
-    } subchunkHeader;
+    } chunk{};
 
-    uint16_t subchunkCounter = 0;
+    if (fs.readFile(&parsed, 12, file) != 12 || parsed.chunkId != 0x46464952 ||
+        parsed.waveId != WAVEID)
+        return false;
 
-    fileSystem->readFile(&subchunkHeader, 8, wavfile);
-
-    if ((subchunkHeader.id[0] != 'R') || (subchunkHeader.id[1] != 'I') ||
-        (subchunkHeader.id[2] != 'F') || (subchunkHeader.id[3] != 'F'))
+    auto findChunk = [&](uint32_t id)
     {
-        memset(header, 0, sizeof(*header));
-        return;
-    }
-
-    memcpy(&header->chunkId, subchunkHeader.id, 4);
-    header->chunkSize = subchunkHeader.size;
-    fileSystem->readFile(&header->waveId, 4, wavfile);
-
-    while (subchunkCounter < 10)
-    {
-        fileSystem->readFile(&subchunkHeader, 8, wavfile);
-
-        subchunkCounter++;
-
-        if ((subchunkHeader.id[0] == 'f') && (subchunkHeader.id[1] == 'm') &&
-            (subchunkHeader.id[2] == 't') && (subchunkHeader.id[3] == ' '))
+        for (int count = 0; count < 10; ++count)
         {
-            memcpy(&header->subchunk1Id, subchunkHeader.id, 4);
-            header->subchunk1Size = subchunkHeader.size;
-            fileSystem->readFile(&header->AudioFormat, 16, wavfile);
-
-            fileSystem->seekFileCur(
-              (subchunkHeader.size % 2 == 1 ? subchunkHeader.size + 1 : subchunkHeader.size) - 16,
-              wavfile);
-
-            break;
+            if (fs.readFile(&chunk, sizeof(chunk), file) != sizeof(chunk) ||
+                chunk.size > fs.getFileAvailable(file))
+                return false;
+            if (chunk.id == id)
+                return true;
+            const uint64_t padded = uint64_t(chunk.size) + (chunk.size & 1);
+            if (padded > INT_MAX || !fs.seekFileCur(int(padded), file))
+                return false;
         }
-        else
-        {
-            fileSystem->seekFileCur(
-              (subchunkHeader.size % 2 == 1 ? subchunkHeader.size + 1 : subchunkHeader.size),
-              wavfile);
-        }
-    }
-    if (subchunkCounter == 10)
-    {
-        memset(header, 0, sizeof(*header));
-        return;
-    }
+        return false;
+    };
 
-    subchunkCounter = 0;
-
-    while (subchunkCounter < 10)
-    {
-        fileSystem->readFile(&subchunkHeader, 8, wavfile);
-        subchunkCounter++;
-
-        if ((subchunkHeader.id[0] == 'd') && (subchunkHeader.id[1] == 'a') &&
-            (subchunkHeader.id[2] == 't') && (subchunkHeader.id[3] == 'a'))
-        {
-            memcpy(&header->subchunk2Id, subchunkHeader.id, 4);
-            header->subchunk2Size = subchunkHeader.size;
-            break;
-        }
-        else
-        {
-            fileSystem->seekFileCur(
-              (subchunkHeader.size % 2 == 1 ? subchunkHeader.size + 1 : subchunkHeader.size),
-              wavfile);
-        }
-    }
-
-    if (subchunkCounter == 10)
-    {
-        memset(header, 0, sizeof(*header));
-        return;
-    }
+    if (!findChunk(0x20746d66) || chunk.size < 16 ||
+        fs.readFile(&parsed.AudioFormat, 16, file) != 16)
+        return false;
+    parsed.subchunk1Id = chunk.id;
+    parsed.subchunk1Size = chunk.size;
+    const uint64_t extra = uint64_t(chunk.size) - 16 + (chunk.size & 1);
+    if (extra > INT_MAX || !fs.seekFileCur(int(extra), file) || !findChunk(0x61746164))
+        return false;
+    parsed.subchunk2Id = chunk.id;
+    parsed.subchunk2Size = chunk.size;
+    *header = parsed;
+    return true;
 }

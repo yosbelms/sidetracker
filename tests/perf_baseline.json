@@ -1,0 +1,34 @@
+{
+  "scenarios": {
+    "idle": {
+      "checksum": 4125924805,
+      "peak_blocks": 0,
+      "instructions": null,
+      "m4_checksum": null
+    },
+    "dry8": {
+      "checksum": 4169981381,
+      "peak_blocks": 24,
+      "instructions": null,
+      "m4_checksum": null
+    },
+    "filter8": {
+      "checksum": 2095914437,
+      "peak_blocks": 24,
+      "instructions": null,
+      "m4_checksum": null
+    },
+    "drive8": {
+      "checksum": 507686341,
+      "peak_blocks": 24,
+      "instructions": null,
+      "m4_checksum": null
+    },
+    "changes8": {
+      "checksum": 1807548973,
+      "peak_blocks": 24,
+      "instructions": null,
+      "m4_checksum": null
+    }
+  }
+}

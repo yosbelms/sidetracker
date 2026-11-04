@@ -1,6 +1,7 @@
 #include "dspApplyGain.h"
 #include "AudioStream.h"
 #include "dspinst.h"
+#include <cassert>
 
 #define MULTI_UNITYGAIN 65536
 

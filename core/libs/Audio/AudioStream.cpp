@@ -30,8 +30,6 @@
 
 #include "AudioStream.h"
 #include "config.h"
-#include "mtAudioEngine.h"
-#include <mtAudioExport.h>
 
 #define MAX_AUDIO_MEMORY 229376
 

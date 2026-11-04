@@ -139,11 +139,11 @@ class AudioFilterStateVariable : public AudioStream
     int32_t state_bandpass;
     int32_t state_outputprev = 0;
     audio_block_t* inputQueueArray[1];
-    uint8_t isEnabled;
-    uint8_t filterType;
-    int32_t overdriveGain;
-    uint8_t lastFilterType;
-    uint8_t lastEnabled;
+    uint8_t isEnabled = 0;
+    uint8_t filterType = kFilterTypeLowPass;
+    int32_t overdriveGain = 0;
+    uint8_t lastFilterType = kFilterTypeLowPass;
+    uint8_t lastEnabled = 0;
 };
 
 #endif

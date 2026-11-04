@@ -1,5 +1,4 @@
 #include "mtWavetableEnvelopes.h"
-#include "TrackerImpl.h"
 #include "wavHeaderReader.h"
 #include <cr_section_macros.h>
 #include <math.h>
@@ -68,7 +67,7 @@ void initWavetableEnvelopes()
                     if (sub < 8)
                     {
                         float p = 0.5f + sub * 0.5f;
-                        y = powf(sinf(t * kPi), p);
+                        y = powf(clampF(sinf(t * kPi), 0.0f, 1.0f), p);
                     }
                     else
                     {
@@ -229,7 +228,7 @@ void loadUserWavetablesFromSD(FileSystem* fs)
         if (!opened || !fileHandle) continue;
 
         strWavFileHeader header;
-        readHeader(&header, fileHandle);
+        readHeader(&header, fileHandle, *fs);
 
         if (header.chunkId == 0x46464952 && header.AudioFormat == 1 && header.numChannels > 0)
         {

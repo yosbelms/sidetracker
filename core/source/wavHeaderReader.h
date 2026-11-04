@@ -34,5 +34,7 @@ struct strWavFileHeader
 };
 
 void readHeader(strWavFileHeader* header, FileSystem::FileHandle fileHandle);
+// Explicit storage access also allows streaming and tests to use their own device.
+bool readHeader(strWavFileHeader* header, FileSystem::FileHandle fileHandle, FileSystem& fileSystem);
 
 #endif /* SOURCE_WAVHEADERREADER_H_ */

@@ -12,7 +12,40 @@ permissions:
   contents: write
 
 jobs:
+  host-tests:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install host and benchmark dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ make python3 pkg-config libsdl2-dev qemu-system-arm \
+            gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
+
+      - name: Run sanitized core tests
+        run: make -j2 host-test
+
+      - name: Check audio signatures and performance budgets
+        run: make perf-gate
+
+      - name: Check desktop firmware screens
+        run: make -j2 desktop-check
+
+      - name: Save benchmark reports and firmware screen captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: host-test-reports
+          path: |
+            build/perf/*.jsonl
+            build/desktop/*.bmp
+          if-no-files-found: ignore
+
   build-firmware:
+    needs: host-tests
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository

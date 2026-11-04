@@ -115,7 +115,7 @@ static inline int32_t multiply_32x32_rshift32(int32_t a, int32_t b)
 #endif
 }
 
-// computes (((int64_t)a[31:0] * (int64_t)b[31:0] + 0x8000000) >> 32)
+// computes (((int64_t)a[31:0] * (int64_t)b[31:0] + 0x80000000) >> 32)
 static inline int32_t multiply_32x32_rshift32_rounded(int32_t a, int32_t b)
   __attribute__((always_inline, unused));
 static inline int32_t multiply_32x32_rshift32_rounded(int32_t a, int32_t b)
@@ -124,7 +124,9 @@ static inline int32_t multiply_32x32_rshift32_rounded(int32_t a, int32_t b)
     int32_t out;
     asm volatile("smmulr %0, %1, %2" : "=r"(out) : "r"(a), "r"(b));
     return out;
-#elif defined(KINETISL) || defined(TRACKER_DESKTOP)
+#elif defined(TRACKER_DESKTOP)
+    return (int32_t)(((int64_t)a * b + INT64_C(0x80000000)) >> 32);
+#elif defined(KINETISL)
     return 0; // TODO....
 #endif
 }
