@@ -47,6 +47,16 @@ struct VoiceGraph
     }
 };
 
+struct SharedFilterGraph
+{
+    BlockSource source;
+    AudioFilterStateVariable filter;
+    BlockSink original, filtered;
+    AudioConnection sourceToFilter{&source, &filter};
+    AudioConnection sourceToOriginal{&source, &original};
+    AudioConnection filterToOutput{&filter, &filtered};
+};
+
 // AudioStream's registry assumes firmware lifetime for its nodes. Keep test
 // graphs alive until all tests finish so update_all never traverses dead nodes.
 std::vector<std::unique_ptr<VoiceGraph>> graphs;
@@ -124,20 +134,40 @@ TEST_F(AudioGraphTest, NoInputProducesNoOutputOrAllocations)
     EXPECT_EQ(AudioMemoryUsageMax(), 0);
 }
 
-TEST_F(AudioGraphTest, FilterAllocationFailureDropsTheBlockWithoutLeaking)
+TEST_F(AudioGraphTest, SharedFilterAllocationFailurePreservesTheOtherConsumer)
 {
-    // The source consumes the only block, leaving none for the active filter.
+    static SharedFilterGraph shared;
+    // The original tap requires the source block to remain unmodified.
     AudioStream::initialize_memory(audioPool, 1);
-    graph->filter.connect();
-    graph->render(signal());
-    EXPECT_FALSE(graph->delay.received);
-    EXPECT_FALSE(graph->left.received);
-    EXPECT_FALSE(graph->right.received);
+    shared.filter.connect();
+    EXPECT_TRUE(shared.source.push(signal()));
+    AudioStream::update_all();
+    EXPECT_TRUE(shared.original.received);
+    EXPECT_EQ(shared.original.samples, signal());
+    EXPECT_FALSE(shared.filtered.received);
     EXPECT_EQ(AudioMemoryUsage(), 0);
     AudioStream::initialize_memory(audioPool, std::size(audioPool));
 }
 
-TEST_F(AudioGraphTest, ActiveFilterSharesItsOutputBetweenBothSends)
+TEST_F(AudioGraphTest, PrivateFilterCanRunWithOnlyOnePoolBlock)
+{
+    static BlockSource source;
+    static AudioFilterStateVariable filter;
+    static BlockSink output;
+    static AudioConnection toFilter{&source, &filter};
+    static AudioConnection toOutput{&filter, &output};
+    AudioStream::initialize_memory(audioPool, 1);
+    filter.connect();
+    EXPECT_TRUE(source.push(signal()));
+    AudioStream::update_all();
+    EXPECT_TRUE(output.received);
+    EXPECT_EQ(output.blockIndex, source.blockIndex);
+    EXPECT_NE(output.samples, signal());
+    EXPECT_EQ(AudioMemoryUsage(), 0);
+    AudioStream::initialize_memory(audioPool, std::size(audioPool));
+}
+
+TEST_F(AudioGraphTest, ActiveFilterReusesPrivateInputAndSharesItBetweenBothSends)
 {
     graph->filter.connect();
     graph->filter.setCutoff(0.5f);
@@ -146,8 +176,101 @@ TEST_F(AudioGraphTest, ActiveFilterSharesItsOutputBetweenBothSends)
     EXPECT_NE(graph->delay.samples, signal());
     EXPECT_EQ(graph->delay.samples, graph->reverb.samples);
     EXPECT_EQ(graph->delay.blockIndex, graph->reverb.blockIndex);
-    EXPECT_NE(graph->delay.blockIndex, graph->source.blockIndex);
+    EXPECT_EQ(graph->delay.blockIndex, graph->source.blockIndex);
     EXPECT_EQ(graph->sidechain.samples, graph->delay.samples);
+}
+
+TEST_F(AudioGraphTest, SharedAndPrivateFilterPathsHaveIdenticalAudioAcrossControlChanges)
+{
+    static SharedFilterGraph shared;
+    uint32_t random = 1234;
+    for (int block = 0; block < 120; ++block)
+    {
+        for (AudioFilterStateVariable* filter : {&shared.filter, &graph->filter})
+        {
+            filter->setType(uint8_t(block % 3));
+            filter->setCutoff(float(block % 9) / 10.0f);
+            filter->resonance(0.7f + float(block % 3) * 0.5f);
+            filter->setOverdriveAmount(block % 4 == 0 ? 20 : 0);
+            if (block % 5) filter->connect();
+            else filter->disconnect();
+        }
+        Samples input;
+        for (auto& sample : input)
+        {
+            random = random * 1664525u + 1013904223u;
+            sample = int16_t(int(random % 12000) - 6000);
+        }
+        graph->render(input);
+        const Samples expected = graph->delay.samples;
+        ASSERT_TRUE(shared.source.push(input));
+        AudioStream::update_all();
+        EXPECT_EQ(shared.original.samples, input) << block;
+        EXPECT_EQ(shared.filtered.samples, expected) << block;
+        EXPECT_EQ(AudioMemoryUsage(), 0) << block;
+    }
+}
+
+TEST_F(AudioGraphTest, EqualPanGainsShareAnOutputWithoutChangingSidechainAudio)
+{
+    const Samples input = signal();
+    graph->pan.gain(0.5f, MonoToStereo::left);
+    graph->pan.gain(0.5f, MonoToStereo::right);
+    graph->render(input);
+    EXPECT_EQ(graph->left.samples, graph->right.samples);
+    EXPECT_EQ(graph->left.blockIndex, graph->right.blockIndex);
+    EXPECT_EQ(graph->sidechain.samples, input);
+    graph->render(input);
+    for (size_t i = 0; i < input.size(); ++i)
+        EXPECT_EQ(graph->left.samples[i], int32_t(input[i]) >> 1) << i;
+}
+
+TEST_F(AudioGraphTest, PanTransitionFromSharedToSeparateOutputsPreservesBothRamps)
+{
+    Samples input;
+    input.fill(8192);
+    graph->pan.gain(0.5f, MonoToStereo::left);
+    graph->pan.gain(0.5f, MonoToStereo::right);
+    graph->render(input);
+    graph->pan.gain(1.0f, MonoToStereo::right);
+    graph->render(input);
+    for (size_t i = 0; i < input.size(); ++i)
+    {
+        EXPECT_EQ(graph->left.samples[i], 4096) << i;
+        EXPECT_EQ(graph->right.samples[i], 4096 + int(i) * 32) << i;
+    }
+    EXPECT_EQ(graph->sidechain.samples, input);
+    EXPECT_NE(graph->left.blockIndex, graph->right.blockIndex);
+}
+
+TEST_F(AudioGraphTest, EqualPanTargetsKeepSeparateOutputsUntilDifferentRampsFinish)
+{
+    Samples input;
+    input.fill(8192);
+    graph->pan.gain(0.0f, MonoToStereo::left);
+    graph->render(input);
+    graph->render(input);
+    graph->pan.gain(0.5f, MonoToStereo::left);
+    graph->pan.gain(0.5f, MonoToStereo::right);
+    graph->render(input);
+    for (size_t i = 0; i < input.size(); ++i)
+    {
+        EXPECT_EQ(graph->left.samples[i], int(i) * 32) << i;
+        EXPECT_EQ(graph->right.samples[i], 8192 - int(i) * 32) << i;
+    }
+    EXPECT_NE(graph->left.blockIndex, graph->right.blockIndex);
+    graph->render(input);
+    EXPECT_EQ(graph->left.blockIndex, graph->right.blockIndex);
+    EXPECT_EQ(graph->left.samples, graph->right.samples);
+    EXPECT_EQ(graph->left.samples.front(), 4096);
+}
+
+TEST_F(AudioGraphTest, UnsupportedFilterTypeRetainsItsSilentOutput)
+{
+    graph->filter.setType(255);
+    graph->filter.connect();
+    graph->render(signal());
+    EXPECT_EQ(graph->delay.samples, Samples{});
 }
 
 TEST_F(AudioGraphTest, VolumeChangesPreservePreVolumeSends)

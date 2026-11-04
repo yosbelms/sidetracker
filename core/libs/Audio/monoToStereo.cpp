@@ -29,6 +29,25 @@
 
 AUDIO_CORE_FLASH void MonoToStereo::update(void)
 {
+    if (multiplier[Channel::left] == multiplier[Channel::right] &&
+        previous_multiplier[Channel::left] == previous_multiplier[Channel::right])
+    {
+        const bool unityGain = multiplier[Channel::left] == MULTI_UNITYGAIN &&
+                               previous_multiplier[Channel::left] == MULTI_UNITYGAIN;
+        audio_block_t* shared = unityGain ? receiveReadOnly(0) : receiveWritable(0);
+        if (shared == nullptr)
+        {
+            return;
+        }
+
+        applyGain(shared->data, multiplier[Channel::left], previous_multiplier[Channel::left]);
+        previous_multiplier[Channel::right] = previous_multiplier[Channel::left];
+        transmit(shared, Channel::left);
+        transmit(shared, Channel::right);
+        release(shared);
+        return;
+    }
+
     audio_block_t* block[Channel::channelCount];
 
     block[Channel::left] = receiveWritable(0);

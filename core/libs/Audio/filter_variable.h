@@ -128,6 +128,8 @@ class AudioFilterStateVariable : public AudioStream
     }
 
     void update_fixed(const int16_t* in, int16_t* out, int samples);
+    template<uint8_t type>
+    void update_fixed_type(const int16_t* in, int16_t* out, int samples);
     void update_overdrive(const int16_t* in, int16_t* out);
     void stabilize();
     int32_t lastupdate_fmult = 0;

@@ -57,6 +57,14 @@ The committed baseline gates output signatures and peak pool usage. QEMU's
 instruction count is not a device cycle measurement, and does not model the
 Tracker's SDRAM stalls or interrupt contention.
 
+The active scenarios' pool limits were reduced from 24 to 17 blocks after
+reusing exclusively owned filter input and sharing identical left/right pan
+outputs. Their output signatures remain identical to the original baseline.
+Filter mode selection now happens once per buffer. The compiled Cortex-M4
+low-pass sample loop uses 25 instructions instead of 28, with approximately
+370 additional bytes of filter code in the benchmark. Host timing changes
+were mixed, so device CPU savings still require measurement on the Tracker.
+
 `make perf-gate` prints an explicit skip when QEMU or the ARM toolchain is
 missing. M4 instruction fields initially remain null until measurements are
 recorded. When present, they enforce a maximum 5% increase. The initial host

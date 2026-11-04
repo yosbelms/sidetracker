@@ -127,6 +127,19 @@ AUDIO_CORE_FLASH void AudioFilterStateVariable::stabilize()
 
 AUDIO_CORE_RAM void AudioFilterStateVariable::update_fixed(const int16_t* in, int16_t* out, int samples)
 {
+    // Select the output mode once per buffer, outside the sample feedback loop.
+    switch (filterType)
+    {
+        case kFilterTypeLowPass: update_fixed_type<kFilterTypeLowPass>(in, out, samples); break;
+        case kFilterTypeHighPass: update_fixed_type<kFilterTypeHighPass>(in, out, samples); break;
+        case kFilterTypeBandPass: update_fixed_type<kFilterTypeBandPass>(in, out, samples); break;
+        default: update_fixed_type<3>(in, out, samples); break;
+    }
+}
+
+template<uint8_t type>
+AUDIO_CORE_RAM void AudioFilterStateVariable::update_fixed_type(const int16_t* in, int16_t* out, int samples)
+{
     const int16_t* end = in + samples;
     int32_t input, inputprev;
     int32_t lowpass, bandpass, highpass;
@@ -141,8 +154,6 @@ AUDIO_CORE_RAM void AudioFilterStateVariable::update_fixed(const int16_t* in, in
     inputprev = state_inputprev;
     lowpass = state_lowpass;
     bandpass = state_bandpass;
-
-    const uint8_t type = filterType;
 
     do
     {
@@ -159,15 +170,15 @@ AUDIO_CORE_RAM void AudioFilterStateVariable::update_fixed(const int16_t* in, in
         bandpass = bandpass + MULT(fmult, highpass);
 
         int32_t passSum;
-        if (type == kFilterTypeLowPass)
+        if constexpr (type == kFilterTypeLowPass)
         {
             passSum = lowpass + lowpasstmp;
         }
-        else if (type == kFilterTypeBandPass)
+        else if constexpr (type == kFilterTypeBandPass)
         {
             passSum = bandpass + bandpasstmp;
         }
-        else if (type == kFilterTypeHighPass)
+        else if constexpr (type == kFilterTypeHighPass)
         {
             passSum = highpass + highpasstmp;
         }
@@ -210,7 +221,9 @@ AUDIO_CORE_RAM void AudioFilterStateVariable::update(void)
         return;
     }
 
-    out_block = allocate();
+    // The player normally feeds only this chain. Preserve shared input for
+    // other consumers, but process an exclusively owned block in place.
+    out_block = input_block->ref_count == 1 ? input_block : allocate();
     if (nullptr == out_block)
     {
         release(input_block);
@@ -231,9 +244,12 @@ AUDIO_CORE_RAM void AudioFilterStateVariable::update(void)
     {
         update_fixed(filter_block->data, out_block->data, AUDIO_BLOCK_SAMPLES);
     }
-    else if (filter_block == input_block)
+    else if (overdriveGain == 0)
     {
-        memcpy(out_block->data, input_block->data, sizeof(out_block->data));
+        if (out_block != input_block)
+        {
+            memcpy(out_block->data, input_block->data, sizeof(out_block->data));
+        }
         state_inputprev = (int32_t)out_block->data[AUDIO_BLOCK_SAMPLES - 1] << kInputShift;
     }
 
@@ -254,7 +270,10 @@ AUDIO_CORE_RAM void AudioFilterStateVariable::update(void)
 
     state_outputprev = (int32_t)out_block->data[AUDIO_BLOCK_SAMPLES - 1];
 
-    release(input_block);
+    if (out_block != input_block)
+    {
+        release(input_block);
+    }
     transmit(out_block, 0);
     release(out_block);
     return;
