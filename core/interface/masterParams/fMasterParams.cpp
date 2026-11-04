@@ -171,11 +171,18 @@ void cMasterParams::update()
         return;
     refreshTimer = 0;
 
+    if (finalOutputRefreshTimer >= 250)
+    {
+        finalOutputRefreshTimer = 0;
+        showFinalOutputLevel();
+    }
+
     if (displayType == displayMode::mixer && !keyboardManager.getState())
     {
         for (uint8_t i = 0; i < 8; i++)
         {
-            if (trackLevel[i].value != trackLevel[i].lastValue)
+            if (trackLevel[i].value != trackLevel[i].lastValue ||
+                trackLevel[i].dbTenths != shownTrackDb[i])
             {
                 showLevelBar(i, &trackLevel[i]);
             }
@@ -254,6 +261,10 @@ void cMasterParams::update()
 void cMasterParams::start(uint32_t options)
 {
     moduleRefresh = 1;
+    engine.getAudioOutput()->getStream()->readPeak();
+    finalOutputLevelText[0] = 0;
+    finalOutputRefreshTimer = 0;
+    showFinalOutputLevel();
 
     //	displayType = display_t::masterValues;
 
@@ -1529,9 +1540,16 @@ void cMasterParams::calcTrackLevel(uint8_t n)
     float localTrackLevel = instrumentPlayer[n].getRMSValue();
     if (localTrackLevel == -1.0f)
     {
+        if (trackRmsAge[n] >= 100)
+        {
+            trackLevel[n].dbTenths = INT16_MIN;
+            trackLevel[n].measureSum = 0;
+            trackLevel[n].measureCounter = 0;
+        }
         return;
     }
 
+    trackRmsAge[n] = 0;
     calcLevel(&trackLevel[n], localTrackLevel);
 }
 
@@ -1657,9 +1675,11 @@ void cMasterParams::calcLevel(strTrackLevel* level, float value)
         level->measureCounter = 0;
 
         float averageMeasure = level->measureSum / 10.0f;
-        int16_t averageMeasureInDecibels = (averageMeasure > 0.0f)
-                                             ? 10 * log10f(averageMeasure / RMS_LEVEL_0DB)
-                                             : LOW_MIXER_LEVEL_IN_DECIBELS;
+        const float decibels = averageMeasure > 0.0f
+                                 ? 10 * log10f(averageMeasure / RMS_LEVEL_0DB)
+                                 : LOW_MIXER_LEVEL_IN_DECIBELS;
+        level->dbTenths = averageMeasure > 0.0f ? lroundf(decibels * 10) : INT16_MIN;
+        int16_t averageMeasureInDecibels = decibels;
 
         if (averageMeasureInDecibels < LOW_MIXER_LEVEL_IN_DECIBELS)
             averageMeasureInDecibels = LOW_MIXER_LEVEL_IN_DECIBELS;
@@ -1739,6 +1759,7 @@ void cMasterParams::resetMixerDelayReverbLevels()
 void cMasterParams::resetLevel(strTrackLevel* level)
 {
     level->lastValue = 0;
+    level->dbTenths = INT16_MIN;
     level->measureCounter = 0;
     level->measureSum = 0.0f;
     level->redColorTimer = 350;

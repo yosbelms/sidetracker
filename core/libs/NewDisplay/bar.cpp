@@ -89,15 +89,23 @@ void cBar::update()
 {
     uint16_t barWidth = /*(width >= 800/8) ? 800/8-20 : */ width - 20;
     uint16_t barX = posX + (width - barWidth) / 2; //(width > 800/8) ? posX+5 : posX + width/2;
-    uint16_t barY = posY + 10;
-    uint16_t barHeight = height - 25;
+    const char* meterText = data ? data->meterText : nullptr;
+    const uint16_t meterTop = meterText ? strBarData::kMeterTextHeight : 0;
+    uint16_t barY = posY + 10 + meterTop;
+    uint16_t barHeight = height - 25 - meterTop;
+
+    if (meterText)
+    {
+        API_COLOR(data->value);
+        API_CMD_TEXT(posX + width / 2, posY + 1, fonts[4].handle, OPT_CENTERX, meterText);
+    }
 
     if (style & controlStyleBackground)
     {
         API_COLOR(colors[4]);
         API_LINE_WIDTH(16);
         API_BEGIN(RECTS);
-        API_VERTEX2F(posX, posY);
+        API_VERTEX2F(posX, posY + meterTop);
         API_VERTEX2F(posX + width, posY + height);
         API_END();
 
@@ -126,15 +134,15 @@ void cBar::update()
         API_COLOR(colors[3]);
         API_LINE_WIDTH(16);
         API_BEGIN(RECTS);
-        API_VERTEX2F(posX + 10, posY + 11);
+        API_VERTEX2F(posX + 10, barY + 1);
         API_VERTEX2F(posX + width - 10, posY + height - 14);
         API_END();
 
         if (style & controlStyleGradient)
         {
             API_SAVE_CONTEXT();
-            API_SCISSOR_XY(posX + 10, posY + 11);
-            API_SCISSOR_SIZE(8, height - 25);
+            API_SCISSOR_XY(posX + 10, barY + 1);
+            API_SCISSOR_SIZE(8, barHeight);
             API_CMD_GRADIENT(posX + 10, 0, 0x0, posX + 18, 0, colors[3]);
             API_RESTORE_CONTEXT();
         }

@@ -1,10 +1,12 @@
 #include "ampLogarythmicValues.h"
 #include "mtMasterEnhancer.h"
+#include "mtAudioEngine.h"
 #ifdef FEATURE_SYNTH
 #include "Synth.h"
 #endif
 #include "util_math.h"
 #include <cmath>
+#include <cstring>
 #include <masterParams/masterParams.h>
 
 static const uint16_t framesPlaces[8][4] = {
@@ -266,7 +268,7 @@ void cMasterParams::showMasterScreen()
         barData[i].value = display.getTheme().white;
     }
 
-    titleBar->show();
+    titleBar->show(true);
     titleBar->setTitle("Master 1/3");
 
     display.setControlText(label[0], "Volume");
@@ -366,7 +368,7 @@ void cMasterParams::showReverbScreen()
         barData[i].value = display.getTheme().white;
     }
 
-    titleBar->show();
+    titleBar->show(true);
     titleBar->setTitle("Master Reverb");
 
     display.setControlText(label[0], "Size");
@@ -465,7 +467,7 @@ void cMasterParams::showDelayScreen()
         barData[i].value = display.getTheme().white;
     }
 
-    titleBar->show();
+    titleBar->show(true);
     titleBar->setTitle("Master Delay");
 
     display.setControlText(label[0], "PingPong");
@@ -632,7 +634,7 @@ void cMasterParams::showLimiterScreen()
     }
     barData[3].value = display.getTheme().cyan;
 
-    titleBar->show();
+    titleBar->show(true);
     titleBar->setTitle("Master Limiter");
 
     display.setControlText(label[0], "LimiterAtt");
@@ -821,7 +823,7 @@ void cMasterParams::showEqualizerScreen()
         barData[i].value = display.getTheme().white;
     }
 
-    titleBar->show();
+    titleBar->show(true);
     titleBar->setTitle("Master EQ");
 
     display.setControlText(label[0], "115 Hz");
@@ -1019,6 +1021,9 @@ void cMasterParams::resizeBarControl(displayMode val)
     uint32_t shadow = (display.getTheme().bottomScreenShadow > 0 ? controlStyleBottomShadow : 0);
     uint32_t gradient = (display.getTheme().barShadow > 0 ? controlStyleGradient : 0);
 
+    for (uint8_t i = 0; i < 8; i++)
+        barData[i].meterText = val == displayMode::mixer ? trackDbText[i] : nullptr;
+
     if (val == displayMode::masterValues)
     {
         if (!isLimiterScreen)
@@ -1052,8 +1057,10 @@ void cMasterParams::resizeBarControl(displayMode val)
 
         for (uint8_t i = 0; i < 8; i++)
         {
-            display.setControlPosition(trackVolumeBar[i], (800 / 8) * i + 2, 64);
-            display.setControlSize(trackVolumeBar[i], 800 / 16 - 3, 359);
+            display.setControlPosition(trackVolumeBar[i], (800 / 8) * i + 2,
+                                       64 + strBarData::kMeterTextHeight);
+            display.setControlSize(trackVolumeBar[i], 800 / 16 - 3,
+                                   359 - strBarData::kMeterTextHeight);
             display.refreshControl(trackVolumeBar[i]);
 
             display.setControlPosition(barControl[i], (800 / 8) * i + 2 + 800 / 16, 64);
@@ -1184,6 +1191,26 @@ void cMasterParams::showVolume()
 
     display.setControlText2(label[0], volumeVal);
     display.refreshControl(label[0]);
+}
+
+void cMasterParams::showFinalOutputLevel()
+{
+    const uint32_t peak = engine.getAudioOutput()->getStream()->readPeak();
+    char text[sizeof(finalOutputLevelText)];
+    if (peak == 0)
+        std::strcpy(text, "-inf dBFS");
+    else
+    {
+        const int tenths = std::lround(200.0f * std::log10(peak / 32768.0f));
+        const int magnitude = std::abs(tenths);
+        snprintf(text, sizeof(text), "%s%d.%d dBFS",
+                 tenths < 0 ? "-" : "", magnitude / 10, magnitude % 10);
+    }
+    if (std::strcmp(text, finalOutputLevelText) != 0)
+    {
+        std::strcpy(finalOutputLevelText, text);
+        titleBar->setRightLabel(finalOutputLevelText);
+    }
 }
 
 void cMasterParams::showSaturationType()
@@ -1355,7 +1382,7 @@ void cMasterParams::showMixerScreen()
     display.setControlHide(limiterSidechainList);
     display.setControlHide(saturationList);
 
-    titleBar->show();
+    titleBar->show(true);
 #ifdef FEATURE_SYNTH
     titleBar->setTitle("Sample Track Mixer 2/3");
 #else
@@ -1424,7 +1451,7 @@ void cMasterParams::showMixerDelayReverbScreen()
     display.setControlHide(limiterSidechainList);
     display.setControlHide(saturationList);
 
-    titleBar->show();
+    titleBar->show(true);
     titleBar->setTitle("Global Mixer 3/3");
 
     char* mixerLabelFormat = (char*)"%s";
@@ -1702,6 +1729,20 @@ void cMasterParams::showLevelBar(uint8_t n, strTrackLevel* level)
     {
         if (mtProject.values.trackMute[n])
             barData[n].value = display.getTheme().grey_22;
+
+        if (displayType == displayMode::mixer)
+        {
+            const int db = level->dbTenths;
+            shownTrackDb[n] = db;
+            if (db == INT16_MIN)
+                std::strcpy(trackDbText[n], "-inf");
+            else
+            {
+                const int magnitude = std::abs(db);
+                snprintf(trackDbText[n], sizeof(trackDbText[n]), "%s%d.%d",
+                         db < 0 ? "-" : "", magnitude / 10, magnitude % 10);
+            }
+        }
     }
 
     display.setControlShow(barControl[n]);
