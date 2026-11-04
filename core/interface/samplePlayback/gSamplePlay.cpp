@@ -73,7 +73,7 @@ void cSamplePlayback::initDisplayControls()
     bgLabel = display.createControl<cBgLabel>(&prop2);
 
     playModeList.linesCount = 8;
-    playModeList.start = editorInstrument->playMode;
+    playModeList.start = editorInstrument ? editorInstrument->playMode : playModeSingleShot;
     playModeList.length = playModeCount;
     playModeList.data = playModeNames;
     prop.x = (800 / 8) * 6 + 1;

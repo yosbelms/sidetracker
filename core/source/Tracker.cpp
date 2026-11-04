@@ -18,11 +18,16 @@
 #include <cr_section_macros.h>
 
 //-----------------------------------  EXTERNAL RAM CONFIGURATION --------------------------------
+#ifdef TRACKER_DESKTOP
+#define TRACKER_MEMORY_SECTION(name)
+#else
+#define TRACKER_MEMORY_SECTION(name) __attribute__((section(name), used))
+#endif
 // clang-format off
-__attribute__((section(".sample_memory"), used)) int16_t externalRamSampleMemory[SAMPLE_MEMORY_SIZE / 2];
-__attribute__((section(".delay_memory"), used)) int16_t externalRamDelayBuff[DELAY_MEMORY_SIZE / 2];
-__attribute__((section(".reverb_memory"), used)) uint16_t externalRamReverbBuff[REVERB_MEMORY_SIZE / 2];
-__attribute__((section(".scratch_memory"), aligned(32), used)) uint8_t externalRamScratchBuff[SHARED_SCRATCH_MEMORY_SIZE];
+TRACKER_MEMORY_SECTION(".sample_memory") int16_t externalRamSampleMemory[SAMPLE_MEMORY_SIZE / 2];
+TRACKER_MEMORY_SECTION(".delay_memory") int16_t externalRamDelayBuff[DELAY_MEMORY_SIZE / 2];
+TRACKER_MEMORY_SECTION(".reverb_memory") uint16_t externalRamReverbBuff[REVERB_MEMORY_SIZE / 2];
+alignas(32) TRACKER_MEMORY_SECTION(".scratch_memory") uint8_t externalRamScratchBuff[SHARED_SCRATCH_MEMORY_SIZE];
 
 // clang-format on
 int16_t* externalRamEffectsBuff = externalRamSampleMemory + (EDIT_BUFF_OFFSET / 2);

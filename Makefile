@@ -23,9 +23,15 @@ MINI_POSTFIX     := $(EDITION_NAME)_$(MINI_VER_MAJOR).$(MINI_VER_MINOR).$(MINI_V
 
 .DEFAULT_GOAL := all
 
-.PHONY: all original plus mini ptfx clean version bump-patch bump-minor
+.PHONY: all original plus mini desktop desktop-check ptfx clean version bump-patch bump-minor
 
 all: original plus mini
+
+desktop:
+	$(MAKE) -C "$(ROOT_DIR)/platforms/desktop"
+
+desktop-check:
+	$(MAKE) -C "$(ROOT_DIR)/platforms/desktop" check
 
 original:
 	@echo "=================================================================="

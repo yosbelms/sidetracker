@@ -594,6 +594,22 @@ enum SaturationType
 //----------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------
+#ifdef TRACKER_DESKTOP
+extern int16_t externalRamSampleMemory[];
+
+// Preserve the 32-bit instrument layout on 64-bit hosts. Sample addresses
+// refer to the shared sample bank and are rebuilt when instruments load.
+struct SampleBankAddress
+{
+    uint32_t offset;
+    constexpr SampleBankAddress(std::nullptr_t = nullptr) : offset(0) {}
+    SampleBankAddress(int16_t* ptr)
+        : offset(ptr ? uint32_t(ptr - externalRamSampleMemory) + 1 : 0) {}
+    operator int16_t*() const { return offset ? externalRamSampleMemory + offset - 1 : nullptr; }
+    explicit operator uint8_t*() const { return reinterpret_cast<uint8_t*>(operator int16_t*()); }
+};
+#endif
+
 struct strInstrument
 {
     uint8_t isActive;
@@ -603,7 +619,11 @@ struct strInstrument
         uint8_t type; //;
         char file_name[32];
 
+#ifdef TRACKER_DESKTOP
+        SampleBankAddress address;
+#else
         int16_t* address;
+#endif
         uint32_t length; // = 0;
 
         uint16_t wavetable_window_size; // = 2048;

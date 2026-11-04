@@ -128,6 +128,12 @@ make bump-minor TARGET=all        # or TARGET=original | TARGET=plus | TARGET=mi
 
 ---
 
+## Tracker CE Desktop
+
+Run `make desktop` and launch `./build/desktop/tracker-ce-desktop` to run the Original
+Tracker CE application on desktop. See the [desktop guide](platforms/desktop/README.md)
+for the controls, SD card setup, and headless check.
+
 ## Documentation & Developer Guides
 
 Full user and developer documentation is available in [`docs/`](docs/Home.md) and on the repository **Wiki**:

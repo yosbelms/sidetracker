@@ -2850,7 +2850,15 @@ static void functPattern(uint8_t state)
         }
 
         PTE->cancelPopups();
+#ifdef TRACKER_DESKTOP
+        PTE->setPatternViewMode(0);
+        if (sequencer.sequencialSwitch_GetNext() > 0)
+        {
+            sequencer.sequencialSwitch_SetReady();
+        }
+#endif
     }
+#ifndef TRACKER_DESKTOP
     else if (state == buttonRelease && PTE->patternButtonReleaseActive)
     {
         PTE->setPatternViewMode(0);
@@ -2867,6 +2875,7 @@ static void functPattern(uint8_t state)
             sequencer.sequencialSwitch_SetReady();
         }
     }
+#endif
 }
 
 //-----------------------------------------------------------------------------------

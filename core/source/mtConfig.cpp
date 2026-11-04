@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stddef.h>
 
 #include "ConfigManager.h"
 #include "Platform.h"
@@ -105,32 +106,32 @@ void forceSaveConfig()
     //		writedSize += eepromStructsSizes[i];
     //	}
 
-    configManager->writeData(((uint32_t)&mtConfig.header - (uint32_t)&mtConfig),
+    configManager->writeData(offsetof(strMtConfig, header),
                              &mtConfig.header,
                              sizeof(mtConfig.header));
-    configManager->writeData(((uint32_t)&mtConfig.audioCodecConfig - (uint32_t)&mtConfig),
+    configManager->writeData(offsetof(strMtConfig, audioCodecConfig),
                              &mtConfig.audioCodecConfig,
                              sizeof(mtConfig.audioCodecConfig));
-    configManager->writeData(((uint32_t)&mtConfig.firmware - (uint32_t)&mtConfig),
+    configManager->writeData(offsetof(strMtConfig, firmware),
                              &mtConfig.firmware,
                              sizeof(mtConfig.firmware));
     configManager->writeData(
-      ((uint32_t)&mtConfig.midi - (uint32_t)&mtConfig), &mtConfig.midi, sizeof(mtConfig.midi));
-    configManager->writeData(((uint32_t)&mtConfig.values - (uint32_t)&mtConfig),
+      offsetof(strMtConfig, midi), &mtConfig.midi, sizeof(mtConfig.midi));
+    configManager->writeData(offsetof(strMtConfig, values),
                              &mtConfig.values,
                              sizeof(mtConfig.values));
-    configManager->writeData(((uint32_t)&mtConfig.general - (uint32_t)&mtConfig),
+    configManager->writeData(offsetof(strMtConfig, general),
                              &mtConfig.general,
                              sizeof(mtConfig.general));
-    configManager->writeData(((uint32_t)&mtConfig.interface - (uint32_t)&mtConfig),
+    configManager->writeData(offsetof(strMtConfig, interface),
                              &mtConfig.interface,
                              sizeof(mtConfig.interface));
-    configManager->writeData(((uint32_t)&mtConfig.metronome - (uint32_t)&mtConfig),
+    configManager->writeData(offsetof(strMtConfig, metronome),
                              &mtConfig.metronome,
                              sizeof(mtConfig.metronome));
     configManager->writeData(
-      ((uint32_t)&mtConfig.debug - (uint32_t)&mtConfig), &mtConfig.debug, sizeof(mtConfig.debug));
-    configManager->writeData(((uint32_t)&mtConfig.common - (uint32_t)&mtConfig),
+      offsetof(strMtConfig, debug), &mtConfig.debug, sizeof(mtConfig.debug));
+    configManager->writeData(offsetof(strMtConfig, common),
                              &mtConfig.common,
                              sizeof(mtConfig.common));
 }
@@ -171,7 +172,7 @@ void readConfig()
                                    : sizeof(mtConfig);
 
         // pierwsza pozycja do odczytu podstruktury
-        offsetToRead = ((uint32_t)eepromStructsPtr[0] - (uint32_t)&mtConfig); // start+header
+        offsetToRead = (eepromStructsPtr[0] - reinterpret_cast<uint8_t*>(&mtConfig)); // start+header
 
         for (uint8_t i = 0; i < eepromStructsCount; i++)
         {

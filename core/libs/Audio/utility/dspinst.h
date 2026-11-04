@@ -38,7 +38,7 @@ static inline int32_t signed_saturate_rshift(int32_t val, int bits, int rshift)
     int32_t out;
     asm volatile("ssat %0, %1, %2, asr %3" : "=r"(out) : "I"(bits), "r"(val), "I"(rshift));
     return out;
-#elif defined(KINETISL)
+#elif defined(KINETISL) || defined(TRACKER_DESKTOP)
     int32_t out, max;
     out = val >> rshift;
     max = 1 << (bits - 1);
@@ -66,6 +66,8 @@ static inline int16_t saturate16(int32_t val)
     asm volatile("ssat %0, %1, %2" : "=r"(tmp) : "I"(16), "r"(val));
     out = (int16_t)(tmp & 0xffff); // not sure if the & 0xffff is necessary. test.
     return out;
+#elif defined(TRACKER_DESKTOP)
+    return val < INT16_MIN ? INT16_MIN : val > INT16_MAX ? INT16_MAX : val;
 #elif defined(KINETISL)
     return 0; // TODO....
 #endif
@@ -80,7 +82,7 @@ static inline int32_t signed_multiply_32x16b(int32_t a, uint32_t b)
     int32_t out;
     asm volatile("smulwb %0, %1, %2" : "=r"(out) : "r"(a), "r"(b));
     return out;
-#elif defined(KINETISL)
+#elif defined(KINETISL) || defined(TRACKER_DESKTOP)
     return ((int64_t)a * (int16_t)(b & 0xFFFF)) >> 16;
 #endif
 }
@@ -94,7 +96,7 @@ static inline int32_t signed_multiply_32x16t(int32_t a, uint32_t b)
     int32_t out;
     asm volatile("smulwt %0, %1, %2" : "=r"(out) : "r"(a), "r"(b));
     return out;
-#elif defined(KINETISL)
+#elif defined(KINETISL) || defined(TRACKER_DESKTOP)
     return ((int64_t)a * (int16_t)(b >> 16)) >> 16;
 #endif
 }
@@ -108,7 +110,7 @@ static inline int32_t multiply_32x32_rshift32(int32_t a, int32_t b)
     int32_t out;
     asm volatile("smmul %0, %1, %2" : "=r"(out) : "r"(a), "r"(b));
     return out;
-#elif defined(KINETISL)
+#elif defined(KINETISL) || defined(TRACKER_DESKTOP)
     return 0; // TODO....
 #endif
 }
@@ -122,7 +124,7 @@ static inline int32_t multiply_32x32_rshift32_rounded(int32_t a, int32_t b)
     int32_t out;
     asm volatile("smmulr %0, %1, %2" : "=r"(out) : "r"(a), "r"(b));
     return out;
-#elif defined(KINETISL)
+#elif defined(KINETISL) || defined(TRACKER_DESKTOP)
     return 0; // TODO....
 #endif
 }
@@ -136,7 +138,7 @@ static inline int32_t multiply_accumulate_32x32_rshift32_rounded(int32_t sum, in
     int32_t out;
     asm volatile("smmlar %0, %2, %3, %1" : "=r"(out) : "r"(sum), "r"(a), "r"(b));
     return out;
-#elif defined(KINETISL)
+#elif defined(KINETISL) || defined(TRACKER_DESKTOP)
     return 0; // TODO....
 #endif
 }
@@ -150,7 +152,7 @@ static inline int32_t multiply_subtract_32x32_rshift32_rounded(int32_t sum, int3
     int32_t out;
     asm volatile("smmlsr %0, %2, %3, %1" : "=r"(out) : "r"(sum), "r"(a), "r"(b));
     return out;
-#elif defined(KINETISL)
+#elif defined(KINETISL) || defined(TRACKER_DESKTOP)
     return 0; // TODO....
 #endif
 }
@@ -163,7 +165,7 @@ static inline uint32_t pack_16t_16t(int32_t a, int32_t b)
     int32_t out;
     asm volatile("pkhtb %0, %1, %2, asr #16" : "=r"(out) : "r"(a), "r"(b));
     return out;
-#elif defined(KINETISL)
+#elif defined(KINETISL) || defined(TRACKER_DESKTOP)
     return (a & 0xFFFF0000) | ((uint32_t)b >> 16);
 #endif
 }
@@ -176,7 +178,7 @@ static inline uint32_t pack_16t_16b(int32_t a, int32_t b)
     int32_t out;
     asm volatile("pkhtb %0, %1, %2" : "=r"(out) : "r"(a), "r"(b));
     return out;
-#elif defined(KINETISL)
+#elif defined(KINETISL) || defined(TRACKER_DESKTOP)
     return (a & 0xFFFF0000) | (b & 0x0000FFFF);
 #endif
 }
@@ -189,8 +191,8 @@ static inline uint32_t pack_16b_16b(int32_t a, int32_t b)
     int32_t out;
     asm volatile("pkhbt %0, %1, %2, lsl #16" : "=r"(out) : "r"(b), "r"(a));
     return out;
-#elif defined(KINETISL)
-    return (a << 16) | (b & 0x0000FFFF);
+#elif defined(KINETISL) || defined(TRACKER_DESKTOP)
+    return (uint32_t(a) << 16) | (b & 0x0000FFFF);
 #endif
 }
 
@@ -210,9 +212,13 @@ static inline uint32_t signed_add_16_and_16(uint32_t a, uint32_t b)
   __attribute__((always_inline, unused));
 static inline uint32_t signed_add_16_and_16(uint32_t a, uint32_t b)
 {
+#ifdef TRACKER_DESKTOP
+    return pack_16b_16b(saturate16(int16_t(a >> 16) + int16_t(b >> 16)), saturate16(int16_t(a) + int16_t(b)));
+#else
     int32_t out;
     asm volatile("qadd16 %0, %1, %2" : "=r"(out) : "r"(a), "r"(b));
     return out;
+#endif
 }
 
 // computes (((a[31:16] - b[31:16]) << 16) | (a[15:0 - b[15:0]))  (saturates)
@@ -220,9 +226,13 @@ static inline int32_t signed_subtract_16_and_16(int32_t a, int32_t b)
   __attribute__((always_inline, unused));
 static inline int32_t signed_subtract_16_and_16(int32_t a, int32_t b)
 {
+#ifdef TRACKER_DESKTOP
+    return pack_16b_16b(saturate16(int16_t(a >> 16) - int16_t(b >> 16)), saturate16(int16_t(a) - int16_t(b)));
+#else
     int32_t out;
     asm volatile("qsub16 %0, %1, %2" : "=r"(out) : "r"(a), "r"(b));
     return out;
+#endif
 }
 
 // computes out = (((a[31:16]+b[31:16])/2) <<16) | ((a[15:0]+b[15:0])/2)
@@ -230,9 +240,13 @@ static inline int32_t signed_halving_add_16_and_16(int32_t a, int32_t b)
   __attribute__((always_inline, unused));
 static inline int32_t signed_halving_add_16_and_16(int32_t a, int32_t b)
 {
+#ifdef TRACKER_DESKTOP
+    return pack_16b_16b((int16_t(a >> 16) + int16_t(b >> 16)) >> 1, (int16_t(a) + int16_t(b)) >> 1);
+#else
     int32_t out;
     asm volatile("shadd16 %0, %1, %2" : "=r"(out) : "r"(a), "r"(b));
     return out;
+#endif
 }
 
 // computes out = (((a[31:16]-b[31:16])/2) <<16) | ((a[15:0]-b[15:0])/2)
@@ -240,9 +254,13 @@ static inline int32_t signed_halving_subtract_16_and_16(int32_t a, int32_t b)
   __attribute__((always_inline, unused));
 static inline int32_t signed_halving_subtract_16_and_16(int32_t a, int32_t b)
 {
+#ifdef TRACKER_DESKTOP
+    return pack_16b_16b((int16_t(a >> 16) - int16_t(b >> 16)) >> 1, (int16_t(a) - int16_t(b)) >> 1);
+#else
     int32_t out;
     asm volatile("shsub16 %0, %1, %2" : "=r"(out) : "r"(a), "r"(b));
     return out;
+#endif
 }
 
 // computes (sum + ((a[31:0] * b[15:0]) >> 16))
@@ -250,9 +268,13 @@ static inline int32_t signed_multiply_accumulate_32x16b(int32_t sum, int32_t a, 
   __attribute__((always_inline, unused));
 static inline int32_t signed_multiply_accumulate_32x16b(int32_t sum, int32_t a, uint32_t b)
 {
+#ifdef TRACKER_DESKTOP
+    return uint32_t(sum) + uint32_t((int64_t(a) * int16_t(b)) >> 16);
+#else
     int32_t out;
     asm volatile("smlawb %0, %2, %3, %1" : "=r"(out) : "r"(sum), "r"(a), "r"(b));
     return out;
+#endif
 }
 
 // computes (sum + ((a[31:0] * b[31:16]) >> 16))
@@ -260,17 +282,25 @@ static inline int32_t signed_multiply_accumulate_32x16t(int32_t sum, int32_t a, 
   __attribute__((always_inline, unused));
 static inline int32_t signed_multiply_accumulate_32x16t(int32_t sum, int32_t a, uint32_t b)
 {
+#ifdef TRACKER_DESKTOP
+    return uint32_t(sum) + uint32_t((int64_t(a) * int16_t(b >> 16)) >> 16);
+#else
     int32_t out;
     asm volatile("smlawt %0, %2, %3, %1" : "=r"(out) : "r"(sum), "r"(a), "r"(b));
     return out;
+#endif
 }
 
 // computes logical and, forces compiler to allocate register and use single cycle instruction
 static inline uint32_t logical_and(uint32_t a, uint32_t b) __attribute__((always_inline, unused));
 static inline uint32_t logical_and(uint32_t a, uint32_t b)
 {
+#ifdef TRACKER_DESKTOP
+    return a & b;
+#else
     asm volatile("and %0, %1" : "+r"(a) : "r"(b));
     return a;
+#endif
 }
 
 // computes ((a[15:0] * b[15:0]) + (a[31:16] * b[31:16]))
@@ -278,9 +308,13 @@ static inline int32_t multiply_16tx16t_add_16bx16b(uint32_t a, uint32_t b)
   __attribute__((always_inline, unused));
 static inline int32_t multiply_16tx16t_add_16bx16b(uint32_t a, uint32_t b)
 {
+#ifdef TRACKER_DESKTOP
+    return uint32_t(int16_t(a) * int16_t(b)) + uint32_t(int16_t(a >> 16) * int16_t(b >> 16));
+#else
     int32_t out;
     asm volatile("smuad %0, %1, %2" : "=r"(out) : "r"(a), "r"(b));
     return out;
+#endif
 }
 
 // computes ((a[15:0] * b[31:16]) + (a[31:16] * b[15:0]))
@@ -288,23 +322,35 @@ static inline int32_t multiply_16tx16b_add_16bx16t(uint32_t a, uint32_t b)
   __attribute__((always_inline, unused));
 static inline int32_t multiply_16tx16b_add_16bx16t(uint32_t a, uint32_t b)
 {
+#ifdef TRACKER_DESKTOP
+    return uint32_t(int16_t(a) * int16_t(b >> 16)) + uint32_t(int16_t(a >> 16) * int16_t(b));
+#else
     int32_t out;
     asm volatile("smuadx %0, %1, %2" : "=r"(out) : "r"(a), "r"(b));
     return out;
+#endif
 }
 
 // // computes sum += ((a[15:0] * b[15:0]) + (a[31:16] * b[31:16]))
 static inline int64_t multiply_accumulate_16tx16t_add_16bx16b(int64_t sum, uint32_t a, uint32_t b)
 {
+#ifdef TRACKER_DESKTOP
+    return uint64_t(sum) + int16_t(a) * int16_t(b) + int16_t(a >> 16) * int16_t(b >> 16);
+#else
     asm volatile("smlald %Q0, %R0, %1, %2" : "+r"(sum) : "r"(a), "r"(b));
     return sum;
+#endif
 }
 
 // // computes sum += ((a[15:0] * b[31:16]) + (a[31:16] * b[15:0]))
 static inline int64_t multiply_accumulate_16tx16b_add_16bx16t(int64_t sum, uint32_t a, uint32_t b)
 {
+#ifdef TRACKER_DESKTOP
+    return uint64_t(sum) + int16_t(a) * int16_t(b >> 16) + int16_t(a >> 16) * int16_t(b);
+#else
     asm volatile("smlaldx %Q0, %R0, %1, %2" : "+r"(sum) : "r"(a), "r"(b));
     return sum;
+#endif
 }
 
 // computes ((a[15:0] * b[15:0])
@@ -312,9 +358,13 @@ static inline int32_t multiply_16bx16b(uint32_t a, uint32_t b)
   __attribute__((always_inline, unused));
 static inline int32_t multiply_16bx16b(uint32_t a, uint32_t b)
 {
+#ifdef TRACKER_DESKTOP
+    return int16_t(a) * int16_t(b);
+#else
     int32_t out;
     asm volatile("smulbb %0, %1, %2" : "=r"(out) : "r"(a), "r"(b));
     return out;
+#endif
 }
 
 // computes ((a[15:0] * b[31:16])
@@ -322,9 +372,13 @@ static inline int32_t multiply_16bx16t(uint32_t a, uint32_t b)
   __attribute__((always_inline, unused));
 static inline int32_t multiply_16bx16t(uint32_t a, uint32_t b)
 {
+#ifdef TRACKER_DESKTOP
+    return int16_t(a) * int16_t(b >> 16);
+#else
     int32_t out;
     asm volatile("smulbt %0, %1, %2" : "=r"(out) : "r"(a), "r"(b));
     return out;
+#endif
 }
 
 // computes ((a[31:16] * b[15:0])
@@ -332,9 +386,13 @@ static inline int32_t multiply_16tx16b(uint32_t a, uint32_t b)
   __attribute__((always_inline, unused));
 static inline int32_t multiply_16tx16b(uint32_t a, uint32_t b)
 {
+#ifdef TRACKER_DESKTOP
+    return int16_t(a >> 16) * int16_t(b);
+#else
     int32_t out;
     asm volatile("smultb %0, %1, %2" : "=r"(out) : "r"(a), "r"(b));
     return out;
+#endif
 }
 
 // computes ((a[31:16] * b[31:16])
@@ -342,9 +400,13 @@ static inline int32_t multiply_16tx16t(uint32_t a, uint32_t b)
   __attribute__((always_inline, unused));
 static inline int32_t multiply_16tx16t(uint32_t a, uint32_t b)
 {
+#ifdef TRACKER_DESKTOP
+    return int16_t(a >> 16) * int16_t(b >> 16);
+#else
     int32_t out;
     asm volatile("smultt %0, %1, %2" : "=r"(out) : "r"(a), "r"(b));
     return out;
+#endif
 }
 
 // computes (a - b), result saturated to 32 bit integer range
@@ -352,28 +414,40 @@ static inline int32_t substract_32_saturate(uint32_t a, uint32_t b)
   __attribute__((always_inline, unused));
 static inline int32_t substract_32_saturate(uint32_t a, uint32_t b)
 {
+#ifdef TRACKER_DESKTOP
+    const int64_t value = int64_t(int32_t(a)) - int32_t(b);
+    return value < INT32_MIN ? INT32_MIN : value > INT32_MAX ? INT32_MAX : value;
+#else
     int32_t out;
     asm volatile("qsub %0, %1, %2" : "=r"(out) : "r"(a), "r"(b));
     return out;
+#endif
 }
 
 // get Q from PSR
 static inline uint32_t get_q_psr(void) __attribute__((always_inline, unused));
 static inline uint32_t get_q_psr(void)
 {
+#ifdef TRACKER_DESKTOP
+    return 0;
+#else
     uint32_t out;
     asm("mrs %0, APSR" : "=r"(out));
     return (out & 0x8000000) >> 27;
+#endif
 }
 
 // clear Q BIT in PSR
 static inline void clr_q_psr(void) __attribute__((always_inline, unused));
 static inline void clr_q_psr(void)
 {
+#ifdef TRACKER_DESKTOP
+#else
     uint32_t t;
     asm("mov %[t],#0\n"
         "msr APSR_nzcvq,%0\n"
         : [t] "=&r"(t)::"cc");
+#endif
 }
 
 // Multiply two S.31 fractional integers, and return the 32 most significant
