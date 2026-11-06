@@ -21,6 +21,7 @@ namespace
 using namespace samplefx;
 constexpr uint32_t kCapacity = EDIT_BUFF_SIZE / 2;
 constexpr unsigned kIoFrames = 4096;
+constexpr unsigned kValueButton = 7;
 constexpr char kTempDir[] = "Workspace/FxChainTemp";
 constexpr char kRecipeDir[] = "/Effects/Chains";
 
@@ -239,8 +240,8 @@ class ChainScreen
     char valueText[52] = {};
     const char* valueName = "Value";
     static constexpr uint16_t columnPlaces[4][4] = {
-        {1, 31, 197, 392}, {201, 31, 197, 392},
-        {401, 31, 197, 392}, {601, 31, 97, 392}
+        {1, 31, 297, 392}, {301, 31, 197, 392},
+        {501, 31, 197, 392}, {701, 31, 97, 392}
     };
     Work work = Idle;
     unsigned selected = 0;
@@ -476,7 +477,7 @@ void ChainScreen::show(Page next)
     // restore may replace shared plugin code, so their lists must detach.
     if (!busy() || !toolbarReady || work == Processing || work == Restoring)
         drawColumns(pageChanged, previousCount);
-    const char* labels[8] = { "Preview", "Add", "Move Up", "Move Down", "Back", "Render", valueName, "" };
+    const char* labels[8] = { "Preview", "Add", "Move Up", "Move Down", "Back", "Render", "", valueName };
     if (page != Chain)
     { labels[0] = "Back"; labels[1] = "Select"; for (unsigned i = 2; i < 8; ++i) labels[i] = ""; }
     else
@@ -490,22 +491,22 @@ void ChainScreen::show(Page next)
     for (unsigned i = 0; i < 8; ++i)
     {
         const bool changed = !toolbarReady || strcmp(toolbarPrimary[i], labels[i]) ||
-            (i == 6 && (toolbarHasValue != hasValue || strcmp(toolbarSecondary, hasValue ? valueText : "")));
+            (i == kValueButton && (toolbarHasValue != hasValue || strcmp(toolbarSecondary, hasValue ? valueText : "")));
         if (!changed) continue;
         if (!toolbarReady)
         {
             display.setControlStyle(editor->label[i], controlStyleCenterX | controlStyleCenterY | controlStyleFont3);
             display.setControlStyle2(editor->label[i], controlStyleCenterX | controlStyleCenterY | controlStyleFont2);
-            display.setControlColors(editor->label[i], i == 6 ? display.getTheme().activeLabelsColors
+            display.setControlColors(editor->label[i], i == kValueButton ? display.getTheme().activeLabelsColors
                                                               : display.getTheme().activeButtonLabelsColors);
             display.setControlPosition(editor->label[i], i * 100 + 50, 424);
             display.setControlSize(editor->label[i], 94, 55);
             display.setControlData(editor->label[i], nullptr);
             display.setControlShow(editor->label[i]);
         }
-        display.setControlValue(editor->label[i], i == 6 && hasValue ? 1 : 0);
+        display.setControlValue(editor->label[i], i == kValueButton && hasValue ? 1 : 0);
         display.setControlText(editor->label[i], labels[i]);
-        display.setControlText2(editor->label[i], i == 6 && hasValue ? valueText : "");
+        display.setControlText2(editor->label[i], i == kValueButton && hasValue ? valueText : "");
         display.refreshControl(editor->label[i]);
         snprintf(toolbarPrimary[i], sizeof(toolbarPrimary[i]), "%s", labels[i]);
     }
@@ -595,7 +596,7 @@ void ChainScreen::drawColumns(bool pageChanged, unsigned previousCount)
     list.data = rowPointers;
     list.length = count;
     list.linesCount = std::max<unsigned>(1, std::min<unsigned>(count, 12));
-    list.lineWidthMax = activeColumn == 0 ? 178 : 0;
+    list.lineWidthMax = activeColumn == 0 ? 278 : 0;
     list.lineTextLenMax = 64;
     if (!listBound || count != previousCount || list.start != int(browserSelection))
     {
@@ -949,7 +950,7 @@ void ChainScreen::input(unsigned button)
     else if (button == 2) moveStage(-1);
     else if (button == 3) moveStage(1);
     else if (button == 5) preview(true);
-    else if (button == 6 && ensureSchema()) { focus = 3; show(Chain); }
+    else if (button == kValueButton && ensureSchema()) { focus = 3; show(Chain); }
 }
 
 void ChainScreen::playPrepared()
@@ -1476,17 +1477,17 @@ static void openChainSession(cSampleEditor* editor, bool visible)
         // Frames are allocated before content, as in Pattern Fill, so their
         // outline is drawn above each column's background.
         screen.focusControl = display.createControl<cFrame>(&properties);
-        properties.x = 1; properties.y = 60; properties.w = 197; properties.h = 363;
+        properties.x = 1; properties.y = 60; properties.w = 297; properties.h = 363;
         properties.style = controlStyleBackground;
         properties.data = &screen.list;
         screen.control = display.createControl<cList>(&properties);
-        properties.x = 201; properties.data = &screen.stagesList;
+        properties.x = 301; properties.w = 197; properties.data = &screen.stagesList;
         screen.stagesControl = display.createControl<cList>(&properties);
         properties.data = &screen.menuList;
         screen.menuControl = display.createControl<cList>(&properties);
-        properties.x = 401; properties.w = 197; properties.data = &screen.parametersList;
+        properties.x = 501; properties.w = 197; properties.data = &screen.parametersList;
         screen.parametersControl = display.createControl<cList>(&properties);
-        properties.x = 601; properties.w = 97; properties.data = &screen.valuesList;
+        properties.x = 701; properties.w = 97; properties.data = &screen.valuesList;
         screen.valuesControl = display.createControl<cList>(&properties);
         properties.data = nullptr;
         properties.h = 363;

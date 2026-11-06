@@ -11,11 +11,11 @@ The Chain view uses the Sample Loader’s browser-and-slots arrangement, followe
 | Parameter | Parameters for the selected stage |
 | Value | Numeric bar or list of choices for the selected parameter |
 
-Effects, Chain, and Parameter each occupy 2/8 of the screen. Value occupies 1/8, followed by 1/8 of empty space.
+Effects occupies 3/8 of the screen, Chain and Parameter each occupy 2/8, and Value occupies the final 1/8 at the right edge.
 
 Left/Right moves between columns. Up/Down and the encoder select entries; in Value, the encoder changes the value. Browsing Effects never replaces a chain stage or changes its settings. **Add** appends the browsed effect and keeps focus in the browser, so several effects can be added quickly. Repeated Add creates independent instances. Select a stage in Chain and press the physical **Insert** key to open its context menu for bypass, duplicate, replacement, removal, and recipe operations. **Delete** removes the selected chain stage; in Value it restores the parameter default.
 
-The chain toolbar is **Preview, Add, Move Up, Move Down, Back, Render, Value**, followed by an empty button. The Value button sits directly below its bar and shows the selected parameter name with its current value, like Sample Loader's Preview Vol control. Press it to focus value editing. The gray status strip is removed; progress and errors appear in the title.
+The chain toolbar is **Preview, Add, Move Up, Move Down, Back, Render, empty, Value**. The Value button sits directly below its bar on the eighth physical button and shows the selected parameter name with its current value, like Sample Loader's Preview Vol control. Press it to focus value editing. The gray status strip is removed; progress and errors appear in the title.
 
 ## Build a sound
 

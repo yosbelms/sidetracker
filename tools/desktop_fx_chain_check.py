@@ -50,7 +50,9 @@ def check_chain_frames(path: Path):
                            (250, {"Move Up"}), (350, {"Move Down"}), (450, {"Back"}), (550, {"Render"})]:
             if not toolbar.get(x) or toolbar[x][0] not in choices:
                 raise AssertionError(f"Partially drawn chain toolbar at x={x}: {toolbar}")
-        value = toolbar.get(650, [])
+        if toolbar.get(650):
+            raise AssertionError(f"Seventh chain button should be empty: {toolbar}")
+        value = toolbar.get(750, [])
         expected = {values[value[0]]} if value and value[0] in values else None
         if value and value[0] == "Low freq": expected = {"80 Hz", "90 Hz"}
         if expected is not None and (len(value) != 2 or value[1] not in expected):
@@ -98,7 +100,7 @@ encoder 9
 button 1
 button 1
 assert-chain-size 2
-button 6
+button 7
 encoder 2
 button Left
 button Down
@@ -125,7 +127,7 @@ assert-chain-size 2
 encoder 1
 button 1
 assert-chain-size 2
-button 6
+button 7
 encoder 10
 button Left
 button Left
@@ -244,7 +246,7 @@ wait 100
 assert-chain open
 button 1
 button 1
-button 6
+button 7
 encoder 100
 button 2
 button 3
@@ -402,7 +404,7 @@ button S. Editor
 button 5
 wait 100
 button 1
-button 6
+button 7
 encoder 100
 button 0
 wait 100
