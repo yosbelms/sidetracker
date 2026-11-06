@@ -1,6 +1,8 @@
 #include "SampleEditorChain.h"
 #include "sampleEditor.h"
 #include "SampleFxChain.h"
+#include "SampleFxRealtime.h"
+#include "interruptsControl.h"
 #include "ptfx_manager.h"
 #include "fileManager.h"
 #include "fileManagerDefs.h"
@@ -12,6 +14,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <new>
 
 namespace
 {
@@ -26,6 +29,14 @@ bool supported(uint8_t effect)
     return effect < kBuiltInEffectsCount && effect != editorEffectCut &&
            effect != editorEffectReverse && effect != editorEffectWavetableSmoother &&
            effect != editorEffectTimestretchBeat && effect != editorEffectTimestretchNote;
+}
+
+// Keep processing older recipes valid while moving sample-editing utilities
+// out of the catalog for newly constructed chains.
+bool listedInChain(uint8_t effect)
+{
+    return supported(effect) && effect != editorEffectNormalizer &&
+           effect != editorEffectFadeIn && effect != editorEffectFadeOut;
 }
 
 int findPlugin(const Node& n)
@@ -63,7 +74,7 @@ class EffectBackend : public Backend
     uint32_t completed = 0;
     const char* message = "Effect failed";
 
-    bool resolve(const Node& node)
+    bool resolve(const Node& node, bool execute = true)
     {
         message = "Effect unavailable";
         if (node.effect != kPlugin)
@@ -79,7 +90,8 @@ class EffectBackend : public Backend
         uint32_t hash;
         if (!fileFingerprint(fs, path, hash) || hash != node.fingerprint)
         { message = "Plugin changed: remove and add again"; return false; }
-        if (!PtfxManager::loadPlugin(index, sampleEditorModular)) return false;
+        if (execute ? !PtfxManager::loadPlugin(index, sampleEditorModular)
+                    : !PtfxManager::loadPluginMetadata(index)) return false;
         const auto& header = PtfxManager::getActiveHeader();
         if (header.num_params != node.count || header.flags != node.flags) return false;
         effect = &sampleEditorModular;
@@ -140,19 +152,48 @@ class EffectBackend : public Backend
     const char* error() const override { return message; }
 };
 
+class LivePluginLoader : public RealtimePluginLoader
+{
+  public:
+    FileSystem* fs = nullptr;
+    const PtfxHostApi* hostApi() override { return PtfxLoader::getHostApi(); }
+    bool load(const Node& node, RealtimePlugin& plugin, RealtimeArena& arena) override
+    {
+        char path[64];
+        snprintf(path, sizeof(path), "/Effects/%s", node.filename);
+        uint32_t hash;
+        if (!fileFingerprint(fs, path, hash) || hash != node.fingerprint ||
+            !PtfxLoader::readHeader(path, plugin.header)) return false;
+        const uint32_t codeBytes = plugin.header.code_size + plugin.header.bss_size;
+        auto* code = static_cast<uint8_t*>(arena.allocate(codeBytes));
+        plugin.scratch = arena.allocate(plugin.header.scratch_size);
+        if (!code || !plugin.scratch) return false;
+        return PtfxLoader::loadPluginInto(path, code, codeBytes, plugin.header,
+                                         plugin.init, plugin.parameter, plugin.process);
+    }
+};
+
 class ChainScreen
 {
   public:
-    enum Page { Chain, Sources, Effects, Parameters, Actions, Recipes, Destinations, Leave };
+    enum Page { Chain, Actions, Recipes, Destinations };
     enum Work { Idle, Loading, Snapshot, Reading, Processing, Restoring, Writing };
     cSampleEditor* editor = nullptr;
     FileSystem* fs = nullptr;
     EffectBackend backend;
     Runner runner{backend};
+    RealtimeChain* live = nullptr;
+    LivePluginLoader liveLoader;
+    bool livePlaying = false, liveRequested = false, resumeLive = false;
     Recipe recipe;
     Recipe lastUsed;
     bool haveLast = false;
     bool open = false;
+    bool visible = false;
+    bool haveDraft = false;
+    bool autoPreview = false;
+    unsigned draftSlot = 0;
+    std::function<void()> pendingEditorAction;
     bool snapshotReady = false;
     bool touched = false;
     bool playing = false;
@@ -161,18 +202,56 @@ class ChainScreen
     bool saveRecipes = false;
     bool committed = false;
     Page page = Chain;
+    unsigned focus = 0;
+    unsigned stageSelection = 0;
+    unsigned parameterSelection = 0;
+    bool replacingEffect = false;
+    unsigned browserSelection = 0;
+    static constexpr unsigned kMenuRows = kSampleInstrumentsCount + 16;
+    unsigned menuCount = 0, boundMenuCount = 0;
+    unsigned menuEntries[kMenuRows] = {};
+    char menuRows[kMenuRows][52] = {};
+    char* menuPointers[kMenuRows] = {};
+    strList menuList = {};
+    hControl menuControl = -1;
+    bool menuBound = false;
+    bool toolbarReady = false;
+    bool toolbarHasValue = false;
+    char toolbarPrimary[8][24] = {};
+    char toolbarSecondary[52] = {};
+    char shownTitle[96] = {};
+    bool schemaReady = false;
+    bool haveParameters = false;
+    Node schemaNode;
+    unsigned boundStageCount = 255;
+    unsigned boundParameterCount = 255;
+    unsigned boundValueParameter = 255;
+    strList stagesList = {}, parametersList = {}, valuesList = {};
+    char stageRows[9][52] = {};
+    char* stagePointers[9] = {};
+    char* parameterPointers[13] = {};
+    char lengthLabel[16] = "Length";
+    char* valuePointers[256] = {};
+    hControl stagesControl = -1, parametersControl = -1, valuesControl = -1;
+    hControl headers[4] = {-1, -1, -1, -1};
+    hControl valueBar = -1, focusControl = -1;
+    strFrameData columnsFrame = {};
+    char valueText[52] = {};
+    const char* valueName = "Value";
+    static constexpr uint16_t columnPlaces[4][4] = {
+        {1, 31, 197, 392}, {201, 31, 197, 392},
+        {401, 31, 197, 392}, {601, 31, 97, 392}
+    };
     Work work = Idle;
     unsigned selected = 0;
     unsigned selectedNode = 0;
     unsigned count = 0;
     unsigned entries[145] = {};
-    char rows[145][76] = {};
+    char rows[145][52] = {};
     char* rowPointers[145] = {};
     strList list = {};
     bool listBound = false;
     hControl control = -1;
-    hControl statusControl = -1;
-    char statusText[120] = {};
     char title[96] = {};
     char notice[96] = {};
     char snapshotPath[80] = {};
@@ -199,6 +278,10 @@ class ChainScreen
     bool busy() const { return work != Idle; }
     void stopAudio()
     {
+        engine.getSampleFxPreview()->stop();
+        if (live) { live->~RealtimeChain(); live = nullptr; }
+        livePlaying = false;
+        resumeLive = false;
         mtPadBoard.cutAllInstrument();
         playing = false;
         originalPlaying = false;
@@ -227,9 +310,11 @@ class ChainScreen
         snprintf(notice, sizeof(notice), "%s", text);
         show(Chain);
     }
-    void changed()
+    void changed(bool parameterOnly = false)
     {
-        stopAudio();
+        const bool resume = !parameterOnly && livePlaying;
+        if (!parameterOnly || !livePlaying) stopAudio();
+        resumeLive |= resume;
         runner.invalidate();
         notice[0] = 0;
     }
@@ -241,22 +326,53 @@ class ChainScreen
         rowPointers[count] = rows[count];
         ++count;
     }
+    void addMenuRow(const char* text, unsigned value = 0)
+    {
+        if (menuCount >= kMenuRows) return;
+        snprintf(menuRows[menuCount], sizeof(menuRows[menuCount]), "%s", text);
+        menuEntries[menuCount] = value;
+        menuPointers[menuCount] = menuRows[menuCount];
+        ++menuCount;
+    }
     const char* name(const Node& n)
     {
         if (n.effect == kSample) return "Current Sample";
-        if (n.effect == kPlugin) return n.filename;
+        if (n.effect == kPlugin)
+        {
+            int index = findPlugin(n);
+            return index >= 0 ? PtfxManager::getPluginDisplayName(index) : n.filename;
+        }
         return n.effect < kBuiltInEffectsCount ? effectNamesLabels[n.effect] : "Unavailable";
     }
     void show(Page next);
+    void navigate(int delta);
+    void shiftColumn(int delta);
+    void editValue(int delta);
+    void hideColumns();
+    bool ensureSchema();
+    void drawColumns(bool pageChanged, unsigned previousCount);
     void input(unsigned button);
     void turn(int delta);
     void choose();
+    void addSelectedEffect();
+    void browseSource();
     void preview(bool render = false);
+    void startRealtime();
+    void playPrepared();
+    void publishParameters()
+    {
+        if (!livePlaying) return;
+        DISABLE_AUDIO_INTERRUPTS();
+        live->setParameters(recipe);
+        ENABLE_AUDIO_INTERRUPTS();
+    }
     void update();
     void discard();
+    void leave();
+    void moveStage(int direction);
+    void removeOrReset();
     void finishRestore();
     bool pluginNode(unsigned index, Node& n);
-    bool configureParameters();
     void recipeFile(unsigned slot, bool save);
     void render(unsigned slot);
     void finishRender();
@@ -264,21 +380,22 @@ class ChainScreen
 
 ChainScreen screen;
 void chainButton(uint8_t button) { screen.input(button - interfaceButton0); }
-void chainNavigate(int delta)
-{
-    if (screen.busy() || !screen.count) return;
-    screen.selected = std::clamp<int>(int(screen.selected) + delta, 0, screen.count - 1);
-    screen.show(screen.page);
-}
+void chainNavigate(int delta) { screen.navigate(delta); }
 void chainUp() { chainNavigate(-1); }
 void chainDown() { chainNavigate(1); }
+void chainLeft() { screen.shiftColumn(-1); }
+void chainRight() { screen.shiftColumn(1); }
 void chainEncoder(int16_t delta) { screen.turn(delta); }
 void chainSelect() { screen.choose(); }
+void chainDelete() { screen.removeOrReset(); }
 
 bool ChainScreen::pluginNode(unsigned index, Node& n)
 {
+    // Even a failed image read may have replaced shared UI strings. Reload
+    // the selected stage's metadata before drawing it again.
+    schemaReady = false;
     const auto* entry = PtfxManager::getPlugin(index);
-    if (!entry || !PtfxManager::loadPlugin(index, sampleEditorModular)) return false;
+    if (!entry || !PtfxManager::loadPluginMetadata(index)) return false;
     const auto& h = PtfxManager::getActiveHeader();
     n = {};
     n.effect = kPlugin;
@@ -292,18 +409,6 @@ bool ChainScreen::pluginNode(unsigned index, Node& n)
     return true;
 }
 
-bool ChainScreen::configureParameters()
-{
-    Node& n = node();
-    if (n.effect == kSample) return false;
-    if (!backend.resolve(n))
-    { snprintf(notice, sizeof(notice), "%s", backend.error()); return false; }
-    if (n.effect == kPlugin) editor->loadModularEffectUI(PtfxManager::getActiveHeader());
-    if (!n.count && (selectedNode || !(n.flags & PTFX_FLAG_GENERATOR)))
-    { snprintf(notice, sizeof(notice), "This effect has no parameters"); return false; }
-    return true;
-}
-
 void ChainScreen::show(Page next)
 {
     const bool pageChanged = page != next;
@@ -311,157 +416,444 @@ void ChainScreen::show(Page next)
     page = next;
     count = 0;
     char text[96];
-    if (page == Chain)
+    stageSelection = std::min<unsigned>(stageSelection, recipe.count);
+    if (recipe.source.effect == kSample && recipe.count && !stageSelection) stageSelection = 1;
+    selectedNode = stageSelection;
+    // Keep the left-hand catalog independent of the selected chain stage,
+    // just as the Sample Loader keeps its file browser independent of slots.
+    for (unsigned i = 0; i < kBuiltInEffectsCount; ++i)
+        if (listedInChain(i)) addRow(effectNamesLabels[i], i);
+    for (unsigned i = 0; i < PtfxManager::getPluginCount(); ++i)
     {
-        snprintf(text, sizeof(text), "Source: %s", name(recipe.source)); addRow(text);
-        for (unsigned i = 0; i < recipe.count; ++i)
-        {
-            snprintf(text, sizeof(text), "%02u  %s%s", i + 1,
-                     recipe.stages[i].bypass ? "[Bypass] " : "", name(recipe.stages[i]));
-            addRow(text);
-        }
+        const auto* plugin = PtfxManager::getPlugin(i);
+        snprintf(text, sizeof(text), "%s%s", (plugin->flags & PTFX_FLAG_GENERATOR) ? "[Gen] " : "",
+                 PtfxManager::getPluginDisplayName(i));
+        addRow(text, 256 + i);
     }
-    else if (page == Sources || page == Effects)
-    {
-        if (page == Sources && sourceFrames) addRow("Current Sample", kSample);
-        else if (page == Effects) for (unsigned i = 0; i < kBuiltInEffectsCount; ++i)
-            if (supported(i)) addRow(effectNamesLabels[i], i);
-        for (unsigned i = 0; i < PtfxManager::getPluginCount(); ++i)
-            if (bool(PtfxManager::getPlugin(i)->flags & PTFX_FLAG_GENERATOR) == (page == Sources))
-                addRow(PtfxManager::getPluginDisplayName(i), 256 + i);
-    }
-    else if (page == Parameters)
-    {
-        const Node& n = node();
-        const auto& desc = n.effect == kPlugin ? editor->s_modularEffectParams
-                                             : effectDisplayConstantParams[n.effect];
-        for (unsigned i = 0; i < n.count; ++i)
-        {
-            snprintf(text, sizeof(text), "%s: %.3f %s", desc.labelsText[i], n.params[i],
-                     desc.afterValueText[i] ? desc.afterValueText[i] : "");
-            if (n.effect == kPlugin && PtfxManager::getActiveHeader().params[i].display_type == PARAM_LIST)
-            {
-                // Plugin list strings live in the currently loaded executable region.
-                const auto& h = PtfxManager::getActiveHeader();
-                const auto& p = h.params[i];
-                uint16_t stringOffset = uint8_t(p.unit[0]) | uint16_t(uint8_t(p.unit[1])) << 8;
-                const char* value = reinterpret_cast<const char*>(PtfxLoader::getCodeBuffer() + stringOffset);
-                unsigned item = unsigned(std::max(0.0f, n.params[i]));
-                const unsigned items = uint8_t(p.unit[2]);
-                if (item < items)
-                {
-                    for (unsigned j = 0; j < item; ++j) value += strlen(value) + 1;
-                    snprintf(text, sizeof(text), "%s: %s", desc.labelsText[i], value);
-                }
-            }
-            addRow(text);
-        }
-        if (!selectedNode && n.effect == kPlugin)
-        { snprintf(text, sizeof(text), "Length: %.3f s", recipe.generatorFrames / 44100.0f); addRow(text); }
-    }
-    else if (page == Actions)
+    browserSelection = count ? std::min(browserSelection, count - 1) : 0;
+
+    menuCount = 0;
+    if (page == Actions)
     {
         if (selectedNode)
-        { addRow("Bypass / Enable"); addRow("Move Up"); addRow("Move Down"); addRow("Duplicate"); addRow("Remove"); }
-        else addRow("Choose Source");
-        addRow("Load Recipe", 10); addRow("Save Recipe", 11);
+        {
+            addMenuRow("Bypass / Enable"); addMenuRow("Move Up"); addMenuRow("Move Down");
+            addMenuRow("Duplicate"); addMenuRow("Remove"); addMenuRow("Replace Effect", 20);
+        }
+        else addMenuRow("Choose Generator");
+        addMenuRow("Load Recipe", 10); addMenuRow("Save Recipe", 11);
     }
     else if (page == Recipes)
     {
-        if (!saveRecipes && haveLast) addRow("Last Used", 0);
+        if (!saveRecipes && haveLast) addMenuRow("Last Used", 0);
         for (unsigned i = 1; i <= 16; ++i)
-        { snprintf(text, sizeof(text), "Chain %02u", i); addRow(text, i); }
+        { snprintf(text, sizeof(text), "Chain %02u", i); addMenuRow(text, i); }
     }
     else if (page == Destinations)
     {
         for (unsigned i = 0; i < kSampleInstrumentsCount; ++i)
             if (!mtProject.instrument[i].isActive && (i != sourceSlot || !sourceFrames))
-            { snprintf(text, sizeof(text), "Empty sample slot %02u", i + 1); addRow(text, i); }
-        if (!count) addRow("No empty sample slots", 255);
+            { snprintf(text, sizeof(text), "Empty sample slot %02u", i + 1); addMenuRow(text, i); }
+        if (!menuCount) addMenuRow("No empty sample slots", 255);
     }
-    else if (page == Leave) { addRow("Keep Editing"); addRow("Discard Chain"); }
-
-    if (!count && page == Sources) addRow("Install .ptfx generators in /Effects", kSample);
-    selected = count ? std::min(selected, count - 1) : 0;
-    const char* state = runner.state() == Runner::State::Ready ? "Ready" : "Needs preview";
-    if (busy()) state = "Preparing";
-    snprintf(title, sizeof(title), "FX Chain %u/8", recipe.count);
-    editor->showTitleBar(title);
-    if (runner.state() == Runner::State::Ready)
-        snprintf(statusText, sizeof(statusText), "Ready - %.3f s - %s", runner.result().frames / 44100.0f,
-                 runner.result().channels == 2 ? "Stereo" : "Mono");
-    else snprintf(statusText, sizeof(statusText), "%s%s%s", state, notice[0] ? " - " : "", notice);
-    if (page == Parameters) snprintf(statusText, sizeof(statusText), "Up/Down: parameter   Encoder: value   Reset: default");
-    display.setControlText(statusControl, statusText);
-    display.setControlShow(statusControl);
-    display.refreshControl(statusControl);
-    list.data = rowPointers;
-    list.length = count;
-    list.linesCount = std::max<unsigned>(1, std::min<unsigned>(count, 12));
-    // cList owns start as its animated cursor position, not a viewport offset.
-    // Rebinding on each refresh restarts the animation from the first row.
-    if (!listBound || pageChanged || count != previousCount)
+    selected = menuCount ? std::min(selected, menuCount - 1) : 0;
+    if (notice[0]) snprintf(title, sizeof(title), "%s", notice);
+    else snprintf(title, sizeof(title), "FX Chain %u/8%s", recipe.count,
+                  busy() ? " - Preparing" : livePlaying ? " - Live" : "");
+    if (!visible)
     {
-        list.start = selected;
-        display.setControlData(control, &list);
-        listBound = true;
+        editor->showTitleBar(notice[0] ? notice : playing ? "Sample Editor - Preview" : "Sample Editor");
+        display.setControlText(editor->label[6], playing ? "Stop" : "Preview");
+        display.refreshControl(editor->label[6]);
+        return;
     }
-    display.setControlValue(control, selected);
-    display.setControlShow(control);
-    display.refreshControl(control);
-    const char* labels[8] = { "Back", "Add", "Edit", "Actions", "Original", "Recipes", "Preview", "Render" };
+    if (!toolbarReady || strcmp(shownTitle, title))
+    {
+        editor->showTitleBar(title);
+        snprintf(shownTitle, sizeof(shownTitle), "%s", title);
+    }
+    // Source I/O does not change the selected parameter. Offline DSP and
+    // restore may replace shared plugin code, so their lists must detach.
+    if (!busy() || !toolbarReady || work == Processing || work == Restoring)
+        drawColumns(pageChanged, previousCount);
+    const char* labels[8] = { "Preview", "Add", "Move Up", "Move Down", "Back", "Render", valueName, "" };
     if (page != Chain)
-    { labels[1] = ""; labels[2] = "Select"; labels[3] = ""; labels[4] = ""; labels[5] = ""; labels[6] = ""; labels[7] = ""; }
-    if (page == Parameters) { labels[2] = ""; labels[3] = "Reset"; }
-    if (playing) labels[6] = "Stop";
-    if (busy()) { for (auto& l : labels) l = ""; labels[0] = work == Writing || work == Restoring ? "" : "Cancel"; }
+    { labels[0] = "Back"; labels[1] = "Select"; for (unsigned i = 2; i < 8; ++i) labels[i] = ""; }
+    else
+    {
+        unsigned id = count ? entries[browserSelection] : kSample;
+        bool source = id == kSample || (id >= 256 && (PtfxManager::getPlugin(id - 256)->flags & PTFX_FLAG_GENERATOR));
+        labels[1] = replacingEffect ? "Replace" : source ? "Use src" : "Add";
+        if (playing) labels[0] = "Stop";
+    }
+    const bool hasValue = page == Chain && valueName[0];
     for (unsigned i = 0; i < 8; ++i)
     {
-        display.setControlValue(editor->label[i], 0);
-        display.setControlStyle(editor->label[i], controlStyleCenterX | controlStyleCenterY | controlStyleFont3);
-        display.setControlColors(editor->label[i], display.getTheme().activeButtonLabelsColors);
-        display.setControlPosition(editor->label[i], i * 100 + 50, 424);
-        display.setControlSize(editor->label[i], 94, 55);
+        const bool changed = !toolbarReady || strcmp(toolbarPrimary[i], labels[i]) ||
+            (i == 6 && (toolbarHasValue != hasValue || strcmp(toolbarSecondary, hasValue ? valueText : "")));
+        if (!changed) continue;
+        if (!toolbarReady)
+        {
+            display.setControlStyle(editor->label[i], controlStyleCenterX | controlStyleCenterY | controlStyleFont3);
+            display.setControlStyle2(editor->label[i], controlStyleCenterX | controlStyleCenterY | controlStyleFont2);
+            display.setControlColors(editor->label[i], i == 6 ? display.getTheme().activeLabelsColors
+                                                              : display.getTheme().activeButtonLabelsColors);
+            display.setControlPosition(editor->label[i], i * 100 + 50, 424);
+            display.setControlSize(editor->label[i], 94, 55);
+            display.setControlData(editor->label[i], nullptr);
+            display.setControlShow(editor->label[i]);
+        }
+        display.setControlValue(editor->label[i], i == 6 && hasValue ? 1 : 0);
         display.setControlText(editor->label[i], labels[i]);
-        display.setControlText2(editor->label[i], "");
-        display.setControlData(editor->label[i], nullptr);
-        display.setControlShow(editor->label[i]);
+        display.setControlText2(editor->label[i], i == 6 && hasValue ? valueText : "");
         display.refreshControl(editor->label[i]);
+        snprintf(toolbarPrimary[i], sizeof(toolbarPrimary[i]), "%s", labels[i]);
     }
+    if (!toolbarReady)
+    {
+        display.setControlValue(editor->bgLabel, 255);
+        display.setControlShow(editor->bgLabel);
+        display.refreshControl(editor->bgLabel);
+    }
+    snprintf(toolbarSecondary, sizeof(toolbarSecondary), "%s", hasValue ? valueText : "");
+    toolbarHasValue = hasValue;
+    toolbarReady = true;
     editor->ip->clearAll();
+    editor->setViewSwitchFunctions();
     for (unsigned i = 0; i < 8; ++i) editor->ip->setButtonObj(interfaceButton0 + i, buttonPress, chainButton);
     editor->ip->setButtonObj(interfaceButtonUp, buttonPress, chainUp);
     editor->ip->setButtonObj(interfaceButtonDown, buttonPress, chainDown);
-    editor->ip->setButtonObj(interfaceButtonRight, buttonPress, chainSelect);
+    editor->ip->setButtonObj(interfaceButtonLeft, buttonPress, chainLeft);
+    editor->ip->setButtonObj(interfaceButtonRight, buttonPress, chainRight);
     editor->ip->setPotObj(interfacePot0, chainEncoder);
+    editor->ip->setButtonObj(interfaceButtonInsert, buttonPress, chainSelect);
+    editor->ip->setButtonObj(interfaceButtonDelete, buttonPress, chainDelete);
+    // Publish the cursor, value bar, labels and title together instead of
+    // swapping the display after each individual control update.
+    display.synchronizeRefresh();
+}
+
+bool ChainScreen::ensureSchema()
+{
+    if (busy()) return false;
+    const Node& n = node();
+    if (schemaReady && schemaNode.effect == n.effect && schemaNode.fingerprint == n.fingerprint &&
+        !strcmp(schemaNode.filename, n.filename)) return haveParameters;
+    schemaNode = n;
+    schemaReady = true;
+    haveParameters = false;
+    boundParameterCount = 255;
+    boundValueParameter = 255;
+    if (n.effect == kSample || busy()) return false;
+    if (!backend.resolve(n, false)) return false;
+    if (n.effect == kPlugin) editor->loadModularEffectUI(PtfxManager::getActiveHeader());
+    haveParameters = n.count || (!selectedNode && (n.flags & PTFX_FLAG_GENERATOR));
+    return haveParameters;
+}
+
+void ChainScreen::hideColumns()
+{
+    for (auto h : {control, stagesControl, menuControl, parametersControl, valuesControl,
+                   valueBar, focusControl}) display.setControlHide(h);
+    for (auto h : headers) display.setControlHide(h);
+}
+
+void ChainScreen::drawColumns(bool pageChanged, unsigned previousCount)
+{
+    const unsigned activeColumn = page == Chain ? focus : 1;
+    // Snap changed selections before publishing the batch. Animated high-
+    // priority lists otherwise delay the matching parameter/value controls.
+    const bool implicitSample = recipe.source.effect == kSample;
+    unsigned stageCount = 0;
+    for (unsigned i = 0; i <= recipe.count; ++i)
+    {
+        if (!i && implicitSample) continue;
+        const Node& n = i ? recipe.stages[i - 1] : recipe.source;
+        if (!i) snprintf(stageRows[stageCount], sizeof(stageRows[stageCount]), "Gen: %s", name(n));
+        else snprintf(stageRows[stageCount], sizeof(stageRows[stageCount]), "%02u %s%s", i,
+            n.bypass ? "- " : "", name(n));
+        stagePointers[stageCount] = stageRows[stageCount];
+        ++stageCount;
+    }
+    const unsigned stageCursor = stageSelection - (implicitSample && recipe.count ? 1 : 0);
+    stagesList.data = stagePointers;
+    stagesList.length = stageCount;
+    stagesList.linesCount = stageCount;
+    stagesList.lineWidthMax = activeColumn == 1 ? 178 : 0;
+    stagesList.lineTextLenMax = 40;
+    if (boundStageCount != stagesList.length || stagesList.start != int(stageCursor))
+    {
+        stagesList.start = stageCursor;
+        display.setControlData(stagesControl, &stagesList);
+        boundStageCount = stagesList.length;
+    }
+    display.setControlValue(stagesControl, stageCursor);
+    if (page == Chain) display.setControlShow(stagesControl);
+    else display.setControlHide(stagesControl);
+    display.refreshControl(stagesControl);
+
+    list.data = rowPointers;
+    list.length = count;
+    list.linesCount = std::max<unsigned>(1, std::min<unsigned>(count, 12));
+    list.lineWidthMax = activeColumn == 0 ? 178 : 0;
+    list.lineTextLenMax = 64;
+    if (!listBound || count != previousCount || list.start != int(browserSelection))
+    {
+        list.start = browserSelection;
+        display.setControlData(control, &list);
+        listBound = true;
+    }
+    display.setControlValue(control, browserSelection);
+    display.setControlShow(control);
+    display.refreshControl(control);
+
+    if (page != Chain)
+    {
+        menuList.data = menuPointers;
+        menuList.length = menuCount;
+        menuList.linesCount = std::max(1u, std::min(menuCount, 12u));
+        menuList.lineWidthMax = 178; menuList.lineTextLenMax = 48;
+        if (!menuBound || pageChanged || boundMenuCount != menuCount || menuList.start != int(selected))
+        {
+            menuList.start = selected;
+            display.setControlData(menuControl, &menuList);
+            menuBound = true;
+            boundMenuCount = menuCount;
+        }
+        display.setControlValue(menuControl, selected);
+        display.setControlShow(menuControl);
+        display.refreshControl(menuControl);
+    }
+    else display.setControlHide(menuControl);
+
+    // Use the same focused/inactive list colors as the Sample Loader.
+    const auto colorsFor = [&](unsigned column) {
+        return column == activeColumn ? display.getTheme().sampleLoaderActiveListColors
+                                      : display.getTheme().sampleLoaderInactiveListColors;
+    };
+    display.setControlColors(control, colorsFor(0));
+    display.setControlColors(stagesControl, colorsFor(1));
+    display.setControlColors(menuControl, colorsFor(1));
+    display.setControlColors(parametersControl, colorsFor(2));
+    display.setControlColors(valuesControl, colorsFor(3));
+
+    bool available = !busy() && ensureSchema();
+    const Node& n = node();
+    const auto& d = n.effect == kPlugin ? editor->s_modularEffectParams
+        : effectDisplayConstantParams[n.effect < kBuiltInEffectsCount ? n.effect : 0];
+    unsigned parameterCount = available ? n.count + (!selectedNode && n.effect == kPlugin ? 1 : 0) : 0;
+    const unsigned parameterCursor = parameterCount ? std::min(parameterSelection, parameterCount - 1) : 0;
+    if (!busy()) parameterSelection = parameterCursor;
+    for (unsigned i = 0; i < n.count && available; ++i) parameterPointers[i] = const_cast<char*>(d.labelsText[i]);
+    if (available && parameterCount > n.count) parameterPointers[n.count] = lengthLabel;
+    if (!parameterCount) parameterPointers[0] = const_cast<char*>(n.effect == kSample ? "Sample source" :
+        busy() ? "Preparing..." : n.count ? "Unavailable" : "No parameters");
+    parametersList.data = parameterPointers;
+    parametersList.length = n.effect == kSample ? 0 : std::max(1u, parameterCount);
+    parametersList.linesCount = std::min<unsigned>(parametersList.length, 12);
+    parametersList.lineWidthMax = activeColumn == 2 ? 178 : 0;
+    parametersList.lineTextLenMax = 24;
+    if (boundParameterCount != parametersList.length || parametersList.start != int(parameterCursor))
+    {
+        parametersList.start = parameterCursor;
+        display.setControlData(parametersControl, &parametersList);
+        boundParameterCount = parametersList.length;
+    }
+    display.setControlValue(parametersControl, parameterCursor);
+    if (n.effect == kSample) display.setControlHide(parametersControl);
+    else display.setControlShow(parametersControl);
+    display.refreshControl(parametersControl);
+
+    display.setControlHide(valuesControl);
+    display.setControlHide(valueBar);
+    // A queued auto-refresh must not follow strings into a plugin image that
+    // the offline runner is about to replace.
+    if (!available) valuesList.length = 0;
+    unsigned param = parameterSelection;
+    float value = 0, low = 0, high = 1;
+    const char* unit = "";
+    if (available && param < n.count)
+    {
+        value = n.params[param]; low = d.downConstrain[param]; high = d.upConstrain[param];
+        unit = d.afterValueText[param] ? d.afterValueText[param] : "";
+        snprintf(valueText, sizeof(valueText), d.displayType[param] == 'd' ? "%.0f%s" : "%.3f%s", value * d.displayMult[param], unit);
+        if (n.effect == kPlugin && PtfxManager::getActiveHeader().params[param].display_type == PARAM_LIST)
+        {
+            const auto& p = PtfxManager::getActiveHeader().params[param];
+            unsigned offset = uint8_t(p.unit[0]) | unsigned(uint8_t(p.unit[1])) << 8;
+            char* item = reinterpret_cast<char*>(PtfxLoader::getCodeBuffer() + offset);
+            unsigned length = uint8_t(p.unit[2]);
+            for (unsigned i = 0; i < length; ++i) { valuePointers[i] = item; item += strlen(item) + 1; }
+            valuesList.data = valuePointers; valuesList.length = length;
+            valuesList.linesCount = std::min<unsigned>(12, length);
+            valuesList.lineWidthMax = activeColumn == 3 ? 78 : 0; valuesList.lineTextLenMax = 32;
+            if (boundValueParameter != param || valuesList.start != int(std::clamp(value, 0.0f, float(length - 1))))
+            {
+                valuesList.start = unsigned(std::clamp(value, 0.0f, float(length - 1)));
+                display.setControlData(valuesControl, &valuesList);
+                boundValueParameter = param;
+            }
+            unsigned selectedValue = unsigned(std::clamp(value, 0.0f, float(length - 1)));
+            display.setControlValue(valuesControl, selectedValue);
+            display.setControlShow(valuesControl);
+            display.refreshControl(valuesControl);
+            snprintf(valueText, sizeof(valueText), "%s", valuePointers[selectedValue]);
+        }
+        else display.setControlShow(valueBar);
+    }
+    else if (available)
+    {
+        value = recipe.generatorFrames; low = 1; high = kCapacity;
+        snprintf(valueText, sizeof(valueText), "%.3f s", value / 44100.0f);
+        display.setControlShow(valueBar);
+    }
+    else valueText[0] = 0;
+    int percent = high > low ? int((double(std::clamp(value, low, high)) - low) * 100 / (double(high) - low)) : 0;
+    display.setControlValue(valueBar, std::clamp(percent, 0, 100));
+    display.refreshControl(valueBar);
+    valueName = available ? (param < n.count ? d.labelsText[param] : lengthLabel) : n.effect == kSample ? "" : "Value";
+
+    const char* titles[4] = {"Effects", page == Actions ? "Actions" : page == Recipes ? "Recipes" :
+        page == Destinations ? "Render to" : "Chain", "Parameter", "Value"};
+    for (unsigned i = 0; i < 4; ++i)
+    {
+        display.setControlText(headers[i], titles[i]);
+        display.setControlShow(headers[i]);
+        display.refreshControl(headers[i]);
+    }
+    display.setControlValue(focusControl, page == Chain ? focus : 1);
+    display.setControlShow(focusControl);
+    display.refreshControl(focusControl);
+}
+
+void ChainScreen::navigate(int delta)
+{
+    if (busy() || !delta) return;
+    if (page != Chain)
+        selected = std::clamp<int>(int(selected) + delta, 0, menuCount ? menuCount - 1 : 0);
+    else if (focus == 0)
+        browserSelection = std::clamp<int>(int(browserSelection) + delta, 0, count ? count - 1 : 0);
+    else if (focus == 1)
+    {
+        const int firstStage = recipe.source.effect == kSample && recipe.count ? 1 : 0;
+        stageSelection = std::clamp<int>(int(stageSelection) + delta, firstStage, recipe.count);
+        selectedNode = stageSelection;
+        parameterSelection = 0;
+        schemaReady = false;
+    }
+    else if (focus == 2 && ensureSchema())
+    {
+        unsigned length = node().count + (!selectedNode && node().effect == kPlugin ? 1 : 0);
+        parameterSelection = std::clamp<int>(int(parameterSelection) + delta, 0, length ? length - 1 : 0);
+        boundValueParameter = 255;
+    }
+    else if (focus == 3) { editValue(-delta); return; }
+    show(page);
+}
+
+void ChainScreen::shiftColumn(int delta)
+{
+    if (busy()) return;
+    if (page != Chain)
+    {
+        if (delta < 0) { focus = 1; show(Chain); }
+        else choose();
+        return;
+    }
+    focus = std::clamp<int>(int(focus) + delta, 0, 3);
+    if (focus >= 2 && !ensureSchema()) focus = 1;
+    show(Chain);
+}
+
+void ChainScreen::editValue(int delta)
+{
+    if (!ensureSchema()) return;
+    changed(true);
+    Node& n = node();
+    unsigned i = parameterSelection;
+    if (i >= n.count)
+    {
+        unsigned step = (n.flags & PTFX_FLAG_WAVETABLE) ? 2048 : 441;
+        recipe.generatorFrames = std::clamp<int64_t>(int64_t(recipe.generatorFrames) + int64_t(delta) * step,
+            step == 2048 ? 2048 : 1, kCapacity);
+    }
+    else
+    {
+        const auto& d = n.effect == kPlugin ? editor->s_modularEffectParams : effectDisplayConstantParams[n.effect];
+        n.params[i] = std::clamp(n.params[i] + delta * d.changeStep[i], d.downConstrain[i], d.upConstrain[i]);
+    }
+    publishParameters();
+    show(Chain);
 }
 
 void ChainScreen::turn(int delta)
 {
-    if (busy() || !count || !delta) return;
-    if (page == Parameters)
+    if (busy()) return;
+    if (page == Chain && focus == 3) editValue(delta);
+    else navigate(delta);
+}
+
+void ChainScreen::browseSource()
+{
+    replacingEffect = false;
+    focus = 0;
+    for (unsigned i = 0; i < count; ++i)
     {
-        if (editor->buttons->isButtonPressed(interfaceButtonShift))
-        { selected = std::clamp<int>(int(selected) + delta, 0, count - 1); }
-        else
+        unsigned id = entries[i];
+        if (id >= 256 && ((recipe.source.effect == kSample && (PtfxManager::getPlugin(id - 256)->flags & PTFX_FLAG_GENERATOR)) ||
+            (recipe.source.effect == kPlugin && !strcmp(PtfxManager::getPlugin(id - 256)->filename, recipe.source.filename))))
+        { browserSelection = i; break; }
+    }
+    snprintf(notice, sizeof(notice), "Choose a generator, then Use src");
+    show(Chain);
+}
+
+void ChainScreen::addSelectedEffect()
+{
+    if (!count || busy()) return;
+    unsigned id = entries[browserSelection];
+    bool source = id == kSample || (id >= 256 && (PtfxManager::getPlugin(id - 256)->flags & PTFX_FLAG_GENERATOR));
+    if (replacingEffect && !selectedNode && !source)
+    { error("Select a chain effect to replace"); return; }
+    if (replacingEffect && selectedNode && source)
+    { error("Generators belong in Source"); return; }
+    if (!source && !replacingEffect && recipe.count >= kMaxStages)
+    { error("Maximum 8 effects"); return; }
+    Node n;
+    if (id >= 256)
+    {
+        if (!pluginNode(id - 256, n)) { error("Cannot load plugin"); return; }
+    }
+    else
+    {
+        n.effect = id;
+        if (id != kSample)
         {
-            changed();
-            Node& n = node();
-            if (selected >= n.count)
-                {
-                    const unsigned step = (n.flags & PTFX_FLAG_WAVETABLE) ? 2048 : 441;
-                    recipe.generatorFrames = std::clamp<int64_t>(int64_t(recipe.generatorFrames) + int64_t(delta) * step, step == 2048 ? 2048 : 1, kCapacity);
-                }
-            else
-            {
-                const auto& d = n.effect == kPlugin ? editor->s_modularEffectParams : effectDisplayConstantParams[n.effect];
-                n.params[selected] = std::clamp(n.params[selected] + delta * d.changeStep[selected],
-                                                d.downConstrain[selected], d.upConstrain[selected]);
-            }
+            n.count = effectDisplayConstantParams[id].paramsNumber;
+            memcpy(n.params, effectDefaultParamsTable[id].parameter, sizeof(n.params));
         }
     }
-    else selected = std::clamp<int>(int(selected) + delta, 0, count - 1);
-    show(page);
+    changed();
+    if (source)
+    {
+        recipe.source = n;
+        stageSelection = 0;
+        if (n.flags & PTFX_FLAG_WAVETABLE) recipe.generatorFrames = 8 * 2048;
+    }
+    else if (replacingEffect) recipe.stages[selectedNode - 1] = n;
+    else
+    {
+        if (!recipe.add(n)) { error("Maximum 8 effects"); return; }
+        stageSelection = recipe.count;
+    }
+    bool replaced = replacingEffect;
+    replacingEffect = false;
+    selectedNode = stageSelection;
+    schemaReady = false;
+    parameterSelection = 0;
+    // Stay in the browser after Add so several effects can be appended quickly.
+    focus = replaced ? 1 : 0;
+    show(Chain);
 }
 
 void ChainScreen::choose()
@@ -469,46 +861,24 @@ void ChainScreen::choose()
     if (busy()) return;
     if (page == Chain)
     {
-        selectedNode = selected;
-        if (selectedNode == 0 && recipe.source.effect == kSample) { selected = 0; show(Sources); }
-        else if (configureParameters()) { selected = 0; show(Parameters); }
-        else show(Chain);
+        if (focus == 0) addSelectedEffect();
+        else if (focus == 1) { selected = 0; show(Actions); }
+        else if (ensureSchema()) { focus = 3; show(Chain); }
+        return;
     }
-    else if (page == Sources || page == Effects)
+    if (page == Actions)
     {
-        Node n;
-        unsigned id = entries[selected];
-        if (id >= 256)
+        unsigned action = menuEntries[selected];
+        if (action == 20)
         {
-            if (!pluginNode(id - 256, n)) { error("Cannot load plugin"); return; }
+            replacingEffect = true;
+            focus = 0;
+            snprintf(notice, sizeof(notice), "Choose an effect, then Replace");
+            show(Chain); return;
         }
-        else
-        {
-            n.effect = id;
-            if (id != kSample)
-            {
-                n.count = effectDisplayConstantParams[id].paramsNumber;
-                memcpy(n.params, effectDefaultParamsTable[id].parameter, sizeof(n.params));
-            }
-        }
-        if (page == Sources && n.effect == kSample && !sourceFrames)
-        { error("Install a .ptfx generator in /Effects"); return; }
-        changed();
-        if (page == Sources)
-        {
-            recipe.source = n;
-            if (n.flags & PTFX_FLAG_WAVETABLE) recipe.generatorFrames = 8 * 2048;
-        }
-        else if (!recipe.add(n)) { error("Maximum 8 effects"); return; }
-        selected = page == Sources ? 0 : recipe.count;
-        show(Chain);
-    }
-    else if (page == Actions)
-    {
-        const unsigned action = entries[selected];
         if (action >= 10)
         { saveRecipes = action == 11; selected = 0; show(Recipes); return; }
-        if (!selectedNode) { selected = 0; show(Sources); return; }
+        if (!selectedNode) { browseSource(); return; }
         changed();
         unsigned i = selectedNode - 1;
         if (selected == 0) recipe.stages[i].bypass = !recipe.stages[i].bypass;
@@ -516,75 +886,142 @@ void ChainScreen::choose()
         if (selected == 2 && recipe.move(i, 1)) ++selectedNode;
         if (selected == 3 && !recipe.duplicate(i)) snprintf(notice, sizeof(notice), "Maximum 8 effects");
         if (selected == 4) { recipe.remove(i); selectedNode = std::min<unsigned>(selectedNode, recipe.count); }
-        selected = selectedNode;
+        stageSelection = selectedNode;
+        schemaReady = false;
+        focus = 1;
         show(Chain);
     }
-    else if (page == Recipes) recipeFile(entries[selected], saveRecipes);
-    else if (page == Destinations && entries[selected] != 255) render(entries[selected]);
-    else if (page == Leave)
-    { if (selected == 0) show(Chain); else discard(); }
+    else if (page == Recipes) recipeFile(menuEntries[selected], saveRecipes);
+    else if (page == Destinations && menuEntries[selected] != 255) render(menuEntries[selected]);
+}
+
+void ChainScreen::moveStage(int direction)
+{
+    if (busy() || !selectedNode) return;
+    const unsigned index = selectedNode - 1;
+    if ((direction < 0 && !index) || (direction > 0 && index + 1 >= recipe.count)) return;
+    changed();
+    recipe.move(index, direction);
+    stageSelection = selectedNode = int(selectedNode) + direction;
+    focus = 1;
+    show(Chain);
+}
+
+void ChainScreen::removeOrReset()
+{
+    if (busy() || page != Chain) return;
+    if (focus == 3 && ensureSchema())
+    {
+        changed(true);
+        unsigned i = parameterSelection;
+        if (i < node().count) node().params[i] = node().effect == kPlugin ?
+            PtfxManager::getActiveHeader().params[i].default_val : effectDefaultParamsTable[node().effect].parameter[i];
+        publishParameters();
+    }
+    else if (focus == 1 && !selectedNode && recipe.source.effect == kPlugin)
+    {
+        changed();
+        recipe.source = {};
+        schemaReady = false;
+    }
+    else if (focus == 1 && selectedNode)
+    {
+        changed();
+        recipe.remove(selectedNode - 1);
+        stageSelection = selectedNode = std::min<unsigned>(selectedNode, recipe.count);
+        schemaReady = false;
+    }
+    show(Chain);
 }
 
 void ChainScreen::input(unsigned button)
 {
-    if (busy())
+    if (button == 4) { leave(); return; }
+    if (busy()) return;
+    if (page != Chain)
     {
-        if (button == 0 && work != Writing && work != Restoring)
-        {
-            if (work == Snapshot || work == Loading) { closeIo(); open = false; newFileManager.suspendAutosave(false); sequencer.setMidiInVoiceMode(Sequencer::midiInVoiceMode_SampleEditor); display.setControlHide(control); display.setControlHide(statusControl); editor->switchScreen(cSampleEditor::mainScreen); editor->restoreFunctions(); }
-            else { closeIo(); runner.cancel(); work = Idle; renderPending = false; show(Chain); }
-        }
+        if (button == 0) { focus = 1; show(Chain); }
+        else if (button == 1) choose();
         return;
     }
-    if (button == 0)
-    { stopAudio(); selected = 0; show(page == Chain ? Leave : Chain); return; }
-    if (page == Parameters)
+    if (button == 0) { if (playing) { stopAudio(); show(Chain); } else preview(); }
+    else if (button == 1) addSelectedEffect();
+    else if (button == 2) moveStage(-1);
+    else if (button == 3) moveStage(1);
+    else if (button == 5) preview(true);
+    else if (button == 6 && ensureSchema()) { focus = 3; show(Chain); }
+}
+
+void ChainScreen::playPrepared()
+{
+    const Audio& audio = runner.result();
+    std::vector<int16_t*> addresses = { audio.channel[0], audio.channel[audio.channels == 2 ? 1 : 0] };
+    instrumentPlayer[0].clearInterfacePlayingEndFlag();
+    mtPadBoard.startNoteWithoutInstrument(60, addresses, audio.frames, DEFAULT_INSTRUMENT_VOLUME, INTERFACE_BUTTON_PREVIEW);
+    playing = true;
+    show(Chain);
+}
+
+void ChainScreen::startRealtime()
+{
+    runner.invalidate();
+    for (unsigned i = 0; i < recipe.count; ++i)
     {
-        if (button == 3 && selected < node().count)
-        {
-            changed();
-            node().params[selected] = node().effect == kPlugin ? PtfxManager::getActiveHeader().params[selected].default_val
-                : effectDefaultParamsTable[node().effect].parameter[selected];
-            show(Parameters);
-        }
-        return;
+        const Node& n = recipe.stages[i];
+        if (n.bypass || n.effect == kPlugin) continue;
+        if (!supported(n.effect) || n.count != effectDisplayConstantParams[n.effect].paramsNumber)
+        { error("Effect unavailable"); return; }
+        const auto& d = effectDisplayConstantParams[n.effect];
+        for (unsigned p = 0; p < n.count; ++p)
+            if (!std::isfinite(n.params[p]) || n.params[p] < d.downConstrain[p] || n.params[p] > d.upConstrain[p])
+            { error("Parameter outside supported range"); return; }
     }
-    if (page != Chain) { if (button == 2) choose(); return; }
-    if (button == 1) { selected = 0; show(Effects); }
-    else if (button == 2) choose();
-    else if (button == 3) { selectedNode = selected; selected = 0; show(Actions); }
-    else if (button == 4 && recipe.source.effect == kSample && snapshotReady)
+    Audio source{ { buffers[0][0], buffers[0][1] }, sourceFrames, uint8_t(sourceStereo ? 2 : 1) };
+    touched = true;
+    liveLoader.fs = fs;
+    // Place the live engine in editor RAM too; nine private stage headers and
+    // DSP work blocks must not consume scarce internal SRAM on the devices.
+    const uintptr_t begin = reinterpret_cast<uintptr_t>(buffers[1][0]);
+    const uintptr_t aligned = (begin + 31) & ~uintptr_t(31);
+    const size_t reserved = aligned - begin + sizeof(RealtimeChain);
+    live = new (reinterpret_cast<void*>(aligned)) RealtimeChain;
+    // Source remains immutable in the first work area. Private code, scratch,
+    // delay lines and stage state use the second; the SD snapshot restores it.
+    if (live->prepare(recipe, source, reinterpret_cast<void*>(begin + reserved),
+                      kCapacity * sizeof(int16_t) - reserved, liveLoader, kCapacity))
     {
-        if (playing) { stopAudio(); show(Chain); return; }
-        // Use the spare buffer for original audition without replacing the ready result.
-        unsigned b = runner.state() == Runner::State::Ready && runner.result().channel[0] == buffers[0][0] ? 1 : 0;
-        if (!openIo(snapshotPath, FileSystem::kRead)) { error("Cannot read original"); return; }
-        originalPlaying = true;
-        destinationSlot = b; // private buffer index during original audition
-        work = Reading;
+        liveRequested = false;
+        livePlaying = playing = true;
+        notice[0] = 0;
+        engine.getSampleFxPreview()->start(live);
         show(Chain);
+        return;
     }
-    else if (button == 5) { saveRecipes = false; selected = 0; show(Recipes); }
-    else if (button == 6) { if (playing) { stopAudio(); show(Chain); } else preview(); }
-    else if (button == 7) preview(true);
+    snprintf(notice, sizeof(notice), "%s", live->error());
+    if (live) { live->~RealtimeChain(); live = nullptr; }
+    liveRequested = false;
+    // Noncausal effects (normalization and prepending) keep exact offline
+    // behavior. Never silently bypass a stage in order to start live audio.
+    runner.start(recipe, source, buffers, kCapacity);
+    work = Processing;
+    show(Chain);
 }
 
 void ChainScreen::preview(bool render)
 {
     stopAudio();
+#ifdef TRACKER_DESKTOP
+    bool armPlugin = recipe.source.effect == kPlugin;
+    for (unsigned i = 0; i < recipe.count; ++i)
+        armPlugin |= recipe.stages[i].effect == kPlugin && !recipe.stages[i].bypass;
+    if (armPlugin) { error("PTFX: Tracker only"); return; }
+#endif
     renderPending = render;
-    if (runner.state() == Runner::State::Ready)
-    {
-        if (render) { selected = 0; show(Destinations); return; }
-        const Audio& audio = runner.result();
-        std::vector<int16_t*> addresses = { audio.channel[0], audio.channel[audio.channels == 2 ? 1 : 0] };
-        instrumentPlayer[0].clearInterfacePlayingEndFlag();
-        mtPadBoard.startNoteWithoutInstrument(60, addresses, audio.frames, DEFAULT_INSTRUMENT_VOLUME, INTERFACE_BUTTON_PREVIEW);
-        playing = true;
-        show(Chain);
-        return;
-    }
+    liveRequested = !render;
+    if (render && runner.state() == Runner::State::Ready)
+    { selected = 0; show(Destinations); return; }
     if (sourceFrames && !snapshotReady) { error("Source snapshot unavailable; reopen Chain"); return; }
+    schemaReady = false;
     touched = true;
     if (recipe.source.effect == kSample)
     {
@@ -592,6 +1029,7 @@ void ChainScreen::preview(bool render)
         if (!openIo(snapshotPath, FileSystem::kRead)) { error("Cannot read source snapshot"); return; }
         work = Reading;
     }
+    else if (liveRequested) { startRealtime(); return; }
     else
     {
         Audio source{ { buffers[0][0], buffers[0][1] }, 0, 1 };
@@ -604,7 +1042,7 @@ void ChainScreen::preview(bool render)
 void ChainScreen::recipeFile(unsigned slot, bool save)
 {
     stopAudio();
-    if (!slot && !save && haveLast) { changed(); recipe = lastUsed; selected = 0; show(Chain); return; }
+    if (!slot && !save && haveLast) { changed(); recipe = lastUsed; stageSelection = 0; schemaReady = false; focus = 1; selected = 0; show(Chain); return; }
     fs->mkdir(0, "/Effects"); fs->mkdir(0, kRecipeDir);
     char path[80], temp[84], backup[84];
     snprintf(path, sizeof(path), "%s/Chain%02u.ptchain", kRecipeDir, slot);
@@ -634,7 +1072,7 @@ void ChainScreen::recipeFile(unsigned slot, bool save)
         bool ok = fs->getFileSize(io) == sizeof(bytes) && fs->readFile(bytes, sizeof(bytes), io) == int32_t(sizeof(bytes)) && decode(bytes, sizeof(bytes), loaded);
         closeIo();
         if (!ok) { error("Invalid or unsupported recipe"); return; }
-        changed(); recipe = loaded;
+        changed(); recipe = loaded; stageSelection = 0; schemaReady = false; focus = 1;
     }
     selected = 0;
     show(Chain);
@@ -735,6 +1173,7 @@ void ChainScreen::finishRender()
     engine.clearBlockedInstrument(destinationSlot);
     fs->remove(backup);
     committed = true;
+    haveDraft = false;
     newFileManager.setInstrumentStructChanged(destinationSlot);
     newFileManager.setProjectStructChanged();
     lastUsed = recipe;
@@ -742,6 +1181,21 @@ void ChainScreen::finishRender()
     // Restore current editor data before it is saved or another instrument is selected.
     work = Idle;
     renderPending = false;
+    discard();
+}
+
+void ChainScreen::leave()
+{
+    haveDraft = !committed && (recipe.count || recipe.source.effect == kPlugin);
+    draftSlot = sourceSlot;
+    autoPreview = false;
+    stopAudio();
+    // A commit already writing is allowed to finish before dispatching a view switch.
+    if (work == Writing || work == Restoring) return;
+    runner.cancel();
+    renderPending = liveRequested = false;
+    closeIo();
+    work = Idle;
     discard();
 }
 
@@ -760,6 +1214,7 @@ void ChainScreen::discard()
 void ChainScreen::finishRestore()
 {
     closeIo();
+    if (live) { live->~RealtimeChain(); live = nullptr; }
     if (savedEffectIdx == editorEffectModular)
     {
         if (!PtfxManager::loadPlugin(savedPlugin, sampleEditorModular))
@@ -785,7 +1240,8 @@ void ChainScreen::finishRestore()
     open = false;
     newFileManager.suspendAutosave(false);
     sequencer.setMidiInVoiceMode(Sequencer::midiInVoiceMode_SampleEditor);
-    display.setControlHide(control); display.setControlHide(statusControl);
+    if (visible) hideColumns();
+    visible = false;
     if (committed)
     {
         editor->afterReloadInstrumentIdx = destinationSlot;
@@ -810,12 +1266,30 @@ void ChainScreen::finishRestore()
 
 void ChainScreen::update()
 {
-    if (open && playing && work == Idle && instrumentPlayer[0].getInterfacePlayingEndFlag())
+    if (open && autoPreview && work == Idle)
+    { autoPreview = false; preview(); return; }
+    if (open && resumeLive && work == Idle)
+    { resumeLive = false; preview(); return; }
+    if (open && livePlaying && !engine.getSampleFxPreview()->isPlaying())
+    {
+        livePlaying = playing = false;
+        if (live->hasFailed())
+        {
+            // Delay/history growth and plugin length changes need a new live
+            // instance. Rebuild automatically; no full render is required.
+            if (strstr(live->error(), "restart preview")) { preview(); return; }
+            snprintf(notice, sizeof(notice), "%s", live->error());
+        }
+        if (!visible) { leave(); return; }
+        show(page);
+    }
+    if (open && playing && !livePlaying && work == Idle && instrumentPlayer[0].getInterfacePlayingEndFlag())
     {
         instrumentPlayer[0].clearInterfacePlayingEndFlag();
         mtPadBoard.clearVoice(0);
         playing = false;
         originalPlaying = false;
+        if (!visible) { leave(); return; }
         show(page);
     }
     if (!open || work == Idle) return;
@@ -863,6 +1337,7 @@ void ChainScreen::update()
             playing = true;
             show(Chain);
         }
+        else if (liveRequested) startRealtime();
         else
         {
             Audio source{ { buffers[0][0], buffers[0][1] }, sourceFrames, uint8_t(sourceStereo ? 2 : 1) };
@@ -877,17 +1352,47 @@ void ChainScreen::update()
         runner.update();
         if (runner.state() == Runner::State::Failed) { error(runner.error()); return; }
         if (runner.state() == Runner::State::Ready)
-        { work = Idle; preview(renderPending); }
+        { work = Idle; if (renderPending) preview(true); else playPrepared(); }
         else if (runner.stage() != before)
         { snprintf(notice, sizeof(notice), "Stage %u/%u", runner.stage(), recipe.count); show(Chain); }
     }
 }
 }
 
-bool sampleChainIsOpen() { return screen.open; }
-void sampleChainUpdate() { screen.update(); }
+bool sampleChainHasDraft() { return screen.haveDraft && screen.draftSlot == mtProject.values.lastUsedInstrument; }
+unsigned sampleChainStageCount() { return screen.recipe.count; }
+bool sampleChainIsOpen() { return screen.open && screen.visible; }
+bool sampleChainUpdate()
+{
+    if (screen.open) { screen.update(); return true; }
+    if (screen.pendingEditorAction && !screen.editor->reloadOnEndSaving &&
+        newFileManager.getCurrentOperation() == fmNoOperation)
+    {
+        auto action = std::move(screen.pendingEditorAction);
+        screen.pendingEditorAction = {};
+        action();
+        return true;
+    }
+    return false;
+}
+bool sampleChainDeferEditorAction(std::function<void()> action)
+{
+    if (!screen.open) return false;
+    screen.pendingEditorAction = std::move(action);
+    screen.leave();
+    return true;
+}
+void sampleChainResetControls()
+{
+    // Module switches destroy these controls. Recreate them on the next open.
+    screen.control = screen.stagesControl = screen.parametersControl = -1;
+    screen.valuesControl = screen.valueBar = screen.focusControl = screen.menuControl = -1;
+    for (auto& handle : screen.headers) handle = -1;
+    screen.listBound = false;
+    screen.toolbarReady = false;
+}
 
-void sampleChainOpen(cSampleEditor* editor)
+static void openChainSession(cSampleEditor* editor, bool visible)
 {
     if (screen.open || mtProject.values.lastUsedInstrument >= kSampleInstrumentsCount ||
         newFileManager.getCurrentOperation() != fmNoOperation) return;
@@ -915,15 +1420,26 @@ void sampleChainOpen(cSampleEditor* editor)
         for (unsigned c = 0; c < 2; ++c)
             screen.buffers[b][c] = externalRamEffectsBuff + (c < mtEffect::kChannels ? c : 0) * EDIT_BUFF_SIZE + b * kCapacity;
     screen.committed = false;
-    screen.recipe = {};
+    if (!screen.haveDraft || screen.draftSlot != screen.sourceSlot) screen.recipe = {};
     screen.runner.invalidate();
     screen.notice[0] = 0;
     screen.open = true;
+    screen.visible = visible;
+    screen.toolbarReady = false;
+    screen.autoPreview = !visible;
     screen.touched = false;
     screen.snapshotReady = false;
     screen.renderPending = false;
+    screen.liveRequested = false;
     screen.selected = 0;
     screen.listBound = false;
+    screen.boundStageCount = 255;
+    screen.boundParameterCount = 255;
+    screen.boundValueParameter = 255;
+    screen.schemaReady = false;
+    screen.stageSelection = screen.selectedNode = screen.parameterSelection = screen.focus = 0;
+    screen.replacingEffect = false;
+    screen.menuBound = false;
     screen.work = ChainScreen::Idle;
     screen.fs->mkdir(1, kTempDir);
     // Only this controller owns this directory. Clear abandoned internal temp files.
@@ -944,6 +1460,7 @@ void sampleChainOpen(cSampleEditor* editor)
             screen.work = ChainScreen::Loading;
         else snprintf(screen.notice, sizeof(screen.notice), "Cannot load source sample");
     }
+    if (!visible) { screen.show(ChainScreen::Chain); return; }
     for (unsigned i = 0; i < 8; ++i) display.setControlHide(editor->bar[i]);
     for (unsigned i = 0; i < cSampleEditor::kEffectPageParams; ++i) display.setControlHide(editor->paramList[i]);
     editor->hideSpectrum(); editor->hideSpectrumPoints(); editor->hidePlayhead(); editor->hideEffectList();
@@ -952,15 +1469,55 @@ void sampleChainOpen(cSampleEditor* editor)
     if (screen.control < 0)
     {
         strControlProperties properties;
-        properties.x = 1; properties.y = 31; properties.w = 798; properties.h = 353;
+        for (unsigned i = 0; i < 4; ++i) screen.columnsFrame.places[i] = screen.columnPlaces[i];
+        screen.columnsFrame.placesCount = 4;
+        properties.style = 0;
+        properties.data = &screen.columnsFrame;
+        // Frames are allocated before content, as in Pattern Fill, so their
+        // outline is drawn above each column's background.
+        screen.focusControl = display.createControl<cFrame>(&properties);
+        properties.x = 1; properties.y = 60; properties.w = 197; properties.h = 363;
         properties.style = controlStyleBackground;
         properties.data = &screen.list;
         screen.control = display.createControl<cList>(&properties);
-        properties.y = 389; properties.h = 32;
-        properties.style = controlStyleBackground | controlStyleFont2;
-        properties.colors = display.getTheme().activeLabelsColors;
+        properties.x = 201; properties.data = &screen.stagesList;
+        screen.stagesControl = display.createControl<cList>(&properties);
+        properties.data = &screen.menuList;
+        screen.menuControl = display.createControl<cList>(&properties);
+        properties.x = 401; properties.w = 197; properties.data = &screen.parametersList;
+        screen.parametersControl = display.createControl<cList>(&properties);
+        properties.x = 601; properties.w = 97; properties.data = &screen.valuesList;
+        screen.valuesControl = display.createControl<cList>(&properties);
         properties.data = nullptr;
-        screen.statusControl = display.createControl<cLabel>(&properties);
+        properties.h = 363;
+        properties.style = controlStyleValue_0_100 | controlStyleBackground |
+                           (display.getTheme().barShadow > 0 ? controlStyleGradient : 0) |
+                           (display.getTheme().bottomScreenShadow > 0 ? controlStyleBottomShadow : 0);
+        screen.valueBar = display.createControl<cBar>(&properties);
+        properties.colors = display.getTheme().activeLabelsColors;
+        properties.style = controlStyleBackground | controlStyleCenterX | controlStyleCenterY | controlStyleFont3;
+        for (unsigned i = 0; i < 4; ++i)
+        {
+            properties.x = screen.columnPlaces[i][0] + (screen.columnPlaces[i][2] + 1) / 2;
+            properties.w = screen.columnPlaces[i][2];
+            properties.y = 31; properties.h = 28;
+            properties.colors = display.getTheme().topBarLabelColors;
+            screen.headers[i] = display.createControl<cLabel>(&properties);
+        }
     }
-    screen.show(screen.sourceFrames ? ChainScreen::Chain : ChainScreen::Sources);
+    screen.show(ChainScreen::Chain);
+}
+
+void sampleChainOpen(cSampleEditor* editor)
+{
+    if (sampleChainDeferEditorAction([editor] { sampleChainOpen(editor); })) return;
+    openChainSession(editor, true);
+}
+
+bool sampleChainPreview(cSampleEditor* editor)
+{
+    if (screen.open) { screen.leave(); return true; }
+    if (!screen.haveDraft || screen.draftSlot != mtProject.values.lastUsedInstrument) return false;
+    openChainSession(editor, false);
+    return true;
 }

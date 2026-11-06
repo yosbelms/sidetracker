@@ -3,6 +3,7 @@
 #include "display.h"
 #include "polyassert.h"
 #include "spectrumControl.h"
+#include <algorithm>
 
 cSpectrum::cSpectrum(strControlProperties* properties)
   : cDisplayControl(controlIdSpectrum, 1)
@@ -72,6 +73,12 @@ void cSpectrum::setData(void* data)
 //--------------------------------------------------------------------------------
 void cSpectrum::update()
 {
+    // Data resolution and display width are independent. Sample Editor
+    // stretches its existing 600-point data across the full 800-pixel screen.
+    const unsigned dataWidth = spectrum ? std::min<unsigned>(spectrum->width, 600) : 0;
+    const auto screenX = [&](unsigned index) {
+        return posX + (dataWidth > 1 ? index * (width - 1) / (dataWidth - 1) : 0);
+    };
     API_COLOR(colors[0]);
     API_LINE_WIDTH(16);
 
@@ -80,7 +87,7 @@ void cSpectrum::update()
 
     float yNormalizationCoeff = (float)height / (float)(MAX_16BIT / 300);
 
-    if (spectrum == nullptr)
+    if (!spectrum || !dataWidth)
     {
         API_BEGIN(LINES);
         API_VERTEX2F(posX, center);
@@ -119,7 +126,7 @@ void cSpectrum::update()
             pointsLimit = 200;
         }
 
-        float limitToWidthCoeff = (float)width / (float)pointsLimit;
+        float limitToWidthCoeff = (float)dataWidth / (float)pointsLimit;
         float idx = 0.0f;
 
         for (uint16_t i = 0; i < pointsLimit; i++)
@@ -143,7 +150,7 @@ void cSpectrum::update()
 
             int nextSampleIdx = (int)idx;
 
-            if (nextSampleIdx < width - 1 && sampleIdx > 0)
+            if (nextSampleIdx < int(dataWidth) - 1 && sampleIdx > 0)
             {
                 if (spectrum->upperData[nextSampleIdx] > 0)
                 {
@@ -170,8 +177,8 @@ void cSpectrum::update()
                 continue; // omija powtorzenia takiej samej wartosci probki
             }
 
-            assert(sampleIdx < width);
-            API_VERTEX2F(posX + sampleIdx, sample_y);
+            assert(sampleIdx < int(dataWidth));
+            API_VERTEX2F(screenX(sampleIdx), sample_y);
         }
     }
     else if (spectrum->spectrumType == 0)
@@ -192,15 +199,15 @@ void cSpectrum::update()
             pointsLimit = 200;
         }
 
-        float mult = (float)width / (float)pointsLimit;
-        uint16_t length = width / mult;
+        float mult = (float)dataWidth / (float)pointsLimit;
+        uint16_t length = dataWidth / mult;
 
         for (uint16_t i = 0; i < length; i++)
         {
             int idx = i * mult;
-            assert(idx < width);
-            API_VERTEX2F(posX + idx, center - spectrum->upperData[idx] * yNormalizationCoeff);
-            API_VERTEX2F(posX + idx, center - spectrum->lowerData[idx] * yNormalizationCoeff);
+            assert(idx < int(dataWidth));
+            API_VERTEX2F(screenX(idx), center - spectrum->upperData[idx] * yNormalizationCoeff);
+            API_VERTEX2F(screenX(idx), center - spectrum->lowerData[idx] * yNormalizationCoeff);
         }
     }
     else if (spectrum->spectrumType == 3)

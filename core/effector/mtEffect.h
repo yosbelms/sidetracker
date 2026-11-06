@@ -6,6 +6,8 @@
 #include "polyassert.h"
 #include "stdint.h"
 
+namespace samplefx { class RealtimeBuiltin; }
+
 extern int16_t* externalRamEffectsBuff;
 
 class mtEffect
@@ -43,6 +45,11 @@ class mtEffect
 
             dataCopyier[idx] = new mtDataCopyier(LOAD_BLOCK_SIZE_IN_SAMPLES);
         }
+    }
+
+    virtual ~mtEffect()
+    {
+        for (auto* copier : dataCopyier) delete copier;
     }
 
     struct UndoParams

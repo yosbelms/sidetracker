@@ -22,6 +22,8 @@ bool mtEffectNormalizer::startProcess()
     }
 
     processedSamples = 0;
+    analysisSamples = 0;
+    analyzing = true;
     state = true;
 
     return true;

@@ -23,9 +23,12 @@ plugin metadata validation. Run `make -C tests STEREO=1 test` to check the
 stereo platform in a separate build directory.
 
 `make desktop-check` additionally exercises the actual chain UI, saved recipe
-reload, bypass and Original audition, exact rendered sample bytes, and recovery
-from a failed source snapshot. Desktop scripts support `button`, `encoder`,
-`wait`, `import`, and `assert-chain` via `--script FILE` with `--screenshot`.
+reload, bypass, exact rendered sample bytes, and recovery
+from a failed source snapshot. It also checks Tools edits, independent Effects/Chain navigation, repeated Add,
+generator browsing without changing the source, value editing, explicit effect
+replacement, direct stage reordering, repeated main-view playback, preserved drafts, and switching to Master while previewing from either view.
+Desktop scripts support `button`, `encoder`, `wait`, `import`, `snapshot`, and
+`assert-chain`, `assert-chain-size`, `assert-view`, `assert-preview`, `assert-sequencer`, and `audit-frames` via `--script FILE` with `--screenshot`.
 
 `fake_devices.h` implements the existing `Timer` and `FileSystem` interfaces.
 Tests can control elapsed time and file bytes, simulate SD read latency, remove
@@ -96,3 +99,11 @@ python3 tools/check_perf.py --baseline tests/perf_baseline.json \
 Omit `--m4` when only recording host signatures. Record M4 baselines with a
 consistent ARM compiler and QEMU version. Baseline updates belong in the same
 change as the deliberate output or performance change, with its reason.
+
+Live chain tests compare block output with offline DSP, check independent repeated stages, next-block parameter edits, delay tails, stereo isolation, native plugin instances/generators, invalid callback output, prepared-preview fallback, and audio-stream routing/cleanup.
+
+The frame audit records text at each actual display swap, checking that Chain never exposes a partial toolbar and that parameter names and their displayed values agree throughout navigation.
+
+Desktop PTFX checks add independent stages and a generator without execution, edit float/list parameters, save their recipes, reject malformed list payloads, and verify the hardware-only playback diagnostic.
+
+Tools UI checks apply Normalizer with an edited target, Fade In, and Fade Out, then inspect the saved sample audio. Older chain recipes retain support for those effects even though they are no longer in the chain browser.

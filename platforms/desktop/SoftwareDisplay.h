@@ -5,12 +5,17 @@
 #include <SDL.h>
 #include <array>
 #include <vector>
+#include <functional>
+#include <string>
 
 class SoftwareDisplay final : public DisplayDriver
 {
 public:
     static constexpr int width = 800, height = 480;
     explicit SoftwareDisplay(SDL_Renderer& renderer);
+    struct FrameText { int x, y; std::string value; };
+    // Optional headless UI audit: observe the text actually submitted at swap.
+    std::function<void(const std::vector<FrameText>&)> frameObserver;
 
     void setPowerState(bool) override {}
     void setBrightness(int) override {}
@@ -78,6 +83,7 @@ private:
     SDL_Renderer& renderer;
     std::vector<uint8_t> ram;
     std::vector<uint32_t> commands, list;
+    std::vector<FrameText> frameTexts;
     std::array<Bitmap, 32> bitmaps{};
     std::vector<Context> contexts;
     Context state;

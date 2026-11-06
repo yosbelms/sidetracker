@@ -1018,6 +1018,8 @@ void audioEngine::unmuteHeadphones()
 
 void audioEngine::setPreviewVolume(uint8_t value)
 {
+    for (unsigned c = 0; c < AudioOutput::OutputChannels::kChannelsCount; ++c)
+        finalMixer[c]->gain(AudioOutput::FinalMixInputs::kSampleFxPreview, mixAmpLogValues[value]);
     finalMixer[AudioOutput::OutputChannels::kLeft]->gain(
       AudioOutput::FinalMixInputs::kSdCardPreview, mixAmpLogValues[value]);
     finalMixer[AudioOutput::OutputChannels::kRight]->gain(

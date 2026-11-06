@@ -179,10 +179,12 @@ class cSampleEditor : public ModuleBase
 {
 
   public:
+    static constexpr unsigned kWaveformWidth = 800;
     enum enScreenType
     {
         mainScreen,
         effectScreen,
+        toolsScreen,
         screenTypeCount
     };
 
@@ -207,8 +209,13 @@ class cSampleEditor : public ModuleBase
     virtual void stop();
     void restoreCurrentScreenFunctions();
     void setCommonFunctions();
+    void setViewSwitchFunctions();
     void setMainScreenFunctions();
     void setParamsScreenFunctions();
+    void setToolsScreenFunctions();
+    void showToolsScreen();
+    void moveTool(int16_t delta);
+    void selectTool();
     void switchScreen(enScreenType s);
     void restoreFunctions();
     void setStopSeqFunctions();
@@ -387,7 +394,7 @@ class cSampleEditor : public ModuleBase
     strLabelData labelDataMore;
 
     static strTrackerSpectrum spectrumData[2];
-    strTrackerPoints spectrumPointsData = { 0, 0, 600, 0, 0, 0 };
+    strTrackerPoints spectrumPointsData = { 0, 0, kWaveformWidth, 0, 0, 0 };
     strFrameData frameData;
     strLabelData labelArrow;
 
@@ -454,6 +461,7 @@ class cSampleEditor : public ModuleBase
     uint8_t selectedEffect = editorEffectDelay;
     uint8_t selectedPlace[enScreenType::screenTypeCount];
     uint8_t effectScreenPage = 0;
+    uint8_t selectedTool = 0;
 
     const strEffectDefaultParams* effectDefaultParamsPtr = effectDefaultParamsTable;
     const strEffectDisplayConstantParams* effectDisplayConstantParamsPtr =
@@ -464,7 +472,8 @@ class cSampleEditor : public ModuleBase
     static strInstrument sampleEditInstrument;
     strSampleMemory sampleEditorSampleMemory;
     strInstrument* const editorInstrument = &sampleEditInstrument;
-    uint8_t currentEffectIdx;
+    uint8_t currentEffectIdx = editorEffectNormalizer;
+    bool editorReady = false;
     mtEffect* currentEffect = nullptr;
     mtEffect* lastEffect = nullptr;
 

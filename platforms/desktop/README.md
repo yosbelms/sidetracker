@@ -63,3 +63,5 @@ are incomplete. Desktop audio uses the real CE mixer and sequencer with SDL
 stereo output. Physical line-in, radio, USB, MIDI ports, low-level SD sector
 access, and hardware firmware updates are unimplemented. This target uses
 the Original Tracker feature set, so Tracker+ synths are outside its scope.
+
+PTFX files contain Cortex-M ARM code. Desktop supports discovery, adding effects/generators to the chain, parameter editing (including list choices), and recipe saving/loading without executing the plugin. Preview/render of an active PTFX stage displays `PTFX: Tracker only`; use Tracker hardware to process it. Bypassed PTFX stages do not prevent desktop preview of the remaining built-in chain.

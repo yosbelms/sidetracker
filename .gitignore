@@ -1,6 +1,9 @@
 # Local toolchain
 agt/
 
+# Temp
+temp/
+
 # Build outputs
 /build/
 core/build-*/

@@ -7,6 +7,8 @@
 #include "display.h"
 #include "fileManager.h"
 #include "sampleEditor/SampleEditorChain.h"
+#include "mtAudioEngine.h"
+#include "core/interface.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -351,6 +353,7 @@ int run(const Options& options)
                 for (unsigned i = 0; i < ms && platform.running; ++i)
                 { update(); platform.timer.advance(1); }
             };
+            std::ofstream frameAudit;
             std::ifstream script(options.script);
             if (!script) throw std::runtime_error("Cannot open desktop script");
             std::string line;
@@ -359,7 +362,18 @@ int run(const Options& options)
                 if (line.empty() || line[0] == '#') continue;
                 std::istringstream fields(line);
                 std::string command; fields >> command;
-                if (command == "wait")
+                if (command == "audit-frames")
+                {
+                    std::string path; std::getline(fields >> std::ws, path);
+                    frameAudit.open(path);
+                    if (!frameAudit) throw std::runtime_error("Cannot open frame audit");
+                    driver.frameObserver = [&](const auto& texts) {
+                        frameAudit << "frame\n";
+                        for (const auto& text : texts)
+                            frameAudit << text.x << '\t' << text.y << '\t' << text.value << '\n';
+                    };
+                }
+                else if (command == "wait")
                 { unsigned ms = 0; fields >> ms; advance(std::min(ms, 60000u)); }
                 else if (command == "encoder")
                 { int value = 0; fields >> value; onPotChange(0, value); advance(50); }
@@ -395,8 +409,39 @@ int run(const Options& options)
                     if (sampleChainIsOpen() != (state == "open"))
                         throw std::runtime_error("Unexpected sample chain screen state");
                 }
+                else if (command == "assert-view")
+                {
+                    std::string view; fields >> view;
+                    const bool active = view == "Master" ? mtInterface.isMasterScreenActive() :
+                                        view == "Pattern" ? mtInterface.isPatternScreenActive() : false;
+                    if (!active) throw std::runtime_error("Unexpected active view: " + view);
+                }
+                else if (command == "assert-chain-size")
+                {
+                    unsigned count; fields >> count;
+                    if (sampleChainStageCount() != count)
+                        throw std::runtime_error("Unexpected draft chain size");
+                }
+                else if (command == "assert-preview")
+                {
+                    std::string state; fields >> state;
+                    if (engine.getSampleFxPreview()->isPlaying() != (state == "live"))
+                        throw std::runtime_error("Unexpected live preview state");
+                }
+                else if (command == "assert-sequencer")
+                {
+                    std::string state; fields >> state;
+                    if ((sequencer.getSeqState() != Sequencer::SEQ_STATE_STOP) != (state == "playing"))
+                        throw std::runtime_error("Unexpected sequencer state");
+                }
+                else if (command == "snapshot")
+                {
+                    std::string path; std::getline(fields >> std::ws, path);
+                    check(SDL_SaveBMP(surface.get(), path.c_str()) == 0);
+                }
                 else throw std::runtime_error("Unknown desktop script command");
             }
+            driver.frameObserver = {};
         }
         if (panel)
             drawPanel(driver, platform, false);

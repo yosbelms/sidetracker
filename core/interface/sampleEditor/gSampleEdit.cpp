@@ -2,12 +2,14 @@
 #include "fileManager.h"
 #include "mtSampleEditorEngine.h"
 #include "sampleEditor.h"
+#include "SampleEditorChain.h"
 
 #include <cmath>
 #include <string.h>
 
 void cSampleEditor::initDisplayControls()
 {
+    sampleChainResetControls();
     // popups
     strControlProperties popupProgressProperties;
     popupProgressProperties.x = 190;
@@ -121,7 +123,7 @@ void cSampleEditor::initDisplayControls()
     strControlProperties spectrumProperties;
     spectrumProperties.x = 0;
     spectrumProperties.y = 75 + ((300 - (MAX_16BIT / 300)) / 2);
-    spectrumProperties.w = 600;
+    spectrumProperties.w = kWaveformWidth;
     spectrumProperties.h = MAX_16BIT / 300;
     playhead = display.createControl<cProgressCursor>(&spectrumProperties);
     spectrumProperties.data = &spectrumPointsData;
@@ -165,20 +167,13 @@ void cSampleEditor::showMainScreen()
     display.setControlText(label[2], "Zoom");
     display.setControlText(label[3], "Undo");
     display.setControlText2(label[3], "");
-    display.setControlText(label[4], "Chain");
+    display.setControlText(label[4], "Effects");
     display.setControlText2(label[4], "");
+    display.setControlValue(label[4], 0);
 
-    if (isParametersScreen())
-    {
-        display.setControlText(label[5], "Apply");
-        display.setControlText2(label[5], "");
-        display.setControlValue(label[5], 0);
-    }
-    else
-    {
-        display.setControlText(label[5], "Select");
-        display.setControlText2(label[5], "effect");
-    }
+    display.setControlText(label[5], "Tools");
+    display.setControlText2(label[5], "");
+    display.setControlValue(label[5], 0);
 
     showStartPointText();
     showEndPointText();
@@ -238,7 +233,7 @@ void cSampleEditor::showMainScreen()
                                      controlStyleCenterX | controlStyleCenterY | controlStyleFont2);
         }
 
-        display.setControlPosition(label[i], (800 / 8) * i + (800 / 16), 424);
+        display.setControlPosition(label[i], (800 / 8) * (i + 1) + (800 / 16), 424);
         display.setControlSize(label[i], 800 / 8 - 6, 55);
         display.setControlShow(label[i]);
         display.refreshControl(label[i]);
@@ -249,18 +244,18 @@ void cSampleEditor::showMainScreen()
 
     display.setControlValue(label[3], 0);
     display.setControlValue(label[6], 0);
-    display.setControlText(label[6], "Effect");
-    display.setControlData(label[6], &labelArrow);
-    display.setAddControlStyle(label[6], controlStyleShowBitmap);
-    display.setControlPosition(label[6], (800 / 4) * 3 + (800 / 8), 424);
-    display.setControlSize(label[6], 800 / 4 - 6, 55);
+    display.setControlText(label[6], "Preview");
+    display.setControlText2(label[6], "");
+    display.setControlData(label[6], nullptr);
+    display.setControlStyle(label[6], controlStyleCenterX | controlStyleCenterY | controlStyleFont3);
+    display.setControlPosition(label[6], 50, 424);
+    display.setControlSize(label[6], 94, 55);
     display.setControlShow(label[6]);
     display.refreshControl(label[6]);
-
+    display.setControlText(label[7], "");
     display.setControlHide(label[7]);
     display.refreshControl(label[7]);
-    // List
-    refreshEffectList();
+    hideEffectList();
     // Waveform
 
     resizeWaveform();
@@ -279,7 +274,7 @@ void cSampleEditor::showMainScreen()
     }
 
     // title bar
-    showTitleBar(paramsScreenLabel);
+    showTitleBar("Sample Editor");
 
     // popups
     display.setControlHide(popupProgressBar);
@@ -290,7 +285,7 @@ void cSampleEditor::showMainScreen()
 
     // background label
 
-    display.setControlValue(bgLabel, 0b01111111); // 0b01111111
+    display.setControlValue(bgLabel, 255); // Include the final two button separators.
     display.setControlShow(bgLabel);
     display.refreshControl(bgLabel);
 
@@ -525,7 +520,7 @@ void cSampleEditor::resizeWaveform()
 {
     if (editorInstrument->isActive && isCurrentSampleStereo())
     {
-        display.setControlSize(spectrum[0], 600, (MAX_16BIT / 300) / 2);
+        display.setControlSize(spectrum[0], kWaveformWidth, (MAX_16BIT / 300) / 2);
 
         display.setControlShow(spectrum[0]);
         display.setControlShow(spectrum[1]);
@@ -535,7 +530,7 @@ void cSampleEditor::resizeWaveform()
     }
     else
     {
-        display.setControlSize(spectrum[0], 600, (MAX_16BIT / 300));
+        display.setControlSize(spectrum[0], kWaveformWidth, (MAX_16BIT / 300));
 
         display.setControlShow(spectrum[0]);
         display.setControlHide(spectrum[1]);
@@ -576,6 +571,7 @@ void cSampleEditor::hidePlayhead()
 }
 void cSampleEditor::showEffectList()
 {
+    if (screenType != toolsScreen) { hideEffectList(); return; }
     display.setControlShow(effectList);
     display.refreshControl(effectList);
 }

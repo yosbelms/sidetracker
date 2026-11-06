@@ -192,6 +192,7 @@ class audioEngine
     ExportQueues* getExportQueues();
     MixerAndFxs<kVoices>* getMixerAndFx();
     AudioPlaySdWav* getSdPlayer();
+    SampleFxPreview* getSampleFxPreview() { return output.getSampleFxPreview(); }
 
     friend class playerEngine;
 

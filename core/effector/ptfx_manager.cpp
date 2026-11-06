@@ -147,6 +147,19 @@ const PtfxHeader& PtfxManager::getActiveHeader()
     return s_activeHeader;
 }
 
+bool PtfxManager::loadPluginMetadata(uint16_t index)
+{
+    if (index >= s_pluginCount) return false;
+    const PtfxEntry* entry = getPluginEntry(index);
+    if (!entry) return false;
+    char path[64];
+    snprintf(path, sizeof(path), "/Effects/%s", entry->filename);
+    PtfxHeader header;
+    if (!PtfxLoader::readImage(path, header, PtfxLoader::getCodeBuffer(), PtfxLoader::getMaxCodeSize())) return false;
+    s_activeHeader = header;
+    return true;
+}
+
 bool PtfxManager::loadPlugin(uint16_t index, mtEffectModular& modularEffect)
 {
     if (index >= s_pluginCount)

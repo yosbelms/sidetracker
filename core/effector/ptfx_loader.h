@@ -19,6 +19,14 @@ public:
 
     static void syncInstructionCache(void* addr, uint32_t size);
 
+    // Validate and read code/list metadata without executing ARM entry points.
+    static bool readImage(const char* filepath, PtfxHeader&, uint8_t* code, uint32_t capacity);
+
+    // Load a private PIC image for a live chain stage. Does not touch the
+    // editor's shared code/scratch buffers or initialize the plugin.
+    static bool loadPluginInto(const char* filepath, uint8_t* code, uint32_t capacity,
+                               PtfxHeader&, PtfxInitFunc&, PtfxSetParamFunc&, PtfxProcessBlockFunc&);
+
     // Reads 472-byte PtfxHeader from a file on SD card
     static bool readHeader(const char* filepath, PtfxHeader& outHeader);
 

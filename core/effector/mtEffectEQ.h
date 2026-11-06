@@ -34,6 +34,7 @@ class mtEffectEQ : public mtEffect
     virtual uint32_t getExpectedProcessLength() override;
 
   private:
+    friend class samplefx::RealtimeBuiltin;
     float calculateBandwidth(float freq, float q);
     struct EqContext
     {

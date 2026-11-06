@@ -15,6 +15,7 @@ class mtEffectFlanger : public mtEffect
     virtual uint32_t getExpectedProcessLength() override;
 
   private:
+    friend class samplefx::RealtimeBuiltin;
     void calculate(int16_t* src, int16_t* dst, int channel); // process 128 samples
 
     uint32_t length;

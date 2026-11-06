@@ -6,6 +6,7 @@
 #include "mtStructs.h"
 #include "ptfx_validation.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <cstdlib>
@@ -80,25 +81,6 @@ const PtfxHostApi* PtfxLoader::getHostApi()
     return &s_ptfxHostApi;
 }
 
-#ifdef PLATFORM_IMX
-static void cleanInvalidateDCache(void* addr, uint32_t size)
-{
-    // SCB_BASE (0xE000ED00) + 0x270 = 0xE000EF70 (SCB->DCCIMVAC)
-    volatile uint32_t* const scb_dccimvac = reinterpret_cast<volatile uint32_t*>(0xE000EF70);
-    uintptr_t p   = reinterpret_cast<uintptr_t>(addr) & ~static_cast<uintptr_t>(0x1F);
-    uintptr_t end = reinterpret_cast<uintptr_t>(addr) + size;
-
-    asm volatile("dsb 0xf" ::: "memory");
-    while (p < end)
-    {
-        *scb_dccimvac = static_cast<uint32_t>(p);
-        p += 32;
-    }
-    asm volatile("dsb 0xf" ::: "memory");
-    asm volatile("isb 0xf" ::: "memory");
-}
-#endif
-
 void PtfxLoader::syncInstructionCache([[maybe_unused]] void* addr, [[maybe_unused]] uint32_t size)
 {
     asm volatile("dsb 0xf" ::: "memory");
@@ -167,17 +149,14 @@ bool PtfxLoader::loadPlugin(const char* filepath,
                            PtfxSetParamFunc& outSetParam,
                            PtfxProcessBlockFunc& outProcessBlock)
 {
-    outInit         = nullptr;
-    outSetParam     = nullptr;
-    outProcessBlock = nullptr;
+    return loadPluginInto(filepath, getCodeBuffer(), getMaxCodeSize(), outHeader, outInit, outSetParam, outProcessBlock);
+}
 
-#ifdef TRACKER_DESKTOP
-    // ARM plugin binaries cannot execute in the native desktop process.
-    return false;
-#endif
-
+bool PtfxLoader::readImage(const char* filepath, PtfxHeader& outHeader,
+                            uint8_t* codeBuf, uint32_t codeCapacity)
+{
     FileSystem* fs = getFileSystem();
-    if (!filepath || !fs)
+    if (!filepath || !fs || !codeBuf || !codeCapacity || (reinterpret_cast<uintptr_t>(codeBuf) & 3))
         return false;
 
     auto [isOpen, fileHandle] = fs->openFile(filepath, FileSystem::FileOpenMode::kRead);
@@ -201,7 +180,7 @@ bool PtfxLoader::loadPlugin(const char* filepath,
         headerBytesRead += static_cast<size_t>(n);
     }
 
-    if (!ptfx::validateHeader(outHeader, fs->getFileSize(fileHandle), getMaxCodeSize(), getMaxScratchSize()))
+    if (!ptfx::validateHeader(outHeader, fs->getFileSize(fileHandle), std::min(codeCapacity, getMaxCodeSize()), getMaxScratchSize()))
     {
         fs->closeFile(fileHandle);
         return false;
@@ -217,7 +196,7 @@ bool PtfxLoader::loadPlugin(const char* filepath,
 #endif
 
     uint32_t totalCodeSize = outHeader.code_size + outHeader.bss_size;
-    if (totalCodeSize > getMaxCodeSize())
+    if (totalCodeSize > std::min(codeCapacity, getMaxCodeSize()))
     {
         fs->closeFile(fileHandle);
         return false;
@@ -229,13 +208,7 @@ bool PtfxLoader::loadPlugin(const char* filepath,
         return false;
     }
 
-    uint8_t* codeBuf = getCodeBuffer();
     engine.getSdPlayer()->stop();
-
-#ifdef PLATFORM_IMX
-    // Clean and invalidate D-Cache across the executable buffer before loading
-    cleanInvalidateDCache(codeBuf, getMaxCodeSize());
-#endif
 
     // Read in <= 256-byte chunks so FatFs buffers sectors in internal DTCM (fp->buf)
     // and copies via CPU rather than performing unaligned DMA directly into SDRAM.
@@ -262,6 +235,25 @@ bool PtfxLoader::loadPlugin(const char* filepath,
     {
         memset(codeBuf + outHeader.code_size, 0, outHeader.bss_size);
     }
+
+    return true;
+}
+
+bool PtfxLoader::loadPluginInto(const char* filepath, uint8_t* codeBuf, uint32_t codeCapacity,
+                                PtfxHeader& outHeader, PtfxInitFunc& outInit,
+                                PtfxSetParamFunc& outSetParam, PtfxProcessBlockFunc& outProcessBlock)
+{
+    outInit         = nullptr;
+    outSetParam     = nullptr;
+    outProcessBlock = nullptr;
+
+#ifdef TRACKER_DESKTOP
+    // ARM plugin binaries cannot execute in the native desktop process.
+    return false;
+#endif
+
+    if (!readImage(filepath, outHeader, codeBuf, codeCapacity)) return false;
+    const uint32_t totalCodeSize = outHeader.code_size + outHeader.bss_size;
 
     // Synchronize cache: clean & invalidate D-cache to RAM, invalidate I-cache
     syncInstructionCache(codeBuf, totalCodeSize);

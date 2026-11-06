@@ -142,6 +142,7 @@ void SoftwareDisplay::bitmap(int x, int y, int handle, int cell)
 
 void SoftwareDisplay::text(int x, int y, int handle, int options, const char* value)
 {
+    if (frameObserver) frameTexts.push_back({x, y, value});
     if (handle < 0 || handle >= int(bitmaps.size()) || !bitmaps[handle].font)
         return;
     const auto& b = bitmaps[handle];
@@ -283,6 +284,7 @@ void SoftwareDisplay::endCoProList()
         switch (word)
         {
             case CMD_DLSTART:
+                frameTexts.clear();
                 state = {};
                 contexts.clear();
                 hasVertex = false;
@@ -356,7 +358,10 @@ void SoftwareDisplay::endCoProList()
                 matrix.translate(x / 65536.0, y / 65536.0);
                 break;
             }
-            case CMD_SWAP: SDL_RenderPresent(&renderer); break;
+            case CMD_SWAP:
+                SDL_RenderPresent(&renderer);
+                if (frameObserver) frameObserver(frameTexts);
+                break;
             case CMD_SETFONT2:
             {
                 auto& b = bitmaps.at(next());

@@ -2,6 +2,7 @@
 #define AUDIOENGINE_AUDIOOUTPUT_H_
 
 #include "Audio.h"
+#include "SampleFxPreview.h"
 
 class AudioOutput
 {
@@ -17,6 +18,7 @@ class AudioOutput
     {
         kStream = 0,
         kSdCardPreview = 1,
+        kSampleFxPreview = 2,
         kTestWaveform = 4,
         kMetronomeTick = 5,
         kNesEmulatorSound = 6,
@@ -33,6 +35,7 @@ class AudioOutput
     AudioEffectLimiter* getLimiter(OutputChannels channel);
     AudioMixer<FinalMixInputs::kFinalMixerSize>* getFinalMixer(OutputChannels channel);
     AudioOutputStream* getStream();
+    SampleFxPreview* getSampleFxPreview() { return &sampleFxPreview; }
 
   private:
 #ifndef PLATFORM_IMX
@@ -41,6 +44,7 @@ class AudioOutput
     AudioMux limiterSidechainMux[OutputChannels::kChannelsCount];
     UsbOutputStream usbOutput;
 #endif
+    SampleFxPreview sampleFxPreview;
     AudioEffectLimiter limiter[OutputChannels::kChannelsCount];
     AudioOutputStream outputStream;
     AudioMixer<FinalMixInputs::kFinalMixerSize> finalMixer[OutputChannels::kChannelsCount];

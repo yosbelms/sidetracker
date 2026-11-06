@@ -13,6 +13,7 @@ class mtEffectFadeOut : public mtEffect
     virtual uint32_t getExpectedProcessLength() override;
 
   private:
+    friend class samplefx::RealtimeBuiltin;
     uint32_t length;
 
     struct ChannelParams

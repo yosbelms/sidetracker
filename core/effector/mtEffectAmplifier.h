@@ -13,6 +13,7 @@ class mtEffectAmplifier : public mtEffect
     virtual uint32_t getExpectedProcessLength() override;
 
   private:
+    friend class samplefx::RealtimeBuiltin;
     uint32_t length;
     float amp;
     uint32_t processedSamples = 0;

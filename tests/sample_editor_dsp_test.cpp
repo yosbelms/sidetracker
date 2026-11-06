@@ -78,6 +78,16 @@ TEST(SampleEditorDsp, GainAndSilentNormalizationAreSafe)
     parameters(sampleEditorNormalizer, {100});
     EXPECT_EQ(run(sampleEditorNormalizer, std::vector<int16_t>(8192)), std::vector<int16_t>(8192));
 }
+TEST(SampleEditorDsp, NormalizationAnalyzesNonSilentInputOnEveryPass)
+{
+    parameters(sampleEditorNormalizer, {50});
+    const std::vector<int16_t> input{100, -200, 100};
+    const auto first = run(sampleEditorNormalizer, input);
+    ASSERT_EQ(first.size(), 3);
+    EXPECT_GT(first[0], 8000);
+    EXPECT_LT(first[1], -16000);
+    EXPECT_EQ(run(sampleEditorNormalizer, input), first);
+}
 TEST(SampleEditorDsp, DelayReportsAndWritesItsExactTail)
 {
     parameters(sampleEditorDelay, {0.5f, 1});
@@ -201,4 +211,276 @@ TEST(PtfxValidation, RejectsBadLayoutsAndUnterminatedListStrings)
     EXPECT_FALSE(ptfx::validateStrings(header, code));
     code[10] = 0; code[30] = 0;
     EXPECT_TRUE(ptfx::validateStrings(header, code));
+}
+
+#include "SampleFxRealtime.h"
+#include "mtSampleEditorEngine.h"
+
+namespace
+{
+struct NoLivePlugins : samplefx::RealtimePluginLoader
+{
+    PtfxHostApi api = {};
+    bool load(const samplefx::Node&, samplefx::RealtimePlugin&, samplefx::RealtimeArena&) override { return false; }
+    const PtfxHostApi* hostApi() override { return &api; }
+};
+samplefx::Node liveNode(uint8_t id, std::initializer_list<float> values = {})
+{
+    samplefx::Node node; node.effect = id; node.count = values.size();
+    std::copy(values.begin(), values.end(), node.params);
+    return node;
+}
+std::vector<int16_t> liveOutput(samplefx::Recipe recipe, std::vector<int16_t>& input)
+{
+    samplefx::RealtimeChain chain;
+    NoLivePlugins loader;
+    std::vector<uint8_t> arena(2 * 1024 * 1024);
+    samplefx::Audio source{{input.data(), input.data()}, uint32_t(input.size()), 1};
+    EXPECT_TRUE(chain.prepare(recipe, source, arena.data(), arena.size(), loader, 1000000)) << chain.error();
+    std::vector<int16_t> result;
+    int16_t left[128], right[128];
+    while (!chain.finished())
+    {
+        unsigned count = chain.process(left, right, 128);
+        EXPECT_FALSE(chain.hasFailed()) << chain.error();
+        if (!count) break;
+        result.insert(result.end(), left, left + count);
+        EXPECT_TRUE(std::equal(left, left + count, right));
+    }
+    return result;
+}
+}
+
+TEST(SampleFxRealtime, MatchesOfflineDspIncludingPartialBlocks)
+{
+    std::vector<int16_t> source(8192 + 131);
+    for (unsigned i = 0; i < source.size(); ++i) source[i] = int(i * 193 % 24000) - 12000;
+    struct Case { mtEffect* fx; samplefx::Node node; } cases[] = {
+        {&sampleEditorAmplifier, liveNode(editorEffectAmplifier, {1.5f})},
+        {&sampleEditorOverdrive, liveNode(editorEffectOverdrive, {0.7f, 0})},
+        {&sampleEditorBitcrusher, liveNode(editorEffectBitcrusher, {9, 7000})},
+        {&sampleEditorChorus, liveNode(editorEffectChorus, {256, 3})},
+        {&sampleEditorFlanger, liveNode(editorEffectFlanger, {256, 50, 4, 1})},
+        {&sampleEditorEQ, liveNode(editorEffectEQ, {2, 80, 1, -3, 800, 1, 1, 12000, 1})},
+        {&sampleEditorCompresor, liveNode(editorEffectCompresor, {-12, 4, 10, 50})},
+        {&sampleEditorLimiter, liveNode(editorEffectLimiter, {-6, 3, 300})},
+        {&sampleEditorFadeIn, liveNode(editorEffectFadeIn)},
+        {&sampleEditorFadeOut, liveNode(editorEffectFadeOut)},
+        {&sampleEditorDelay, liveNode(editorEffectDelay, {0.5f, 1})},
+    };
+    for (auto& entry : cases)
+    {
+        SCOPED_TRACE(unsigned(entry.node.effect));
+        for (unsigned p = 0; p < entry.node.count; ++p)
+        { float v = entry.node.params[p]; entry.fx->setParameter(v, p); }
+        auto expected = run(*entry.fx, source);
+        samplefx::Recipe recipe; ASSERT_TRUE(recipe.add(entry.node));
+        EXPECT_EQ(liveOutput(recipe, source), expected);
+    }
+}
+
+TEST(SampleFxRealtime, RepeatedStatefulStagesAreIndependent)
+{
+    std::vector<int16_t> source(1027);
+    for (unsigned i = 0; i < source.size(); ++i) source[i] = int(i * 119 % 18000) - 9000;
+    parameters(sampleEditorChorus, {256, 3});
+    auto expected = run(sampleEditorChorus, source);
+    parameters(sampleEditorChorus, {512, 5});
+    expected = run(sampleEditorChorus, expected);
+    samplefx::Recipe recipe;
+    recipe.add(liveNode(editorEffectChorus, {256, 3}));
+    recipe.add(liveNode(editorEffectChorus, {512, 5}));
+    EXPECT_EQ(liveOutput(recipe, source), expected);
+}
+
+TEST(SampleFxRealtime, ParameterEditChangesNextBlockWithoutRestartingSource)
+{
+    std::vector<int16_t> input(1024);
+    for (unsigned i = 0; i < input.size(); ++i) input[i] = 1000 + i;
+    std::vector<uint8_t> arena(8192);
+    NoLivePlugins loader; samplefx::RealtimeChain chain; samplefx::Recipe recipe;
+    recipe.add(liveNode(editorEffectAmplifier, {1}));
+    recipe.add(liveNode(editorEffectAmplifier, {2}));
+    samplefx::Audio source{{input.data(), input.data()}, uint32_t(input.size()), 1};
+    ASSERT_TRUE(chain.prepare(recipe, source, arena.data(), arena.size(), loader, input.size()));
+    int16_t left[128], right[128];
+    ASSERT_EQ(chain.process(left, right, 128), 128);
+    EXPECT_EQ(left[0], 2000);
+    recipe.stages[1].params[0] = 3;
+    chain.setParameters(recipe);
+    ASSERT_EQ(chain.process(left, right, 128), 128);
+    EXPECT_EQ(left[0], input[128] * 3);
+    EXPECT_EQ(chain.played(), 256);
+    EXPECT_EQ(recipe.stages[0].params[0], 1);
+    EXPECT_EQ(input[128], 1128);
+}
+
+TEST(SampleFxRealtime, DelayTailsFlowIntoFollowingStagesAndBypass)
+{
+    std::vector<int16_t> source(131, 0); source[0] = 10000;
+    parameters(sampleEditorDelay, {0.5f, 1});
+    auto expected = run(sampleEditorDelay, source);
+    parameters(sampleEditorFadeOut, {});
+    expected = run(sampleEditorFadeOut, expected);
+    samplefx::Recipe recipe;
+    recipe.add(liveNode(editorEffectDelay, {0.5f, 1}));
+    auto bypass = liveNode(editorEffectAmplifier, {5}); bypass.bypass = true;
+    recipe.add(bypass);
+    recipe.add(liveNode(editorEffectFadeOut));
+    EXPECT_EQ(liveOutput(recipe, source), expected);
+}
+
+TEST(SampleFxRealtime, AnalysisAndMemoryLimitsFailBeforePlayback)
+{
+    std::vector<int16_t> input(1000, 2000);
+    uint8_t arena[128]; NoLivePlugins loader; samplefx::RealtimeChain chain;
+    samplefx::Audio source{{input.data(), input.data()}, uint32_t(input.size()), 1};
+    samplefx::Recipe recipe; recipe.add(liveNode(editorEffectNormalizer, {100}));
+    EXPECT_FALSE(chain.prepare(recipe, source, arena, sizeof(arena), loader, 10000));
+    EXPECT_NE(std::string(chain.error()).find("analysis"), std::string::npos);
+    recipe.stages[0] = liveNode(editorEffectChorus, {256, 3});
+    EXPECT_FALSE(chain.prepare(recipe, source, arena, sizeof(arena), loader, 10000));
+    EXPECT_EQ(input[0], 2000);
+}
+
+TEST(SampleFxRealtime, StereoChannelsKeepIndependentHistory)
+{
+    if (mtEffect::kChannels < 2) GTEST_SKIP() << "Stereo-only platform";
+    std::vector<int16_t> left(300, 0), right(300, 0); left[0] = 12000;
+    std::vector<uint8_t> arena(32000);
+    NoLivePlugins loader; samplefx::RealtimeChain chain; samplefx::Recipe recipe;
+    recipe.add(liveNode(editorEffectChorus, {256, 3}));
+    samplefx::Audio source{{left.data(), right.data()}, uint32_t(left.size()), 2};
+    ASSERT_TRUE(chain.prepare(recipe, source, arena.data(), arena.size(), loader, 1000));
+    int16_t outLeft[128], outRight[128]; bool heardLeft = false;
+    while (!chain.finished())
+    {
+        unsigned count = chain.process(outLeft, outRight, 128);
+        ASSERT_GT(count, 0);
+        for (unsigned i = 0; i < count; ++i) { heardLeft |= outLeft[i] != 0; EXPECT_EQ(outRight[i], 0); }
+    }
+    EXPECT_TRUE(heardLeft);
+}
+
+namespace
+{
+// Two native function banks stand in for separate relocated PTFX code/BSS
+// images. State itself is allocated through the production live arena.
+struct NativeLiveState { float gain; unsigned position; const PtfxHostApi* host; };
+template<unsigned Bank> struct NativeLivePlugin
+{
+    static inline NativeLiveState* state;
+    static void init(void* scratch, uint32_t, const PtfxHostApi* host)
+    { state = new (scratch) NativeLiveState{1, 0, host}; }
+    static void parameter(uint8_t index, float value)
+    { if (!index) state->gain = value; }
+    static int32_t process(const int16_t** in, int16_t** out, uint32_t frames, uint8_t channels)
+    {
+        for (unsigned i = 0; i < frames; ++i)
+            for (unsigned c = 0; c < channels; ++c)
+                out[c][i] = in[c] ? in[c][i] * state->gain : (state->position + i) * state->gain;
+        state->position += frames;
+        return frames;
+    }
+};
+struct NativeLiveLoader : NoLivePlugins
+{
+    unsigned loaded = 0;
+    bool load(const samplefx::Node& node, samplefx::RealtimePlugin& plugin, samplefx::RealtimeArena& arena) override
+    {
+        plugin.header.flags = node.flags; plugin.header.num_params = node.count;
+        plugin.header.scratch_size = sizeof(NativeLiveState);
+        plugin.header.params[0].min_val = 0; plugin.header.params[0].max_val = 5;
+        plugin.scratch = arena.allocate(plugin.header.scratch_size);
+        if (loaded++ == 0)
+        { plugin.init = NativeLivePlugin<0>::init; plugin.parameter = NativeLivePlugin<0>::parameter; plugin.process = NativeLivePlugin<0>::process; }
+        else
+        { plugin.init = NativeLivePlugin<1>::init; plugin.parameter = NativeLivePlugin<1>::parameter; plugin.process = NativeLivePlugin<1>::process; }
+        return plugin.scratch != nullptr;
+    }
+};
+}
+
+TEST(SampleFxRealtime, GeneratorAndProcessingPluginHaveIndependentState)
+{
+    NativeLiveLoader loader; samplefx::RealtimeChain chain; samplefx::Recipe recipe;
+    recipe.source = liveNode(samplefx::kPlugin, {2}); recipe.source.flags = PTFX_FLAG_GENERATOR;
+    recipe.generatorFrames = 301;
+    recipe.add(liveNode(samplefx::kPlugin, {3}));
+    uint8_t arena[1024]; samplefx::Audio empty;
+    ASSERT_TRUE(chain.prepare(recipe, empty, arena, sizeof(arena), loader, 1000)) << chain.error();
+    EXPECT_NE(NativeLivePlugin<0>::state, NativeLivePlugin<1>::state);
+    int16_t left[128], right[128];
+    ASSERT_EQ(chain.process(left, right, 128), 128);
+    EXPECT_EQ(left[100], 600);
+    recipe.stages[0].params[0] = 4; chain.setParameters(recipe);
+    ASSERT_EQ(chain.process(left, right, 128), 128);
+    EXPECT_EQ(left[0], 128 * 8);
+    EXPECT_EQ(NativeLivePlugin<0>::state->gain, 2);
+    ASSERT_EQ(chain.process(left, right, 128), 45);
+    EXPECT_EQ(chain.played(), 301);
+    EXPECT_TRUE(chain.finished());
+}
+
+namespace
+{
+void prependInit(void* scratch, uint32_t bytes, const PtfxHostApi* host)
+{
+    NativeLivePlugin<0>::init(scratch, bytes, host);
+    host->set_extra_samples(4, 0);
+}
+int32_t invalidLiveProcess(const int16_t**, int16_t**, uint32_t frames, uint8_t) { return frames + 1; }
+struct SpecialLiveLoader : NativeLiveLoader
+{
+    bool prepend = false;
+    bool load(const samplefx::Node& node, samplefx::RealtimePlugin& plugin, samplefx::RealtimeArena& arena) override
+    {
+        if (!NativeLiveLoader::load(node, plugin, arena)) return false;
+        if (prepend) plugin.init = prependInit;
+        else plugin.process = invalidLiveProcess;
+        return true;
+    }
+};
+}
+TEST(SampleFxRealtime, PrependedAudioUsesPreparedPreviewAndInvalidPluginOutputStops)
+{
+    samplefx::RealtimeChain chain; samplefx::Recipe recipe;
+    recipe.source = liveNode(samplefx::kPlugin, {1}); recipe.source.flags = PTFX_FLAG_GENERATOR;
+    uint8_t arena[1024]; samplefx::Audio empty;
+    SpecialLiveLoader prepend; prepend.prepend = true;
+    EXPECT_FALSE(chain.prepare(recipe, empty, arena, sizeof(arena), prepend, 100000));
+    EXPECT_NE(std::string(chain.error()).find("inserts audio"), std::string::npos);
+    SpecialLiveLoader invalid;
+    ASSERT_TRUE(chain.prepare(recipe, empty, arena, sizeof(arena), invalid, 100000));
+    int16_t left[128], right[128];
+    EXPECT_EQ(chain.process(left, right, 128), 0);
+    EXPECT_TRUE(chain.hasFailed());
+    EXPECT_TRUE(chain.finished());
+}
+
+#include "SampleFxPreview.h"
+#include "audio_test_support.h"
+TEST(SampleFxRealtime, PreviewAudioStreamRoutesStereoAndStopsWithoutLeakingBlocks)
+{
+    static SampleFxPreview preview;
+    static ce::test::BlockSink leftSink, rightSink;
+    AudioConnection left(&preview, 0, &leftSink, 0), right(&preview, 1, &rightSink, 0);
+    samplefx::Recipe recipe; recipe.add(liveNode(editorEffectAmplifier, {2}));
+    std::vector<int16_t> input(131, 3000); std::vector<uint8_t> arena(8192);
+    samplefx::Audio source{{input.data(), input.data()}, uint32_t(input.size()), 1};
+    NoLivePlugins loader; samplefx::RealtimeChain chain;
+    ASSERT_TRUE(chain.prepare(recipe, source, arena.data(), arena.size(), loader, 1000));
+    const auto blocksBefore = AudioStream::memory_used;
+    preview.start(&chain);
+    preview.update(); leftSink.update(); rightSink.update();
+    EXPECT_TRUE(leftSink.received); EXPECT_TRUE(rightSink.received);
+    EXPECT_EQ(leftSink.samples[0], 6000); EXPECT_EQ(rightSink.samples[0], 6000);
+    EXPECT_TRUE(preview.isPlaying());
+    preview.update(); leftSink.update(); rightSink.update();
+    EXPECT_FALSE(preview.isPlaying());
+    EXPECT_EQ(leftSink.samples[2], 6000); EXPECT_EQ(leftSink.samples[3], 0);
+    EXPECT_EQ(AudioStream::memory_used, blocksBefore);
+    ASSERT_TRUE(chain.prepare(recipe, source, arena.data(), arena.size(), loader, 1000));
+    preview.start(&chain); preview.stop(); preview.update(); leftSink.update();
+    EXPECT_FALSE(leftSink.received);
 }

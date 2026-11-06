@@ -38,6 +38,8 @@ bool mtEffectLimiter::startProcess()
         channelParams[channel].srcAddr = confirmed[channel].selection.addr;
         channelParams[channel].dstAddr = processed[channel].selection.addr;
         channelParams[channel].a = 0;
+        channelParams[channel].xpeak = 0;
+        channelParams[channel].g = 1.0f;
     }
 
     processedSamples = 0;

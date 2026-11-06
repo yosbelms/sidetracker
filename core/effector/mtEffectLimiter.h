@@ -13,6 +13,7 @@ class mtEffectLimiter : public mtEffect
     virtual uint32_t getExpectedProcessLength() override;
 
   private:
+    friend class samplefx::RealtimeBuiltin;
     uint16_t threshold;
     float attackCoeff;
     float releaseCoeff;

@@ -13,6 +13,7 @@ class mtEffectCompresor : public mtEffect
     virtual uint32_t getExpectedProcessLength() override;
 
   private:
+    friend class samplefx::RealtimeBuiltin;
     static constexpr int kProcessingBlockLength = 8192;
 
     struct strCompresorParams

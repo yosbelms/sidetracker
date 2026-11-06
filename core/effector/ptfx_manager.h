@@ -24,6 +24,9 @@ class PtfxManager
     static const PtfxEntry* getPlugin(uint16_t index);
     static const char* getPluginDisplayName(uint16_t index);
 
+    // Read/validate the plugin and parameter lists without executing it.
+    static bool loadPluginMetadata(uint16_t index);
+
     // Loads the selected plugin into executable RAM and configures mtEffectModular
     static bool loadPlugin(uint16_t index, mtEffectModular& modularEffect);
 

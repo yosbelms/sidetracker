@@ -22,11 +22,8 @@ cSampleEditor sampleEditor;
 
 static cSampleEditor* SE = &sampleEditor;
 
-static const uint16_t mainScreenFramePlaces[4][4] = {
-    { (800 / 8) * 0 + 1, 424, 800 / 8 - 3, 55 },
-    { (800 / 8) * 1 + 1, 424, 800 / 8 - 3, 55 },
-    { (800 / 8) * 2 + 1, 424, 800 / 8 - 3, 55 },
-    { (800 / 8) * 6 + 1, 31, 800 / 4 - 3, 391 },
+static const uint16_t mainScreenFramePlaces[3][4] = {
+    { 101, 424, 97, 55 }, { 201, 424, 97, 55 }, { 301, 424, 97, 55 },
 };
 
 static const uint16_t paramsScreenFramePlaces[6][4] = {
@@ -55,10 +52,15 @@ static void functMainScreenDelete();
 static void functSelectStartPoint();
 static void functSelectEndPoint();
 static void functSelectZoom();
-static void functListUp();
-static void functListDown();
 static void functUndo();
 static void functApply();
+static void functTools() { if (sampleChainDeferEditorAction(functTools)) return; SE->screenType = cSampleEditor::toolsScreen; SE->switchScreen(SE->screenType); }
+static void functToolsBack() { SE->screenType = cSampleEditor::mainScreen; SE->switchScreen(SE->screenType); }
+static void functToolUp() { SE->moveTool(-1); }
+static void functToolDown() { SE->moveTool(1); }
+static void functToolEncoder(int16_t delta) { SE->moveTool(delta); }
+static void functToolSelect() { SE->selectTool(); }
+static void functWaveformPreview();
 // Parameter screen functions
 static void functParamsScreenLeft();
 static void functParamsScreenRight();
@@ -84,6 +86,7 @@ static void functTooLongProcessedSampleOk();
 
 void cSampleEditor::start([[maybe_unused]] uint32_t options)
 {
+    editorReady = false;
     moduleRefresh = 1;
 
     if (mtProject.values.lastUsedInstrument < kSampleInstrumentsCount &&
@@ -205,7 +208,7 @@ void cSampleEditor::start([[maybe_unused]] uint32_t options)
 
     if (!editorInstrument->isActive)
     {
-        selectedPlace[mainScreen] = effectButton;
+        selectedPlace[mainScreen] = startPointButton;
     }
 
     currentEffect->clearLoadedData();
@@ -246,12 +249,15 @@ void cSampleEditor::start([[maybe_unused]] uint32_t options)
 
     currentEffect->changeSelectionRange(selection.startPoint, selection.endPoint);
 
+    editorReady = true;
     sequencer.setMidiInVoiceMode(Sequencer::midiInVoiceMode_SampleEditor);
 }
 
 void cSampleEditor::update()
 {
-    if (sampleChainIsOpen()) { sampleChainUpdate(); return; }
+    // Startup confirmation can return before the sample/effect is initialized.
+    if (!editorReady) return;
+    if (sampleChainUpdate()) return;
     if (needRefreshSpectrum)
     {
         needRefreshSpectrum = 0;
@@ -407,6 +413,9 @@ void cSampleEditor::update()
 
 void cSampleEditor::stop()
 {
+    editorReady = false;
+    engine.getSampleFxPreview()->stop();
+    if (playingInProgress) { mtPadBoard.cutAllInstrument(); playingInProgress = false; }
     moduleRefresh = 0;
     if (!avoidStop)
     {
@@ -436,9 +445,13 @@ void cSampleEditor::restoreCurrentScreenFunctions()
     {
         setParamsScreenFunctions();
     }
+    else if (screenType == enScreenType::toolsScreen)
+    {
+        setToolsScreenFunctions();
+    }
 }
 
-void cSampleEditor::setCommonFunctions()
+void cSampleEditor::setViewSwitchFunctions()
 {
     ip->setButtonObj(interfaceButtonParams, buttonPress, functSwitchModule);
     ip->setButtonObj(interfaceButtonPerformance, buttonPress, functSwitchModule);
@@ -454,6 +467,11 @@ void cSampleEditor::setCommonFunctions()
     ip->setButtonObj(interfaceButtonInstr, functInstrument);
     ip->setButtonObj(interfaceButtonGame, buttonPress, functSwitchModule);
 
+}
+
+void cSampleEditor::setCommonFunctions()
+{
+    setViewSwitchFunctions();
     ip->setButtonObj(interfaceButtonMiniMenu, functMenu);
 
     if (mtProject.values.lastUsedInstrument > kSampleInstrumentsCount - 1)
@@ -486,15 +504,16 @@ void cSampleEditor::setMainScreenFunctions()
 
     if (editorInstrument->isActive)
     {
-        ip->setButtonObj(interfaceButton0, buttonPress, functSelectStartPoint);
-        ip->setButtonObj(interfaceButton1, buttonPress, functSelectEndPoint);
-        ip->setButtonObj(interfaceButton2, buttonPress, functSelectZoom);
-        ip->setButtonObj(interfaceButton3, buttonPress, functUndo);
+        ip->setButtonObj(interfaceButton1, buttonPress, functSelectStartPoint);
+        ip->setButtonObj(interfaceButton2, buttonPress, functSelectEndPoint);
+        ip->setButtonObj(interfaceButton3, buttonPress, functSelectZoom);
+        ip->setButtonObj(interfaceButton4, buttonPress, functUndo);
     }
-    ip->setButtonObj(interfaceButton5, buttonPress, functApply);
-    ip->setButtonObj(interfaceButton4, buttonPress, [] { sampleChainOpen(SE); });
-    ip->setButtonObj(interfaceButton6, buttonPress, functListUp);
-    ip->setButtonObj(interfaceButton7, buttonPress, functListDown);
+    if (editorInstrument->isActive)
+        ip->setButtonObj(interfaceButton6, buttonPress, functTools);
+    if (editorInstrument->isActive || sampleChainHasDraft())
+        ip->setButtonObj(interfaceButton0, buttonPress, functWaveformPreview);
+    ip->setButtonObj(interfaceButton5, buttonPress, [] { sampleChainOpen(SE); });
 
     ip->setPotObj(interfacePot0, functMainScreenEncoder);
 }
@@ -607,6 +626,11 @@ void cSampleEditor::switchScreen(enScreenType s)
         showMainScreen();
         setMainScreenFunctions();
     }
+    else if (s == toolsScreen)
+    {
+        showToolsScreen();
+        setToolsScreenFunctions();
+    }
     else if (s == effectScreen)
     {
         prepareDisplayDataParamsScreen();
@@ -622,6 +646,8 @@ void cSampleEditor::restoreFunctions()
         setMainScreenFunctions();
     else if (screenType == effectScreen)
         setParamsScreenFunctions();
+    else if (screenType == toolsScreen)
+        setToolsScreenFunctions();
 }
 
 void cSampleEditor::noteOnHandle(uint8_t channel,
@@ -785,7 +811,7 @@ void cSampleEditor::reloadPlayheadValue()
                                                   startPoint);
 
         if (zoom.zoomValue == 1.0)
-            playheadValue = (600 * playheadValue_16BIT) / MAX_16BIT;
+            playheadValue = ((kWaveformWidth - 1) * playheadValue_16BIT) / MAX_16BIT;
         else if (zoom.zoomValue > 1.0)
         {
             if ((int32_t)playheadValue_16BIT < zoom.zoomStart ||
@@ -794,7 +820,7 @@ void cSampleEditor::reloadPlayheadValue()
             else
             {
                 playheadValue =
-                  mapClamped<int>(playheadValue_16BIT, zoom.zoomStart, zoom.zoomEnd, 0, 600);
+                  mapClamped<int>(playheadValue_16BIT, zoom.zoomStart, zoom.zoomEnd, 0, kWaveformWidth - 1);
             }
         }
         needShowPlayhead = 1;
@@ -877,7 +903,7 @@ void cSampleEditor::reloadFrameData(enScreenType s)
 {
     if (s == mainScreen)
     {
-        frameData.placesCount = 4;
+        frameData.placesCount = 3;
 
         for (uint8_t i = 0; i < frameData.placesCount; i++)
         {
@@ -949,7 +975,7 @@ void cSampleEditor::reloadPointsData()
     if (selection.startPoint >= zoom.zoomStart && selection.startPoint <= zoom.zoomEnd)
     {
         spectrumPointsData.startPoint =
-          ((selection.startPoint - zoom.zoomStart) * (spectrumData[0].width - 1)) / zoom.zoomWidth;
+          ((selection.startPoint - zoom.zoomStart) * (kWaveformWidth - 1)) / zoom.zoomWidth;
     }
     else
         spectrumPointsData.startPoint = -1;
@@ -957,7 +983,7 @@ void cSampleEditor::reloadPointsData()
     if (selection.endPoint >= zoom.zoomStart && selection.endPoint <= zoom.zoomEnd)
     {
         spectrumPointsData.endPoint =
-          ((selection.endPoint - zoom.zoomStart) * (spectrumData[0].width - 1)) / zoom.zoomWidth;
+          ((selection.endPoint - zoom.zoomStart) * (kWaveformWidth - 1)) / zoom.zoomWidth;
     }
     else
         spectrumPointsData.endPoint = -1;
@@ -1087,6 +1113,7 @@ void cSampleEditor::refreshZoom()
 }
 void cSampleEditor::refreshEffectList()
 {
+    if (screenType != toolsScreen) { hideEffectList(); return; }
     display.setControlValue(effectList, selectedEffectListIdx);
     showEffectList();
 
@@ -1194,7 +1221,7 @@ void cSampleEditor::refreshPlayingProgress()
 // MainScreen
 void cSampleEditor::modStartPoint(int16_t val)
 {
-    uint16_t move_step = zoom.zoomWidth / 600;
+    uint16_t move_step = zoom.zoomWidth / kWaveformWidth;
     val *= move_step;
 
     if (selection.startPoint + val > MAX_16BIT)
@@ -1229,7 +1256,7 @@ void cSampleEditor::modStartPoint(int16_t val)
 
 void cSampleEditor::modEndPoint(int16_t val)
 {
-    uint16_t move_step = zoom.zoomWidth / 600;
+    uint16_t move_step = zoom.zoomWidth / kWaveformWidth;
     val *= move_step;
 
     if (selection.endPoint + val > MAX_16BIT)
@@ -1480,8 +1507,9 @@ bool cSampleEditor::areThereMoreThanOneParamsPage()
 
 void cSampleEditor::setPreviewFunction()
 {
-    ip->clearButton(interfaceButton6);
-    ip->setButtonObj(interfaceButton6, buttonPress, functPreview);
+    const auto button = screenType == mainScreen ? interfaceButton0 : interfaceButton6;
+    ip->clearButton(button);
+    ip->setButtonObj(button, buttonPress, screenType == mainScreen ? functWaveformPreview : functPreview);
 
     previewState = previewStatePreview;
 
@@ -1490,8 +1518,9 @@ void cSampleEditor::setPreviewFunction()
 
 void cSampleEditor::setPlayFunction()
 {
-    ip->clearButton(interfaceButton6);
-    ip->setButtonObj(interfaceButton6, buttonPress, functPlay);
+    const auto button = screenType == mainScreen ? interfaceButton0 : interfaceButton6;
+    ip->clearButton(button);
+    ip->setButtonObj(button, buttonPress, screenType == mainScreen ? functWaveformPreview : functPlay);
 
     previewState = previewStatePlay;
 
@@ -1501,8 +1530,10 @@ void cSampleEditor::setPlayFunction()
 void cSampleEditor::setStopFunction()
 {
     ip->clearAll();
-    ip->clearButton(interfaceButton6);
-    ip->setButtonObj(interfaceButton6, buttonPress, functStop);
+    setViewSwitchFunctions();
+    const auto button = screenType == mainScreen ? interfaceButton0 : interfaceButton6;
+    ip->clearButton(button);
+    ip->setButtonObj(button, buttonPress, functStop);
 
     previewState = previewStateStop;
 
@@ -1545,6 +1576,7 @@ float cSampleEditor::samplePosToTime(uint32_t pos)
 //************************************************************************** ACTION FUNCTIONS
 static void functSwitchModule(uint8_t button)
 {
+    if (sampleChainDeferEditorAction([button] { functSwitchModule(button); })) return;
 
     if (button == interfaceButtonSampleEdit)
     {
@@ -1604,6 +1636,7 @@ static void functMiniMiddle(uint8_t state)
 
 static void functPads(uint8_t pad, uint8_t state, [[maybe_unused]] int16_t velo)
 {
+    if (sampleChainDeferEditorAction([pad, state, velo] { functPads(pad, state, velo); })) return;
     if (SE->screenType != cSampleEditor::enScreenType::mainScreen)
     {
         return;
@@ -1643,6 +1676,7 @@ static void functInstrument(uint8_t state)
 
 static void functMainScreenLeft()
 {
+    if (sampleChainDeferEditorAction(functMainScreenLeft)) return;
     if (!SE->editorInstrument->isActive)
         return;
 
@@ -1656,6 +1690,7 @@ static void functMainScreenLeft()
 
 static void functMainScreenRight()
 {
+    if (sampleChainDeferEditorAction(functMainScreenRight)) return;
     if (!SE->editorInstrument->isActive)
         return;
 
@@ -1669,46 +1704,43 @@ static void functMainScreenRight()
 
 static void functMainScreenUp()
 {
+    if (sampleChainDeferEditorAction(functMainScreenUp)) return;
     switch (SE->selectedPlace[cSampleEditor::mainScreen])
     {
         case cSampleEditor::startPointButton: SE->modStartPoint(1); break;
         case cSampleEditor::endPointButton: SE->modEndPoint(1); break;
         case cSampleEditor::zoomButton: SE->modZoom(1); break;
-        case cSampleEditor::effectButton: SE->modSelectedEffect(-1); break;
         default: break;
     }
 }
 
 static void functMainScreenDown()
 {
+    if (sampleChainDeferEditorAction(functMainScreenDown)) return;
     switch (SE->selectedPlace[cSampleEditor::mainScreen])
     {
         case cSampleEditor::startPointButton: SE->modStartPoint(-1); break;
         case cSampleEditor::endPointButton: SE->modEndPoint(-1); break;
         case cSampleEditor::zoomButton: SE->modZoom(-1); break;
-        case cSampleEditor::effectButton: SE->modSelectedEffect(1); break;
         default: break;
     }
 }
 
 static void functMainScreenEncoder(int16_t value)
 {
+    if (sampleChainDeferEditorAction([value] { functMainScreenEncoder(value); })) return;
     switch (SE->selectedPlace[cSampleEditor::mainScreen])
     {
         case cSampleEditor::startPointButton: SE->modStartPoint(value); break;
         case cSampleEditor::endPointButton: SE->modEndPoint(value); break;
         case cSampleEditor::zoomButton: SE->modZoom(value); break;
-        case cSampleEditor::effectButton:
-        {
-            SE->modSelectedEffect(interfaceGlobals.invertValForList ? -value : value);
-            break;
-        }
         default: break;
     }
 }
 
 static void functMainScreenDelete()
 {
+    if (sampleChainDeferEditorAction(functMainScreenDelete)) return;
     if (!SE->editorInstrument->isActive)
         return;
 
@@ -1723,6 +1755,7 @@ static void functMainScreenDelete()
 
 static void functSelectStartPoint()
 {
+    if (sampleChainDeferEditorAction(functSelectStartPoint)) return;
     SE->selectedPlace[cSampleEditor::mainScreen] = cSampleEditor::startPointButton;
 
     SE->refreshSpectrumPoints();
@@ -1732,6 +1765,7 @@ static void functSelectStartPoint()
 
 static void functSelectEndPoint()
 {
+    if (sampleChainDeferEditorAction(functSelectEndPoint)) return;
     SE->selectedPlace[cSampleEditor::mainScreen] = cSampleEditor::endPointButton;
 
     SE->refreshSpectrumPoints();
@@ -1743,6 +1777,7 @@ static void functSelectEndPoint()
 
 static void functSelectZoom()
 {
+    if (sampleChainDeferEditorAction(functSelectZoom)) return;
     SE->selectedPlace[cSampleEditor::mainScreen] = cSampleEditor::zoomButton;
 
     SE->refreshSpectrumPoints();
@@ -1750,40 +1785,9 @@ static void functSelectZoom()
     SE->showFrame();
 }
 
-static void functListUp()
-{
-    if (SE->selectedPlace[cSampleEditor::mainScreen] != cSampleEditor::effectButton)
-    {
-        SE->selectedPlace[cSampleEditor::mainScreen] = cSampleEditor::effectButton;
-
-        SE->refreshSpectrumPoints();
-
-        SE->showFrame();
-    }
-    else
-    {
-        SE->modSelectedEffect(-1);
-    }
-}
-
-static void functListDown()
-{
-    if (SE->selectedPlace[cSampleEditor::mainScreen] != cSampleEditor::effectButton)
-    {
-        SE->selectedPlace[cSampleEditor::mainScreen] = cSampleEditor::effectButton;
-
-        SE->refreshSpectrumPoints();
-
-        SE->showFrame();
-    }
-    else
-    {
-        SE->modSelectedEffect(1);
-    }
-}
-
 static void functUndo()
 {
+    if (sampleChainDeferEditorAction(functUndo)) return;
     if (!SE->currentEffect->undoParams.isEnable)
     {
         return;
@@ -1911,6 +1915,7 @@ static void functSelectParameter(uint8_t button)
 
 static void functPreview()
 {
+    if (SE->screenType == cSampleEditor::mainScreen) { functWaveformPreview(); return; }
     if (!SE->canApplyCurrentEffect())
     {
         return;
@@ -1982,6 +1987,7 @@ static void functPreview()
 
 static void functPlay()
 {
+    if (SE->screenType == cSampleEditor::mainScreen) { functWaveformPreview(); return; }
     mtPadBoard.cutAllInstrument();
 
     std::vector<int16_t*> addresses;
@@ -2310,3 +2316,118 @@ char** cSampleEditor::getParameterListItems(uint8_t paramIdx) const
     return nullptr;
 }
 
+
+namespace
+{
+constexpr uint8_t kEditorTools[] = { editorEffectCut, editorEffectReverse,
+    editorEffectNormalizer, editorEffectFadeIn, editorEffectFadeOut,
+    editorEffectWavetableSmoother, editorEffectTimestretchBeat, editorEffectTimestretchNote };
+char* const kEditorToolNames[] = { (char*)"Crop", (char*)"Reverse", (char*)"Normalizer",
+    (char*)"Fade In", (char*)"Fade Out", (char*)"WT Smoother",
+    (char*)"Timestretch Beat", (char*)"Timestretch Note" };
+static const uint16_t kToolsColumn[4] = { 1, 31, 197, 392 };
+}
+
+void cSampleEditor::showToolsScreen()
+{
+    hideSpectrum(); hideSpectrumPoints(); hidePlayhead();
+    frameData.placesCount = 1;
+    frameData.places[0] = kToolsColumn;
+    display.setControlData(frame, &frameData);
+    display.setControlValue(frame, 0);
+    display.setControlShow(frame);
+    display.refreshControl(frame);
+    display.setControlHide(blankSpaceCover);
+    for (auto handle : bar) display.setControlHide(handle);
+    for (auto handle : paramList) display.setControlHide(handle);
+    effectListData.data = (char**)kEditorToolNames;
+    effectListData.length = sizeof(kEditorTools);
+    effectListData.linesCount = sizeof(kEditorTools);
+    effectListData.start = selectedTool;
+    effectListData.lineWidthMax = 178;
+    effectListData.lineTextLenMax = 32;
+    display.setControlPosition(effectList, 1, 60);
+    display.setControlSize(effectList, 197, 363);
+    display.setControlColors(effectList, display.getTheme().sampleLoaderActiveListColors);
+    display.setControlData(effectList, &effectListData);
+    display.setControlValue(effectList, selectedTool);
+    display.setControlShow(effectList);
+    display.refreshControl(effectList);
+    for (unsigned i = 0; i < 8; ++i)
+    {
+        display.setControlText(label[i], i == 0 ? "Back" : i == 5 ? "Select" : "");
+        display.setControlText2(label[i], "");
+        display.setControlData(label[i], nullptr);
+        display.setControlStyle(label[i], controlStyleCenterX | controlStyleCenterY | controlStyleFont3);
+        display.setControlColors(label[i], display.getTheme().activeButtonLabelsColors);
+        display.setControlValue(label[i], 0);
+        display.setControlPosition(label[i], i * 100 + 50, 424);
+        display.setControlSize(label[i], 94, 55);
+        display.setControlShow(label[i]);
+        display.refreshControl(label[i]);
+    }
+    // Reuse the otherwise empty final label as the column header.
+    display.setControlText(label[7], "Tools");
+    display.setControlPosition(label[7], 100, 31);
+    display.setControlSize(label[7], 197, 28);
+    display.setControlStyle(label[7], controlStyleBackground | controlStyleCenterX | controlStyleCenterY | controlStyleFont3);
+    display.setControlColors(label[7], display.getTheme().topBarLabelColors);
+    display.setControlShow(label[7]);
+    display.refreshControl(label[7]);
+    display.setControlValue(bgLabel, 255);
+    display.setControlShow(bgLabel);
+    display.refreshControl(bgLabel);
+    showTitleBar("Sample Tools");
+    display.synchronizeRefresh();
+}
+
+void cSampleEditor::setToolsScreenFunctions()
+{
+    ip->clearAll(); setCommonFunctions();
+    ip->setButtonObj(interfaceButton0, buttonPress, functToolsBack);
+    ip->setButtonObj(interfaceButton5, buttonPress, functToolSelect);
+    ip->setButtonObj(interfaceButtonUp, buttonPress, functToolUp);
+    ip->setButtonObj(interfaceButtonDown, buttonPress, functToolDown);
+    ip->setButtonObj(interfaceButtonRight, buttonPress, functToolSelect);
+    ip->setPotObj(interfacePot0, functToolEncoder);
+}
+
+void cSampleEditor::moveTool(int16_t delta)
+{
+    selectedTool = clamp<int>(int(selectedTool) + delta, 0, sizeof(kEditorTools) - 1);
+    effectListData.start = selectedTool;
+    display.setControlData(effectList, &effectListData);
+    display.setControlValue(effectList, selectedTool);
+    display.refreshControl(effectList);
+    display.synchronizeRefresh();
+}
+
+void cSampleEditor::selectTool()
+{
+    currentEffectIdx = kEditorTools[selectedTool];
+    selectedEffectListIdx = currentEffectIdx;
+    reloadCurrentEffect();
+    currentEffect->clearProcessedData();
+    currentEffect->setBaseSampleLength(editorInstrument->sample.length);
+    currentEffect->changeSelectionRange(selection.startPoint, selection.endPoint);
+    for (unsigned i = 0; i < getCurrentEffectDisplayParams().paramsNumber; ++i)
+        currentEffect->setParameter(effectDisplayParamsToAdjust[currentEffectIdx].parameter[i], i);
+    hideEffectList();
+    if (isParametersScreen())
+    {
+        screenType = mainScreen;
+        switchScreen(mainScreen);
+    }
+    functApply();
+}
+
+static void functWaveformPreview()
+{
+    if (sampleChainPreview(SE)) return;
+    mtPadBoard.cutAllInstrument();
+    SE->noteOnHandle(Sequencer::GRID_OUTSIDE_PATTERN, kC5Note, DEFAULT_INSTRUMENT_VOLUME,
+                     INTERFACE_BUTTON_PREVIEW);
+    SE->playingInProgress = true;
+    SE->playingProgress = 0;
+    SE->setStopFunction();
+}
