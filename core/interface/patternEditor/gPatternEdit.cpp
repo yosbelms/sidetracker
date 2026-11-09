@@ -4,7 +4,6 @@
 #include "mtAudioExport.h"
 #include "mtStructs.h"
 #include "patternEditor/patternEditor.h"
-#include "performanceMode/performanceMode.h"
 #include "scales.h"
 
 #ifdef GUI_HANDLE_SYNTH

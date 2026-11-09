@@ -22,6 +22,7 @@
 #include "songEditor/songEditor.h"
 
 #include "fileManager.h"
+#include "mtAudioEngine.h"
 #include "mtConfig.h"
 #include "mtPadBoard.h"
 #include "mtStructs.h"
@@ -196,6 +197,7 @@ void Interface::processOperatingMode()
 void Interface::doStartTasks()
 {
     readConfig();
+    engine.getAudioOutput()->getPunchFx().setMix(mtConfig.common.performanceMix);
 
     sequencer.initAfterReadConfig();
     initConfigValuesAfterReadConfig();

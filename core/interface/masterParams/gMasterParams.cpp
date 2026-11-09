@@ -30,23 +30,9 @@ const char* const saturationListTexts[5] = { "Hard Clip",
 
 void cMasterParams::initDisplayControls()
 {
-#ifdef FEATURE_SYNTH
-    for (uint8_t trackNo = 0; trackNo < 8 + kSynthParts; trackNo++)
-    {
+    for (auto& colors : levelBarColors)
         for (uint8_t i = 0; i < 5; i++)
-        {
-            levelBarColors[trackNo][i] = display.getTheme().activeBarColors[i];
-        }
-    }
-#else
-    for (uint8_t trackNo = 0; trackNo < 8; trackNo++)
-    {
-        for (uint8_t i = 0; i < 5; i++)
-        {
-            levelBarColors[trackNo][i] = display.getTheme().activeBarColors[i];
-        }
-    }
-#endif
+            colors[i] = display.getTheme().activeBarColors[i];
 
     strControlProperties prop;
     prop.style = 0;
@@ -116,26 +102,13 @@ void cMasterParams::initDisplayControls()
         barControl[i] = display.createControl<cBar>(&prop2);
     }
 
-#ifdef FEATURE_SYNTH
-    strControlProperties synthBarsProperties;
-
-    for (uint8_t barIdx = 8; barIdx < 8 + kSynthParts; barIdx++)
+    for (uint8_t barIdx = performanceMixMeterIndex; barIdx < mixerBarCount; barIdx++)
     {
         barData[barIdx].changingColor = 1;
-        synthBarsProperties.data = &barData[barIdx];
-        synthBarsProperties.colors = levelBarColors[barIdx];
-        synthBarsProperties.value = 0;
-        synthBarsProperties.x = 0;
-        synthBarsProperties.y = 29;
-        synthBarsProperties.w = 800 / 8 - 3;
-        synthBarsProperties.style =
-          controlStyleValue_0_100 | controlStyleBackground |
-          (display.getTheme().barShadow > 0 ? controlStyleGradient : 0) |
-          (display.getTheme().bottomScreenShadow > 0 ? controlStyleBottomShadow : 0);
-        synthBarsProperties.h = 394;
-        barControl[barIdx] = display.createControl<cBar>(&synthBarsProperties);
+        prop2.data = &barData[barIdx];
+        prop2.colors = levelBarColors[barIdx];
+        barControl[barIdx] = display.createControl<cBar>(&prop2);
     }
-#endif
 
     prop2.value = 0;
     prop2.data = nullptr;
@@ -1024,6 +997,17 @@ void cMasterParams::resizeBarControl(displayMode val)
     for (uint8_t i = 0; i < 8; i++)
         barData[i].meterText = val == displayMode::mixer ? trackDbText[i] : nullptr;
 
+    const bool showGlobalMeters = val == displayMode::mixerDelayReverb;
+    engine.getAudioOutput()->getPunchFx().setMeterEnabled(showGlobalMeters);
+    if (!showGlobalMeters)
+    {
+        for (uint8_t i = performanceMixMeterIndex; i < mixerBarCount; i++)
+        {
+            display.setControlHide(barControl[i]);
+            display.refreshControl(barControl[i]);
+        }
+    }
+
     if (val == displayMode::masterValues)
     {
         if (!isLimiterScreen)
@@ -1039,14 +1023,6 @@ void cMasterParams::resizeBarControl(displayMode val)
             display.setControlSize(barControl[i], 800 / 8 - 3, 394);
             display.refreshControl(barControl[i]);
         }
-
-#ifdef FEATURE_SYNTH
-        for (uint8_t i = 8; i < 8 + kSynthParts; i++)
-        {
-            display.setControlHide(barControl[i]);
-            display.refreshControl(barControl[i]);
-        }
-#endif
     }
     else if (val == displayMode::mixer)
     {
@@ -1067,13 +1043,6 @@ void cMasterParams::resizeBarControl(displayMode val)
             display.setControlSize(barControl[i], 800 / 16 - 3, 359);
             display.refreshControl(barControl[i]);
         }
-#ifdef FEATURE_SYNTH
-        for (uint8_t i = 8; i < 8 + kSynthParts; i++)
-        {
-            display.setControlHide(barControl[i]);
-            display.refreshControl(barControl[i]);
-        }
-#endif
     }
     else if (val == displayMode::mixerDelayReverb)
     {
@@ -1081,55 +1050,35 @@ void cMasterParams::resizeBarControl(displayMode val)
           barControl[3], controlStyleValue_0_100 | controlStyleBackground | shadow | gradient);
         display.setControlShow(barControl[3]);
         display.refreshControl(barControl[3]);
-#ifdef FEATURE_SYNTH
-        for (uint8_t i = 0; i < 7; i++)
+
+        for (uint8_t i = 0; i < performanceMixScreenPosition; ++i)
         {
-            static constexpr int kGlobalMixerBars = 4;
-            if (i < kGlobalMixerBars)
-            {
-                display.setControlPosition(trackVolumeBar[i], (800 / 8) * i + 2, 64);
-                display.setControlSize(trackVolumeBar[i], 32, 359);
-                display.refreshControl(trackVolumeBar[i]);
-
-                display.setControlPosition(barControl[i], (800 / 8) * i + 2 + 32, 64);
-                display.setControlSize(barControl[i], 32, 359);
-                display.refreshControl(barControl[i]);
-
-                display.setControlPosition(barControl[i + 4], (800 / 8) * i + 2 + 64, 64);
-                display.setControlSize(barControl[i + 4], 32, 359);
-                display.refreshControl(barControl[i + 4]);
-            }
-            else
-            {
-                display.setControlPosition(trackVolumeBar[i], (800 / 8) * i + 2, 64);
-                display.setControlSize(trackVolumeBar[i], 800 / 16 - 3, 359);
-                display.refreshControl(trackVolumeBar[i]);
-
-                static constexpr int kSynthBarOffset = kGlobalMixerBars * 2;
-                int synthIdx = i - kGlobalMixerBars;
-
-                display.setControlPosition(
-                  barControl[kSynthBarOffset + synthIdx], (800 / 8) * i + 2 + 800 / 16, 64);
-                display.setControlSize(barControl[kSynthBarOffset + synthIdx], 800 / 16 - 3, 359);
-                display.refreshControl(barControl[kSynthBarOffset + synthIdx]);
-            }
-        }
-#else
-        for (uint8_t i = 0; i < 4; i++)
-        {
-            display.setControlPosition(trackVolumeBar[i], (800 / 8) * i + 2, 64);
+            const int x = (800 / 8) * i + 2;
+            display.setControlPosition(trackVolumeBar[i], x, 64);
             display.setControlSize(trackVolumeBar[i], 32, 359);
             display.refreshControl(trackVolumeBar[i]);
 
-            display.setControlPosition(barControl[i], (800 / 8) * i + 2 + 32, 64);
+            display.setControlPosition(barControl[i], x + 32, 64);
             display.setControlSize(barControl[i], 32, 359);
             display.refreshControl(barControl[i]);
 
-            display.setControlPosition(barControl[i + 4], (800 / 8) * i + 2 + 64, 64);
+            display.setControlPosition(barControl[i + 4], x + 64, 64);
             display.setControlSize(barControl[i + 4], 32, 359);
             display.refreshControl(barControl[i + 4]);
         }
-#endif
+
+        for (int i = performanceMixScreenPosition; i < screenPositionCount; ++i)
+        {
+            const int x = (800 / 8) * i + 2;
+            display.setControlPosition(trackVolumeBar[i], x, 64);
+            display.setControlSize(trackVolumeBar[i], 800 / 16 - 3, 359);
+            display.refreshControl(trackVolumeBar[i]);
+
+            const auto meter = barControl[performanceMixMeterIndex + i - performanceMixScreenPosition];
+            display.setControlPosition(meter, x + 800 / 16, 64);
+            display.setControlSize(meter, 800 / 16 - 3, 359);
+            display.refreshControl(meter);
+        }
     }
 }
 
@@ -1443,6 +1392,22 @@ void cMasterParams::showMixerScreen()
     lightUpPadBoard();
 }
 
+void cMasterParams::showPerformanceMix()
+{
+    const auto i = performanceMixScreenPosition;
+    const auto mix = mtConfig.common.performanceMix;
+    snprintf(mixerLabel[i], sizeof(mixerLabel[i]), "%u%%", unsigned(mix));
+    display.setControlText(label[i], "");
+    display.setControlText2(label[i], mixerLabel[i]);
+    display.setControlValue(label[i], 1);
+    display.setControlColors(label[i], display.getTheme().activeLabelsColors);
+    display.refreshControl(label[i]);
+    display.setControlColors(trackVolumeBar[i], display.getTheme().activeBarColors);
+    display.setControlValue(trackVolumeBar[i], mix);
+    display.setControlShow(trackVolumeBar[i]);
+    display.refreshControl(trackVolumeBar[i]);
+}
+
 void cMasterParams::showMixerDelayReverbScreen()
 {
     display.setControlHide(delayPingpongEnableList);
@@ -1551,10 +1516,9 @@ void cMasterParams::showMixerDelayReverbScreen()
         showLevelBar(lineInVolumeScreenPosition, &lineInLevel[0]);
         showLevelBar(lineInVolumeScreenPosition + 4, &lineInLevel[1]);
 #ifdef FEATURE_SYNTH
-        static constexpr int kSynthOffset = 8;
         for (int synthIdx = 0; synthIdx < kSynthParts; synthIdx++)
         {
-            showLevelBar(kSynthOffset + synthIdx, &synthLevel[synthIdx]);
+            showLevelBar(synthMeterStart + synthIdx, &synthLevel[synthIdx]);
         }
 #endif
 
@@ -1567,6 +1531,9 @@ void cMasterParams::showMixerDelayReverbScreen()
         display.setControlText(trackNameLabel[reverbVolumeScreenPosition], "Reverb");
         display.setControlText(trackNameLabel[dryMixVolumeScreenPosition], "Dry Mix");
         display.setControlText(trackNameLabel[lineInVolumeScreenPosition], "Line In");
+        display.setControlText(trackNameLabel[performanceMixScreenPosition], "Perf Mix");
+        showPerformanceMix();
+        showLevelBar(performanceMixMeterIndex, &performanceMixLevel);
 #ifdef FEATURE_SYNTH
         for (int labelIdx = synthVolumeScreenPositionStart;
              labelIdx <= synthVolumeScreenPositionEnd;
@@ -1632,15 +1599,13 @@ void cMasterParams::showMixerDelayReverbScreen()
 
     resizeBarControl(displayMode::mixerDelayReverb);
 
-    // empty space covers
 #ifdef FEATURE_SYNTH
-    display.setControlPosition(blankSpaceCover[0], (800 / 8) * 7 + 2, -1);
-    display.setControlSize(blankSpaceCover[0], (800 / 8) * 1 - 4, -1);
+    display.setControlHide(blankSpaceCover[0]);
 #else
-    display.setControlPosition(blankSpaceCover[0], (800 / 8) * 4 + 2, -1);
-    display.setControlSize(blankSpaceCover[0], (800 / 8) * 4 - 4, -1);
-#endif
+    display.setControlPosition(blankSpaceCover[0], (800 / 8) * screenPositionCount + 2, -1);
+    display.setControlSize(blankSpaceCover[0], (800 / 8) * (8 - screenPositionCount) - 4, -1);
     display.setControlShow(blankSpaceCover[0]);
+#endif
     display.refreshControl(blankSpaceCover[0]);
 
     display.setControlHide(blankSpaceCover[1]);
@@ -2065,7 +2030,7 @@ void cMasterParams::hideControlUnderMenu()
 {
     if (displayType == displayMode::mixerDelayReverb)
     {
-        for (int idx = 0; idx < 7; idx++)
+        for (int idx = 0; idx < screenPositionCount; idx++)
         {
             display.setControlHide(trackNameLabel[idx]);
             display.setControlHide(trackVolumeBar[idx]);
@@ -2073,7 +2038,7 @@ void cMasterParams::hideControlUnderMenu()
             display.refreshControl(trackNameLabel[idx]);
         }
 
-        for (int barIdx = 0; barIdx < 8 + kSynthParts; barIdx++)
+        for (int barIdx = 0; barIdx < mixerBarCount; barIdx++)
         {
             display.setControlHide(barControl[barIdx]);
             display.refreshControl(barControl[barIdx]);

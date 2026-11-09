@@ -27,7 +27,6 @@ static UsbMidi* usbMidi = nullptr;
 extern void playSongFromSelectedPattern();
 extern void playSongFromSelectedPattern_stop();
 
-void peformanceModeOnMidiCC(uint8_t cc_idx, uint8_t cc_value);
 void changeMixerOnMidiCC(uint8_t cc_idx, uint8_t cc_value);
 
 elapsedMillis timerMidiDelay = 0;
@@ -276,9 +275,6 @@ void handleJackControlChange(byte channel, byte number, byte value)
 
     if ((channel == mtConfig.midi.ccInChannel) || (mtConfig.midi.ccInChannel == ALL_CC_CHANNELS))
     {
-        if (mtInterface.isPerformanceModeScreenActive())
-            peformanceModeOnMidiCC(number, value);
-
         changeMixerOnMidiCC(number, value);
 
         IE->onControlChangeReceive(number, value);
@@ -293,9 +289,6 @@ void handleUSBControlChange(byte channel, byte number, byte value)
 
     if ((channel == mtConfig.midi.ccInChannel) || (mtConfig.midi.ccInChannel == ALL_CC_CHANNELS))
     {
-        if (mtInterface.isPerformanceModeScreenActive())
-            peformanceModeOnMidiCC(number, value);
-
         changeMixerOnMidiCC(number, value);
 
         IE->onControlChangeReceive(number, value);

@@ -25,6 +25,10 @@
 #endif
 // clang-format off
 TRACKER_MEMORY_SECTION(".sample_memory") int16_t externalRamSampleMemory[SAMPLE_MEMORY_SIZE / 2];
+alignas(32) TRACKER_MEMORY_SECTION(".sample_memory") punch::Storage punch::storage;
+#ifdef PLATFORM_IMX
+static_assert(PUNCH_FX_RESERVE_BYTES == punch::kMemoryBytes);
+#endif
 TRACKER_MEMORY_SECTION(".delay_memory") int16_t externalRamDelayBuff[DELAY_MEMORY_SIZE / 2];
 TRACKER_MEMORY_SECTION(".reverb_memory") uint16_t externalRamReverbBuff[REVERB_MEMORY_SIZE / 2];
 alignas(32) TRACKER_MEMORY_SECTION(".scratch_memory") uint8_t externalRamScratchBuff[SHARED_SCRATCH_MEMORY_SIZE];

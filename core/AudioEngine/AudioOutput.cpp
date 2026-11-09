@@ -4,6 +4,8 @@ AudioOutput::AudioOutput()
 {
     for (unsigned channel = 0; channel < OutputChannels::kChannelsCount; ++channel)
         connections.push_back(new AudioConnection(&sampleFxPreview, channel, &finalMixer[channel], FinalMixInputs::kSampleFxPreview));
+    for (unsigned channel = 0; channel < OutputChannels::kChannelsCount; ++channel)
+        connections.push_back(new AudioConnection(&punchFx, channel, &limiter[channel], 0));
     constexpr int kLimiterSidechainChannelIdx = 1;
 
 #ifndef PLATFORM_IMX

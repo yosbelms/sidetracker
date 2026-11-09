@@ -9,10 +9,10 @@
 
 #include "mtStructs.h"
 
-#include "performanceMode/performanceEngine.h"
 
 #include "convertOldFileVersionVolume.h"
 #include "mtConfig.h"
+#include "mtAudioEngine.h"
 
 void firmwareVersionChangeMini();
 void firmwareVersionChange();
@@ -141,6 +141,7 @@ void forceSaveConfig()
 //###############################################################
 void readConfig()
 {
+    mtConfig.common.performanceMix = 100;
     bool isCorrect = configManager->readData(0, &mtConfig.header, sizeof(mtConfig.header));
 
     if (!isCorrect)
@@ -237,6 +238,7 @@ void readConfig()
 
 void checkConfig()
 {
+    if (mtConfig.common.performanceMix > 100) mtConfig.common.performanceMix = 100;
 
     if (mtConfig.audioCodecConfig.headphoneVolume < MASTER_VOLUME_MIN)
         mtConfig.audioCodecConfig.headphoneVolume = MASTER_VOLUME_MIN;
@@ -356,26 +358,6 @@ void checkConfig()
         }
     }
 
-    for (uint8_t i = 0; i < 12; i++)
-    {
-        if (mtConfig.values.perfFxPlaces[i] > performance.getFxCount() - 1)
-        {
-            mtConfig.values.perfFxPlaces[i] = (i + 1 < performance.getFxCount()) ? i + 1 : 0;
-        }
-
-        if (mtConfig.values.perfSelectedValues[i] > 3)
-            mtConfig.values.perfSelectedValues[i] = 0;
-
-        if (mtConfig.values.perfFxValues[i][0] != 0)
-            mtConfig.values.perfFxValues[i][0] = 0;
-        if (mtConfig.values.perfFxValues[i][1] > 255 || mtConfig.values.perfFxValues[i][1] < -255)
-            mtConfig.values.perfFxValues[i][1] = 0;
-        if (mtConfig.values.perfFxValues[i][2] > 255 || mtConfig.values.perfFxValues[i][2] < -255)
-            mtConfig.values.perfFxValues[i][2] = 0;
-        if (mtConfig.values.perfFxValues[i][3] > 255 || mtConfig.values.perfFxValues[i][3] < -255)
-            mtConfig.values.perfFxValues[i][3] = 0;
-    }
-
     // general ----------------------------------------
     if (mtConfig.general.dispBrightness > 2)
     {
@@ -482,6 +464,8 @@ void checkConfig()
 
 void resetConfig()
 {
+    mtConfig.common.performanceMix = 100;
+    engine.getAudioOutput()->getPunchFx().setMix(100);
     // header ----------------------------------------
     strcpy(mtConfig.header.id, "EEPROM");
     mtConfig.header.id[6] = 0;

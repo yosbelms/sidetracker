@@ -9,6 +9,7 @@
 
 #include "Platform.h"
 #include "Tracker.h"
+#include "mtAudioEngine.h"
 #include "math.h"
 #include <algorithm>
 #include <vector>
@@ -101,6 +102,9 @@ size_t Profiler::maxStackBytes()
 
 void Profiler::resetMeasuringAudio()
 {
+#ifdef AUDIO_PERFORMANCE_INFO_ENABLED
+    engine.getAudioOutput()->getPunchFx().resetPeak();
+#endif
     lastSampleUs = 0;
     sumOfSamples = 0;
     minSampleUs = INT_MAX;

@@ -396,12 +396,49 @@ int run(const Options& options)
                 {
                     std::string name; std::getline(fields >> std::ws, name);
                     int id = -1;
-                    if (name.size() == 1 && name[0] >= '0' && name[0] <= '7') id = name[0] - '0';
+                    const bool pad = name.starts_with("pad ");
+                    if (pad)
+                    {
+                        std::istringstream padNumber(name.substr(4));
+                        if (!(padNumber >> id) || id >= padCount) id = -1;
+                    }
+                    else if (name.size() == 1 && name[0] >= '0' && name[0] <= '7') id = name[0] - '0';
                     else for (unsigned i = 0; i < std::size(keys); ++i)
                         if (name == keys[i].label) id = buttonIds[i];
                     if (id < 0) throw std::runtime_error("Unknown desktop script button");
-                    if (command != "release") { send(platform, {id}, true); advance(60); }
-                    if (command != "press") { send(platform, {id}, false); advance(80); }
+                    if (command != "release") { send(platform, {id, pad}, true); advance(60); }
+                    if (command != "press") { send(platform, {id, pad}, false); advance(80); }
+                }
+                else if (command == "assert-punch")
+                {
+                    unsigned column = 0;
+                    int level = -1;
+                    if (!(fields >> column >> level) || column >= punch::kColumns ||
+                        engine.getAudioOutput()->getPunchFx().rack().soundingLevel(column) != level)
+                        throw std::runtime_error("Unexpected sounding PunchFX level: " + line);
+                    if (mtInterface.isPerformanceModeScreenActive() && mtConfig.values.padsLightBack)
+                    {
+                        for (unsigned row = 0; row < punch::kLevels; ++row)
+                        {
+                            const bool lit = platform.leds.levels[column + row * punch::kColumns] != 0;
+                            if (lit != (static_cast<int>(row) == level))
+                                throw std::runtime_error("Unexpected PunchFX pad light: " + line);
+                        }
+                    }
+                }
+                else if (command == "assert-muted")
+                {
+                    unsigned track = 0, muted = 0;
+                    if (!(fields >> track >> muted) || track >= kAllTracks ||
+                        (track < kSampleTracks ? mtProject.values.trackMute[track]
+                                              : mtProject.values.midiTrackMute[track - kSampleTracks]) != muted)
+                        throw std::runtime_error("Unexpected track mute: " + line);
+                }
+                else if (command == "assert-perf-mix")
+                {
+                    unsigned percent = 0;
+                    if (!(fields >> percent) || mtConfig.common.performanceMix != percent)
+                        throw std::runtime_error("Unexpected Performance Mix: " + line);
                 }
                 else if (command == "assert-sample")
                 {
@@ -422,7 +459,8 @@ int run(const Options& options)
                 {
                     std::string view; fields >> view;
                     const bool active = view == "Master" ? mtInterface.isMasterScreenActive() :
-                                        view == "Pattern" ? mtInterface.isPatternScreenActive() : false;
+                                        view == "Pattern" ? mtInterface.isPatternScreenActive() :
+                                        view == "Perform" ? mtInterface.isPerformanceModeScreenActive() : false;
                     if (!active) throw std::runtime_error("Unexpected active view: " + view);
                 }
                 else if (command == "assert-chain-size")

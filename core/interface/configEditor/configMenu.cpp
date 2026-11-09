@@ -62,7 +62,6 @@ cMenuGroup menuCredits(menuBase, "Info", 4);
 
 // project settings
 const strItemTypeListValues setupPatternDiv{ &mtProject.values.patternDiv, 0, 15, 1, 1 };
-const strItemTypeListText setupPerfSource{ &mtConfig.general.performanceSource, 2, performanceSourceTexts };
 const strItemTypeListTextWithAction setupPadsScale{ &mtProject.values.padBoardScale, 39, scaleNames, setPadBoardValues };
 const strItemTypeListTextWithAction setupPadsRootNote{ &mtProject.values.padBoardRootNote,  37,  &allNotes[12], setPadBoardValues };
 const strItemTypeListTextWithAction setupPadsLayout{ &mtProject.values.padBoardNoteOffset, 12, padsLayoutTexts, setPadBoardValues };
@@ -72,7 +71,6 @@ const strItemTypeListTextWithAction setupSendsMode{ &mtProject.values.sendsMode,
 const strItemTypeListTextWithAction setupHeadroomMode{ &mtProject.values.isHeadroomEnabled, 2, onOffStateTexts, setHeadroomMode };
 const strItemTypeListTextWithAction setupSnapToZeroMode{ &mtProject.values.isSnapToZeroEnabled, 2, onOffStateTexts, setSnapToZeroMode };
 
-cMenuItem melPerformanceSource(menuProject, "Performance presets", perfPresDesc, menuTypeItemListText, &setupPerfSource);
 cMenuItem melPatternDiv(menuProject, "Pattern divider", pattDivDesc, menuTypeItemListValues, &setupPatternDiv);
 cMenuItem melPadsScale(menuProject, "Notes scale", scaleDesc,  menuTypeItemListTextWithAction, &setupPadsScale);
 cMenuItem melPadsRootNote(menuProject,  "Root note", rootNoteDesc, menuTypeItemListTextWithAction,  &setupPadsRootNote);

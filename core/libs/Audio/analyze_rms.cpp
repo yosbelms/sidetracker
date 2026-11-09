@@ -32,15 +32,19 @@
 AUDIO_CORE_RAM void AudioAnalyzeRMS::update(void)
 {
     audio_block_t* block = receiveReadOnly();
-    if (!block)
+    if (block)
     {
-        count++;
-        return;
+        accum = accumulateSquares(*block, accum);
+        release(block);
     }
+    count++;
+}
+
+AUDIO_CORE_RAM int64_t AudioAnalyzeRMS::accumulateSquares(const audio_block_t& block, int64_t sum)
+{
 #if defined(KINETISK)
-    uint32_t* p = (uint32_t*)(block->data);
-    uint32_t* end = p + AUDIO_BLOCK_SAMPLES / 2;
-    int64_t sum = accum;
+    const auto* p = reinterpret_cast<const uint32_t*>(block.data);
+    const auto* end = p + AUDIO_BLOCK_SAMPLES / 2;
     do
     {
         uint32_t n1 = *p++;
@@ -52,21 +56,11 @@ AUDIO_CORE_RAM void AudioAnalyzeRMS::update(void)
         sum = multiply_accumulate_16tx16t_add_16bx16b(sum, n3, n3);
         sum = multiply_accumulate_16tx16t_add_16bx16b(sum, n4, n4);
     } while (p < end);
-    accum = sum;
-    count++;
 #else
-    int16_t* p = block->data;
-    int16_t* end = p + AUDIO_BLOCK_SAMPLES;
-    int64_t sum = accum;
-    do
-    {
-        int32_t n = *p++;
-        sum += n * n;
-    } while (p < end);
-    accum = sum;
-    count++;
+    for (const int32_t sample : block.data)
+        sum += sample * sample;
 #endif
-    release(block);
+    return sum;
 }
 
 AUDIO_CORE_FLASH float AudioAnalyzeRMS::read(void)

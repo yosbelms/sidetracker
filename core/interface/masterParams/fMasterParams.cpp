@@ -5,7 +5,6 @@
 #include "mtSequencer.h"
 
 #include "patternEditor/patternEditor.h"
-#include "performanceMode/performanceMode.h"
 
 #include "masterParams/masterParams.h"
 #include "mtGainLevelLogarithmicTab.h"
@@ -155,6 +154,9 @@ void cMasterParams::update()
         calcReverbLevel();
         calcLineInLevel();
         calcDryMixLevel();
+        const float rms = engine.getAudioOutput()->getPunchFx().readOutputRms();
+        if (rms >= 0.0f)
+            calcLevel(&performanceMixLevel, rms);
 #ifdef FEATURE_SYNTH
         calcSynthLevels();
 #endif
@@ -229,14 +231,19 @@ void cMasterParams::update()
             dryMixLevel[i].lastValue = dryMixLevel[i].value;
         }
 
+        if (performanceMixLevel.value != performanceMixLevel.lastValue)
+        {
+            showLevelBar(performanceMixMeterIndex, &performanceMixLevel);
+            performanceMixLevel.lastValue = performanceMixLevel.value;
+        }
+
 #ifdef FEATURE_SYNTH
-        static constexpr int kSynthOffset = 8;
         for (int synthIdx = 0; synthIdx < kSynthParts; synthIdx++)
         {
 
             if (synthLevel[synthIdx].value != synthLevel[synthIdx].lastValue)
             {
-                showLevelBar(kSynthOffset + synthIdx, &synthLevel[synthIdx]);
+                showLevelBar(synthMeterStart + synthIdx, &synthLevel[synthIdx]);
                 synthLevel[synthIdx].lastValue = synthLevel[synthIdx].value;
             }
         }
@@ -344,6 +351,7 @@ void cMasterParams::start(uint32_t options)
 
 void cMasterParams::stop()
 {
+    engine.getAudioOutput()->getPunchFx().setMeterEnabled(false);
     sequencer.stopManualNotes();
     moduleRefresh = 0;
 }
@@ -457,6 +465,22 @@ static void functMiniMiddle(uint8_t state)
 // ##############################################################################################
 //==============================================================================================================
 
+static void changePerformanceMix(int delta)
+{
+    auto& mix = mtConfig.common.performanceMix;
+    mix = clamp<int>(mix + delta, 0, 100);
+    engine.getAudioOutput()->getPunchFx().setMix(mix);
+    saveConfig();
+    MP->showPerformanceMix();
+}
+
+static bool editPerformanceMix(int delta)
+{
+    if (!MP->buttons->isButtonPressed(interfaceButton4)) return false;
+    changePerformanceMix(delta);
+    return true;
+}
+
 static void functEncoder(int16_t value)
 {
 #ifdef TRACKER_MINI
@@ -482,6 +506,7 @@ static void functEncoder(int16_t value)
 
     if (MP->displayType == cMasterParams::displayMode::mixerDelayReverb)
     {
+        if (editPerformanceMix(value)) return;
         if (MP->delayIsEdited)
         {
             MP->changeDelayVolume(value);
@@ -583,6 +608,7 @@ static void functLeft()
     }
     if (MP->displayType == cMasterParams::displayMode::mixerDelayReverb)
     {
+        if (editPerformanceMix(-1)) return;
         return;
     }
 
@@ -647,6 +673,7 @@ static void functRight()
     }
     if (MP->displayType == cMasterParams::displayMode::mixerDelayReverb)
     {
+        if (editPerformanceMix(1)) return;
         return;
     }
 
@@ -721,6 +748,7 @@ static void functUp()
 
     if (MP->displayType == cMasterParams::displayMode::mixerDelayReverb)
     {
+        if (editPerformanceMix(1)) return;
         if (MP->delayIsEdited)
         {
             MP->changeDelayVolume(1);
@@ -826,6 +854,7 @@ static void functDown()
 
     if (MP->displayType == cMasterParams::displayMode::mixerDelayReverb)
     {
+        if (editPerformanceMix(-1)) return;
         if (MP->delayIsEdited)
         {
             MP->changeDelayVolume(-1);
@@ -929,6 +958,7 @@ static void functDelete()
 
     if (MP->displayType == cMasterParams::displayMode::mixerDelayReverb)
     {
+        if (editPerformanceMix(100)) return;
         if (MP->delayIsEdited)
         {
             MP->setDefaultDelayVolume();
@@ -1111,11 +1141,6 @@ static void functSelectStereoBoost()
 
 static void functSwitchModule(uint8_t button)
 {
-    if (!performanceMode.canPerformanceModeContinueAfterSwitchingTo(button))
-    {
-        performanceMode.turnOffAtEndOfPattern();
-    }
-
     if (MP->sourceModuleButton == interfaceButtonSampleRec)
     {
         MP->eventFunct(eventSwitchModule, MP, &MP->sourceModuleButton, &button);
@@ -1243,9 +1268,9 @@ void cMasterParams::switchToMixerDelayReverb()
     ip->setButtonObj(interfaceButton2, functSoloMuteDryMix);
     ip->setButtonObj(interfaceButton3, functSoloMuteLineIn);
 #ifdef FEATURE_SYNTH
-    ip->setButtonObj(interfaceButton4, functSelectSynth1);
-    ip->setButtonObj(interfaceButton5, functSelectSynth2);
-    ip->setButtonObj(interfaceButton6, functSelectSynth3);
+    ip->setButtonObj(interfaceButton5, functSelectSynth1);
+    ip->setButtonObj(interfaceButton6, functSelectSynth2);
+    ip->setButtonObj(interfaceButton7, functSelectSynth3);
 #endif
     ip->setButtonObj(interfaceButtonShift, functSoloMuteDelayReverb);
 
@@ -1723,6 +1748,9 @@ void cMasterParams::resetMixerLevels()
 
 void cMasterParams::resetMixerDelayReverbLevels()
 {
+    resetLevel(&performanceMixLevel);
+    engine.getAudioOutput()->getPunchFx().readOutputRms();
+
     for (uint8_t channel = 0; channel < 2; channel++)
     {
         resetLevel(&delayLevel[channel]);

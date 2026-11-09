@@ -2,6 +2,7 @@
 #include "Profiler.h"
 #include "configEditor.h"
 #include "mtGridEditor.h"
+#include "mtAudioEngine.h"
 #include "mtPadsBacklight.h"
 
 static const uint16_t framesPlacesConfig[4][4] = {
@@ -244,6 +245,11 @@ void cConfigEditor::initDisplayControls()
     prop2.colors = display.getTheme().activeButtonLabelsColors;
     prop2.style = controlStyleFont3;
     audioPerformanceLabelControl = display.createControl<cLabel>(&prop2);
+    prop2.y = 360;
+    prop2.w = 175;
+    prop2.h = 35;
+    prop2.value = 0;
+    punchFxPerformanceLabelControl = display.createControl<cLabel>(&prop2);
 #endif
 #ifdef MEMORY_USAGE_INFO_ENABLED
     prop2.x = 615;
@@ -936,6 +942,12 @@ void cConfigEditor::showDiagnosticInfo()
 
     display.setControlShow(audioPerformanceLabelControl);
     display.refreshControl(audioPerformanceLabelControl);
+
+    snprintf(punchFxPerformanceText, sizeof(punchFxPerformanceText), "PunchFX: %lu us",
+             static_cast<unsigned long>(engine.getAudioOutput()->getPunchFx().peakMicros()));
+    display.setControlText(punchFxPerformanceLabelControl, punchFxPerformanceText);
+    display.setControlShow(punchFxPerformanceLabelControl);
+    display.refreshControl(punchFxPerformanceLabelControl);
 #endif
 
 #ifdef MEMORY_USAGE_INFO_ENABLED

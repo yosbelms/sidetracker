@@ -45,6 +45,7 @@ class AudioAnalyzeRMS : public AudioStream
     }
     bool available(void) { return count > 0; }
     float read(void);
+    static int64_t accumulateSquares(const audio_block_t& block, int64_t sum);
     virtual void update(void);
 };
 

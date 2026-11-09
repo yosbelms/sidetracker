@@ -39,10 +39,6 @@ extern cPatternEditor patternEditor;
 extern cSampleRecorder sampleRecorder;
 cSampleRecorder* SR = &sampleRecorder;
 
-#include "performanceMode/performanceMode.h"
-extern cPerformanceMode performanceMode;
-static cPerformanceMode* PM = &performanceMode;
-
 extern void cbkSetCurrentExporterOnLastStep();
 
 const float Sequencer::MAX_TEMPO = 800.0f;
@@ -1542,6 +1538,7 @@ AUDIO_CORE_RAM void Sequencer::stopManualNotes(void)
 
 void Sequencer::stop(void)
 {
+    engine.getAudioOutput()->getPunchFx().rack().reset();
     songTimer.stop();
     stopAllOpenNotes();
     cancelFxes();
@@ -1564,15 +1561,6 @@ void Sequencer::stop(void)
     timerTicks = 0;
     internalTickAccumulatorUs = 0.0;
 
-    if (player.onPatternOrSelectionEnd == cbkTurnOffPerformanceMode)
-    {
-        player.onPatternOrSelectionEnd();
-        if (sequencialSwitch_GetNext() > 0)
-        {
-            newFileManager.loadWorkspacePatternNow(mtProject.values.actualPattern);
-            sequencer.switchRamPatternsNow();
-        }
-    }
     player.onGlobalStep = nullCallback;
 
     sequencialSwitch_Reset();
@@ -1880,7 +1868,6 @@ void Sequencer::switchRowStep(uint8_t row) // przełączamy stepy w zależności
     if (player.endOfPattern)
     {
         bool isNextPatternAvailable = 0; // jeśli 0 to song sie skonczyl
-        bool patternSwitched = false;
         player.breakPattern = 0;
 
         if (player.sequencialSwitch_isArmed && player.sequencialSwitch_loaded)
@@ -1889,7 +1876,6 @@ void Sequencer::switchRowStep(uint8_t row) // przełączamy stepy w zależności
 
             reset_actual_pos();
             switchRamPatternsNow();
-            patternSwitched = true;
 
             sequencialSwitch_Reset();
         }
@@ -1899,7 +1885,6 @@ void Sequencer::switchRowStep(uint8_t row) // przełączamy stepy w zależności
 
             reset_actual_pos();
             switchRamPatternsNow();
-            patternSwitched = true;
 
             if (player.performanceMode)
             {
@@ -1913,15 +1898,6 @@ void Sequencer::switchRowStep(uint8_t row) // przełączamy stepy w zależności
         player.onPatternOrSelectionEnd();
         if (!isNextPatternAvailable)
             player.onSongEnd();
-
-        if (patternSwitched && mtInterface.isPerformanceModeScreenActive())
-        {
-            for (uint8_t a = 0; a < kPerformanceTracks; a++)
-            {
-                mtProject.perfTracksPatterns[a] = mtProject.values.actualPattern;
-            }
-            PM->refreshTrackPattern = 1;
-        }
     }
 }
 
@@ -3144,11 +3120,6 @@ void Sequencer::enterPerformanceMode()
     for (uint8_t a = 0; a < kAllTracks; a++)
     {
         player.performance.trackLength[a] = getActualPattern()->track[0].length;
-    }
-
-    if (player.onPatternOrSelectionEnd == cbkTurnOffPerformanceMode)
-    {
-        player.onPatternOrSelectionEnd = nullCallback;
     }
 }
 

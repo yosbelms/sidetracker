@@ -73,6 +73,7 @@ void mtAudioExport::setExternalSettings()
 {
     sequencer.detachFromTimer();
 
+    engine.getAudioOutput()->getPunchFx().rack().reset();
     AudioStream::renderMode = 1;
     AudioPlayMemory::initNotesLookup(false);
 

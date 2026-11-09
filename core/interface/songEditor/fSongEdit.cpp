@@ -5,13 +5,13 @@
 #include "core/interfacePopups.h"
 #include "padToBeatNoteConverter.h"
 #include "patternEditor/patternEditor.h" // todo zrobic cos z tym
-#include "performanceMode/performanceMode.h"
 
 #include "Platform.h"
 #include "mtPadBoard.h"
 #include "mtPadsBacklight.h"
 #include "mtStructs.h"
 #include "util_math.h"
+#include <cmath>
 
 cSongEditor songEditor;
 
@@ -315,7 +315,6 @@ void cbkSongPlaybackModeToggle()
         else
         {
             sequencer.continueSong(selectedSlot);
-            performanceMode.turnOffAtEndOfPattern();
             SE->showIcon(iconPlay, selectedSlot);
         }
     }
@@ -341,11 +340,6 @@ void playSongFromSelectedPattern_stop()
     SE->lastSongListPos = -1;
     sequencer.stop();
     SE->hideIcon();
-    if (performanceMode.turnOff())
-    {
-        newFileManager.loadWorkspacePatternNow(mtProject.values.actualPattern);
-        sequencer.switchRamPatternsNow();
-    }
 }
 
 static void functPlaySong()
@@ -1069,7 +1063,7 @@ void cSongEditor::changeGlobalTempo(float value)
 
     tapTempo_end(); // jak zmiana to wylacz TAP
 
-    if (remainder(value, 1.0) == 0.0)
+    if (std::remainder(value, 1.0) == 0.0)
     {
         mtProject.values.globalTempo = (uint16_t)mtProject.values.globalTempo; // do calkowitych
     }

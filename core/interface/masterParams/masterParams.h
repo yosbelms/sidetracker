@@ -91,6 +91,7 @@ class cMasterParams : public ModuleBase
         reverbVolumeScreenPosition,
         dryMixVolumeScreenPosition,
         lineInVolumeScreenPosition,
+        performanceMixScreenPosition,
 #ifdef FEATURE_SYNTH
         synthVolumeScreenPositionStart,
         synthVolumeScreenPositionEnd = synthVolumeScreenPositionStart + kSynthParts - 1,
@@ -132,6 +133,7 @@ class cMasterParams : public ModuleBase
     void showReverbVolumeBar();
     void showDryMixVolumeBar();
     void showLineInVolumeBar();
+    void showPerformanceMix();
 #ifdef FEATURE_SYNTH
     void showSynthGain(int synthIdx);
 #endif
@@ -173,7 +175,7 @@ class cMasterParams : public ModuleBase
         uint8_t lastValue;
         int16_t dbTenths = INT16_MIN;
 
-    } trackLevel[8], reverbLevel[2], delayLevel[2], dryMixLevel[2], lineInLevel[2];
+    } trackLevel[8], reverbLevel[2], delayLevel[2], dryMixLevel[2], lineInLevel[2], performanceMixLevel;
 #ifdef FEATURE_SYNTH
     strTrackLevel synthLevel[kSynthParts];
 #endif
@@ -307,20 +309,11 @@ class cMasterParams : public ModuleBase
     strList syncRateData;
     strList limiterSidechainData;
 
-#ifdef FEATURE_SYNTH
-    strBarData barData[8 + kSynthParts];
-    uint32_t levelBarColors[8 + kSynthParts][5] = {
-        { 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0 },
-        { 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0 },
-        { 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0 }
-    };
-#else
-    strBarData barData[8];
-    uint32_t levelBarColors[8][5] = {
-        { 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0 },
-        { 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0 },
-    };
-#endif
+    static constexpr uint8_t performanceMixMeterIndex = 8;
+    static constexpr uint8_t synthMeterStart = performanceMixMeterIndex + 1;
+    static constexpr uint8_t mixerBarCount = synthMeterStart + kSynthParts;
+    strBarData barData[mixerBarCount];
+    uint32_t levelBarColors[mixerBarCount][5]{};
     strList saturationListData;
 
     const char* const delayPingPongEnable[2] = { (char*)"On", (char*)"Off" };
@@ -366,11 +359,7 @@ class cMasterParams : public ModuleBase
 #endif
 
     hControl label[8];
-#ifdef FEATURE_SYNTH
-    hControl barControl[8 + kSynthParts];
-#else
-    hControl barControl[8];
-#endif
+    hControl barControl[mixerBarCount];
     hControl blankSpaceCover[3];
 
     hControl bgLabel;

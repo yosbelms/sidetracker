@@ -152,6 +152,7 @@ class cConfigEditor : public ModuleBase
     hControl blankSpaceCover[2] = { -1 };
     hControl batteryLabelControl = -1;
     hControl audioPerformanceLabelControl = -1;
+    hControl punchFxPerformanceLabelControl = -1;
     hControl memoryUsageLabelControl = -1;
 
     hControl configBasemenuListControl;
@@ -196,6 +197,7 @@ class cConfigEditor : public ModuleBase
 #endif
     char audioPerformanceText[30];
     char audioPerformanceText2[30];
+    char punchFxPerformanceText[24];
     char heapUsageText[30];
     char stackUsageText[30];
     //----------------------------------

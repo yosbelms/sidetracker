@@ -146,10 +146,6 @@ const char* const recThresholdTexts[16] = {
     "-60",
 };
 
-const char* const performanceSourceTexts[2] = {
-    "Global",
-    "Per Project",
-};
 
 const char* const padsLayoutTexts[12] = {
     "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12",
@@ -268,8 +264,6 @@ const char recThresholdDesc[] = {
     "Defines in microtiming units, how soon notes should be captured by live recording. This is useful when you play too early during a preroll."
 };
 
-const char perfPresDesc[] = { "You can store your Perform presets globally (the same settings for "
-                              "all projects) or locally (each project has its own presets)." };
 
 #ifdef TRACKER_MINI
 const char scaleDesc[] = {
