@@ -10,7 +10,7 @@ Add an offline sound-design workflow to the Sample Editor:
 
 The source can be the current sample or a `.ptfx` sound/wavetable generator. Processing stages can be built-in effects or `.ptfx` effects. Users can reorder, bypass, duplicate, and edit stages before committing the result.
 
-The first release should process whole samples, support up to eight processing stages plus one source, and render into an empty sample slot. Eight is a proposed UI/recipe limit, not a measured hardware limit. The design should reuse bounded working memory regardless of stage count.
+The first release should process whole samples, support up to eight processing stages plus one source, and render into an empty sample slot. Eight is a proposed UI/chain limit, not a measured hardware limit. The design should reuse bounded working memory regardless of stage count.
 
 The result is ordinary sample audio. The chain adds no continuing FX processing during song playback once rendered.
 
@@ -32,7 +32,7 @@ Two representative workflows:
 
 If Render is requested with an out-of-date result, prepare it first. If the result is current, commit those exact bytes without rerunning DSP. This matters for generators that use random noise.
 
-After rendering, retain the recipe as **Last Used**, but do not attach it automatically to the new sample. Reopening Chain starts from the new sample with an empty processing list. This prevents accidental double processing.
+After rendering, retain the chain as **Last Used**, but do not attach it automatically to the new sample. Reopening Chain starts from the new sample with an empty processing list. This prevents accidental double processing.
 
 ## Source and stage behavior
 
@@ -90,25 +90,25 @@ Result: Needs preview
 Add      Edit      Actions      Preview      Render
 ```
 
-The source row opens its own settings. Selecting an effect opens its parameters. An Actions menu contains Bypass, Move Up/Down, Duplicate, Remove, Load Recipe, and Save Recipe; this avoids fitting every operation onto a dedicated soft key. Exact button assignments need a separate screen-layout review on Original, Mini, and Tracker+.
+The source row opens its own settings. Selecting an effect opens its parameters. An Actions menu contains Bypass, Move Up/Down, Duplicate, Remove, Load Chain, and Save Chain; this avoids fitting every operation onto a dedicated soft key. Exact button assignments need a separate screen-layout review on Original, Mini, and Tracker+.
 
 Use visible states: **Needs preview**, **Preparing**, **Ready**, and **Failed**. During preparation show the current stage, stage count, progress, and Cancel. Do not display an inaccurate overall time estimate for analysis passes or plugin loading.
 
 Changing a parameter marks the result out of date without immediately rerendering. Preview is an explicit action in the first release. Stop sample audition before overwriting its playback buffer. Original/Processed comparisons switch safely with a short transition or restart; they need not be phase-aligned live crossfades.
 
-Render targets empty slots in the first release. Replacing the current sample and multi-step undo are later additions. Users can discard an unneeded new instrument through the existing instrument workflow. Leaving a draft offers Keep Editing or Discard; saving a recipe is a separate explicit action.
+Render targets empty slots in the first release. Replacing the current sample and multi-step undo are later additions. Users can discard an unneeded new instrument through the existing instrument workflow. Leaving a draft offers Keep Editing or Discard; saving a chain is a separate explicit action.
 
-## Recipes and persistence
+## Chains and persistence
 
-Save reusable chain recipes as versioned files on the SD card, with a proposed `.ptchain` extension. The encoding and final directory should follow the project's filesystem conventions during implementation.
+Save reusable chains as versioned files on the SD card, with a proposed `.ptchain` extension. The encoding and final directory should follow the project's filesystem conventions during implementation.
 
-A recipe contains source mode, optional generator identity/settings, ordered effect identities, parameter values, bypass states, and host generation-length settings. A Current Sample recipe binds to the sample selected when loaded; it does not store an instrument index or embed source audio.
+A chain contains source mode, optional generator identity/settings, ordered effect identities, parameter values, bypass states, and host generation-length settings. A Current Sample chain binds to the sample selected when loaded; it does not store an instrument index or embed source audio.
 
 Use stable built-in IDs. For plugins, store a path plus a content fingerprint and parameter-layout information. A renamed, missing, or changed plugin must be resolved explicitly, rather than substituting another effect or guessing parameter compatibility. Unsupported effects stay visible in the draft and block rendering until resolved, removed, or explicitly bypassed. An unresolved generator blocks generation.
 
-Recipes initially store parameter values according to the matching effect version/layout. Introducing parameter IDs across plugin revisions can be a later SDK change. A recipe alone does not guarantee that a randomized generator recreates identical audio; rendered samples remain the authoritative saved sound.
+Chains initially store parameter values according to the matching effect version/layout. Introducing parameter IDs across plugin revisions can be a later SDK change. A chain alone does not guarantee that a randomized generator recreates identical audio; rendered samples remain the authoritative saved sound.
 
-No project-format change is required for the first release. Saving a recipe does not save the instrument or project, and rendering follows the existing project sample-save behavior.
+No project-format change is required for the first release. Saving a chain does not save the instrument or project, and rendering follows the existing project sample-save behavior.
 
 ## Processing and memory design
 
@@ -128,7 +128,7 @@ The current editor has confirmed and processed areas per channel. Alternating th
 
 Recommended baseline:
 
-1. Create an immutable temporary SD snapshot of the confirmed source and required metadata before processing. For generator mode, retain the generator recipe; no input-audio snapshot is needed.
+1. Create an immutable temporary SD snapshot of the confirmed source and required metadata before processing. For generator mode, retain the generator settings; no input-audio snapshot is needed.
 2. Alternate two bounded working areas for stage input/output. Retain only the completed final result for audition and Render.
 3. Rebuild from the source snapshot or generator when settings change. Do not keep full audio caches for every stage in the first release.
 4. Keep the source snapshot until the session is committed or discarded. Do not assume an original WAV on disk contains the current unsaved editor edits.
@@ -154,7 +154,7 @@ Publish a new instrument only after the final audio, destination capacity, and m
 | 1 | Chain/session model and offline runner | Whole-sample sequential stages, source protection, bounded buffers, failure/cancel handling |
 | 2 | Built-in stage adapters and generator/plugin sources | Repeated stages reset independently; generator into empty slot; lengths/channels validated |
 | 3 | Chain screen, parameters, audition, and new-slot render | User can complete both example workflows; Render matches preview exactly |
-| 4 | Recipe save/load and compatibility handling | Round trips preserve settings; missing/changed plugins are handled explicitly |
+| 4 | Chain save/load and compatibility handling | Round trips preserve settings; missing/changed plugins are handled explicitly |
 | 5 | Original/Mini/Tracker+ validation | Resource ownership, maximum lengths, UI responsiveness, and render timing verified |
 
 All five steps make up the proposed first release. Live master/track chains, song-selection bounce, automatic processing while encoders move, per-stage audio caching, sample replacement, selection processing, and multiple generator mixing are follow-up work.

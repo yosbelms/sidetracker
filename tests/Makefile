@@ -29,6 +29,7 @@ CORE_SOURCES := $(addprefix libs/Audio/,AudioStream.cpp filter_variable.cpp ampl
     mtEffectDelay.cpp mtEffectEQ.cpp mtEffectChorus.cpp mtEffectFlanger.cpp \
     mtEffectBitcrusher.cpp mtEffectFadeIn.cpp mtEffectFadeOut.cpp mtEffectCompresor.cpp \
     mtEffectLimiter.cpp mtEffectOverdrive.cpp)
+CORE_SOURCES += $(patsubst $(CORE)/%,%,$(shell find $(CORE)/effector/palette -name '*.cpp'))
 CORE_OBJECTS := $(addprefix $(OUT)/core/,$(CORE_SOURCES:.cpp=.o))
 TEST_SOURCES := $(wildcard *_test.cpp)
 TEST_BINS := $(patsubst %.cpp,$(OUT)/%,$(TEST_SOURCES))
@@ -43,8 +44,12 @@ test run: build
 
 build: $(TEST_BINS)
 
-$(OUT)/libcore.a: $(CORE_OBJECTS)
+$(OUT)/libcore.a: $(CORE_OBJECTS) $(OUT)/data_waveforms.o
 	$(AR) rcs $@ $^
+
+$(OUT)/data_waveforms.o: $(CORE)/libs/Audio/data_waveforms.c
+	@mkdir -p $(@D)
+	$(CC) -c $< -o $@
 
 $(OUT)/%_test: $(OUT)/%_test.o $(COMMON_OBJECTS) $(OUT)/libcore.a
 	$(CXX) $(LDFLAGS) $^ $(LDLIBS) -o $@
@@ -111,3 +116,31 @@ perf-gate: $(BENCH_OUT)/audio_bench
 # Keep test objects for incremental builds, including automatically found tests.
 .SECONDARY:
 -include $(CORE_OBJECTS:.o=.d) $(COMMON_OBJECTS:.o=.d) $(patsubst %.cpp,$(OUT)/%.d,$(TEST_SOURCES))
+
+CPPFLAGS += -I$(CORE)/effector/palette/vendor/clouds
+
+PALETTE_SOURCES := $(shell find $(CORE)/effector/palette -name '*.cpp')
+PALETTE_HEADERS := $(shell find $(CORE)/effector/palette -name '*.h')
+PALETTE_INCLUDES := -I$(CORE)/effector -I$(CORE)/effector/palette/vendor/clouds
+
+$(BENCH_OUT)/palette_bench: palette_bench.cpp $(PALETTE_SOURCES) $(PALETTE_HEADERS) $(OUT)/data_waveforms.o
+	@mkdir -p $(@D)
+	$(CXX) -std=c++20 -O2 $(PALETTE_INCLUDES) palette_bench.cpp $(PALETTE_SOURCES) $(OUT)/data_waveforms.o -o $@
+
+palette-bench: $(BENCH_OUT)/palette_bench
+	$<
+
+$(BENCH_OUT)/palette_bench_m4.elf: palette_bench.cpp $(PALETTE_SOURCES) $(PALETTE_HEADERS) bench_m4/startup.c bench_m4/mps2.ld
+	@mkdir -p $(@D)
+	$(ARM_PREFIX)gcc $(M4_FLAGS) -c bench_m4/startup.c -o $(BENCH_OUT)/palette_startup.o
+	$(ARM_PREFIX)gcc $(M4_FLAGS) -c $(CORE)/libs/Audio/data_waveforms.c -o $(BENCH_OUT)/palette_waveforms.o
+	$(ARM_PREFIX)g++ -std=gnu++20 $(M4_FLAGS) -fno-exceptions -fno-rtti -DCE_BENCH_M4 $(PALETTE_INCLUDES) \
+		palette_bench.cpp $(PALETTE_SOURCES) $(BENCH_OUT)/palette_startup.o $(BENCH_OUT)/palette_waveforms.o \
+		-T bench_m4/mps2.ld -nostartfiles --specs=nano.specs --specs=rdimon.specs -Wl,--gc-sections -o $@
+
+palette-bench-m4: $(BENCH_OUT)/palette_bench_m4.elf
+	qemu-system-arm -M mps2-an386 -nographic -icount shift=0 -semihosting-config enable=on,target=native -kernel $<
+
+palette-bench-m4-build: $(BENCH_OUT)/palette_bench_m4.elf
+
+.PHONY: palette-bench palette-bench-m4 palette-bench-m4-build

@@ -9,35 +9,60 @@
 #include "mtAudioEngine.h"
 #include "mtPadBoard.h"
 #include "VoiceStreamManager.h"
+#include "palette/Palette.h"
+#include "palette/Profiling.h"
+#include "Tracker.h"
+#include "Platform.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <new>
+#ifdef TRACKER_DESKTOP
+#include <chrono>
+#endif
+
+extern uint8_t externalRamScratchBuff[];
 
 namespace
 {
 using namespace samplefx;
 constexpr uint32_t kCapacity = EDIT_BUFF_SIZE / 2;
 constexpr unsigned kIoFrames = 4096;
+constexpr unsigned kBackButton = 2;
+constexpr unsigned kApplyButton = 3;
+constexpr unsigned kActionsButton = 4;
+constexpr unsigned kMixButton = 5;
 constexpr unsigned kValueButton = 7;
 constexpr char kTempDir[] = "Workspace/FxChainTemp";
-constexpr char kRecipeDir[] = "/Effects/Chains";
+constexpr char kChainDir[] = "/Effects/Chains";
 
 bool supported(uint8_t effect)
 {
+    if(palette::contains(effect)) return true;
     return effect < kBuiltInEffectsCount && effect != editorEffectCut &&
            effect != editorEffectReverse && effect != editorEffectWavetableSmoother &&
            effect != editorEffectTimestretchBeat && effect != editorEffectTimestretchNote;
 }
 
-// Keep processing older recipes valid while moving sample-editing utilities
+// Keep processing older chains valid while moving sample-editing utilities
 // out of the catalog for newly constructed chains.
 bool listedInChain(uint8_t effect)
 {
     return supported(effect) && effect != editorEffectNormalizer &&
            effect != editorEffectFadeIn && effect != editorEffectFadeOut;
+}
+
+const strEffectDisplayConstantParams& nativeSchema()
+{
+    static const char* const names[]={"Type","Amount","Macro","Drift","Sync","Tail"};
+    static float high[]={5,100,100,100,14,10}, low[]={0,0,0,0,0,0};
+    static float steps[]={1,1,1,1,1,.1f}, mult[]={1,1,1,1,1,1};
+    static const char* const units[]={"","%","%","%",""," s"};
+    static const char types[]={'l','d','d','d','l','f'};
+    static const strEffectDisplayConstantParams data={6,names,high,low,steps,mult,units,types};
+    return data;
 }
 
 int findPlugin(const Node& n)
@@ -73,11 +98,19 @@ class EffectBackend : public Backend
     mtEffect* effect = nullptr;
     Audio* output = nullptr;
     uint32_t completed = 0;
+    unsigned stageIndex = 1;
+    uint32_t dryDelay = 0;
+    palette::Processor native;
+    RealtimeArena nativeArena;
+    Audio nativeInput;
+    bool nativeActive = false;
+    void setStageIndex(unsigned i) override { stageIndex=i; }
     const char* message = "Effect failed";
 
     bool resolve(const Node& node, bool execute = true)
     {
         message = "Effect unavailable";
+        if(palette::contains(node.effect)) { effect=nullptr; return palette::valid(node); }
         if (node.effect != kPlugin)
         {
             if (!supported(node.effect)) return false;
@@ -103,6 +136,20 @@ class EffectBackend : public Backend
                uint32_t generatorFrames) override
     {
         if (!resolve(node)) return false;
+        nativeActive=palette::contains(node.effect);
+        if(nativeActive)
+        {
+            nativeArena.reset(externalRamScratchBuff,SHARED_SCRATCH_MEMORY_SIZE);
+            nativeInput=input; completed=0; output=&out;
+            if(!native.prepare(node,input.channels,input.frames,
+                {&nativeArena,[](void* a,size_t n){return static_cast<RealtimeArena*>(a)->allocate(n);}},stageIndex,mtProject.values.globalTempo))
+            { message="Native effect memory limit"; return false; }
+            uint64_t end=uint64_t(input.frames)+native.tail();
+            if(end>capacity){message="Effect output too long";return false;}
+            out.frames=end; out.channels=input.channels;
+            dryDelay += palette::latencyFrames(node);
+            return true;
+        }
         const bool generator = node.effect == kPlugin && (node.flags & PTFX_FLAG_GENERATOR);
         int16_t* src[2] = { input.channel[0], input.channels == 2 ? input.channel[1] : input.channel[0] };
         // Mono built-ins still visit the platform's second channel; its output is private.
@@ -130,6 +177,7 @@ class EffectBackend : public Backend
         if (!effect->startProcess())
         { message = effect->getExpectedProcessLength() > capacity ? "Effect output too long" : "Effect could not prepare"; return false; }
         out.frames = effect->getExpectedProcessLength();
+        if (stageIndex && node.effect == kPlugin) dryDelay += sampleEditorModular.getPrependSamples();
         out.channels = (node.flags & PTFX_FLAG_CONVERT_TO_MONO) ? 1 : channels;
         if (!out.frames || out.frames > capacity)
         { message = "Effect output too long"; return false; }
@@ -140,6 +188,16 @@ class EffectBackend : public Backend
 
     bool step(bool& done) override
     {
+        if(nativeActive)
+        {
+            unsigned count=std::min<uint32_t>(128,output->frames-completed);
+            int16_t* in[2]={nullptr,nullptr};
+            int16_t* out[2]={output->channel[0]+completed,output->channels==2?output->channel[1]+completed:nullptr};
+            if(completed<nativeInput.frames) for(unsigned c=0;c<nativeInput.channels;++c) in[c]=nativeInput.channel[c]+completed;
+            if(!native.process(in,out,count)){message="Native effect invalid audio";return false;}
+            completed+=count; done=completed==output->frames;
+            return true;
+        }
         const int32_t count = effect->processBlock();
         if (effect->hasProcessingError() || count < 0 ||
             uint32_t(count) > output->frames - completed)
@@ -177,8 +235,9 @@ class LivePluginLoader : public RealtimePluginLoader
 class ChainScreen
 {
   public:
-    enum Page { Chain, Actions, Recipes, Destinations };
-    enum Work { Idle, Loading, Snapshot, Reading, Processing, Restoring, Writing };
+    enum Page { Chain, Actions, SavedChains, Destinations };
+    enum Work { Idle, Loading, Snapshot, Reading, Processing, CapturingDry, Mixing, Restoring, Writing, Applying };
+    enum Output { Audition, Apply, NewSlot };
     cSampleEditor* editor = nullptr;
     FileSystem* fs = nullptr;
     EffectBackend backend;
@@ -186,8 +245,13 @@ class ChainScreen
     RealtimeChain* live = nullptr;
     LivePluginLoader liveLoader;
     bool livePlaying = false, liveRequested = false, resumeLive = false;
-    Recipe recipe;
-    Recipe lastUsed;
+    bool waitingFade = false;
+    float liveTempo=120;
+    unsigned chainChannels() const {
+        return definition.source.effect==kPlugin && (definition.source.flags&PTFX_FLAG_STEREO) ? mtEffect::kChannels : sourceStereo?2:1;
+    }
+    ChainDefinition definition;
+    ChainDefinition lastUsed;
     bool haveLast = false;
     bool open = false;
     bool visible = false;
@@ -199,13 +263,41 @@ class ChainScreen
     bool touched = false;
     bool playing = false;
     bool originalPlaying = false;
-    bool renderPending = false;
-    bool saveRecipes = false;
+    Output output = Audition;
+    bool mixedReady = false, playAfterMix = false;
+    unsigned mixedPercent = 100, toolbarMixPercent = ~0u;
+    Audio mixed;
+    ChainMix preparedMix;
+    uint32_t generatorDryFrames = 0;
+    uint8_t generatorDryChannels = 1;
+    char mixText[12] = {};
+    bool savingChain = false;
+    static constexpr unsigned kSavedChainLimit = 32;
+    static constexpr unsigned kChainFilenameBytes = 52;
+    unsigned savedChainCount = 0;
     bool committed = false;
     Page page = Chain;
     unsigned focus = 0;
     unsigned stageSelection = 0;
     unsigned parameterSelection = 0;
+    char nativeName[64] = {};
+    unsigned visibleParameterCount() const
+    {
+        const Node& n=selectedNode?definition.stages[selectedNode-1]:definition.source;
+        if(!palette::contains(n.effect)) return n.count+(!selectedNode && n.effect==kPlugin?1:0);
+        unsigned count=0; for(unsigned p=0;p<n.count;++p) count+=palette::visible(n,p);
+        return count;
+    }
+    unsigned parameterIndex() const
+    {
+        const Node& n=selectedNode?definition.stages[selectedNode-1]:definition.source;
+        if(!palette::contains(n.effect)) return parameterSelection;
+        unsigned row=0;
+        for(unsigned p=0;p<n.count;++p) if(palette::visible(n,p)) {if(row++==parameterSelection)return p;}
+        return 0;
+    }
+    const strEffectDisplayConstantParams& schema()
+    { return palette::contains(node().effect)?nativeSchema():node().effect==kPlugin?editor->s_modularEffectParams:effectDisplayConstantParams[node().effect<kBuiltInEffectsCount?node().effect:0]; }
     bool replacingEffect = false;
     unsigned browserSelection = 0;
     static constexpr unsigned kMenuRows = kSampleInstrumentsCount + 16;
@@ -256,6 +348,7 @@ class ChainScreen
     char title[96] = {};
     char notice[96] = {};
     char snapshotPath[80] = {};
+    char generatorDryPath[80] = {};
     char outputPath[80] = {};
     char destinationPath[96] = {};
     FileSystem::FileHandle io = nullptr;
@@ -275,14 +368,16 @@ class ChainScreen
     strInstrument outputInstrument = {};
     strInstrumentFile outputHeader = {};
 
-    Node& node() { return selectedNode ? recipe.stages[selectedNode - 1] : recipe.source; }
+    Node& node() { return selectedNode ? definition.stages[selectedNode - 1] : definition.source; }
     bool busy() const { return work != Idle; }
+    bool mixHeld() const { return page == Chain && editor->buttons->isButtonPressed(interfaceButton0 + kMixButton); }
     void stopAudio()
     {
         engine.getSampleFxPreview()->stop();
         if (live) { live->~RealtimeChain(); live = nullptr; }
         livePlaying = false;
         resumeLive = false;
+        waitingFade = false;
         mtPadBoard.cutAllInstrument();
         playing = false;
         originalPlaying = false;
@@ -306,7 +401,8 @@ class ChainScreen
     {
         closeIo();
         runner.invalidate();
-        renderPending = false;
+        mixedReady = false;
+        output = Audition;
         work = Idle;
         snprintf(notice, sizeof(notice), "%s", text);
         show(Chain);
@@ -314,9 +410,12 @@ class ChainScreen
     void changed(bool parameterOnly = false)
     {
         const bool resume = !parameterOnly && livePlaying;
-        if (!parameterOnly || !livePlaying) stopAudio();
+        if(resume) { engine.getSampleFxPreview()->requestFadeOut(); waitingFade=true; }
+        else if (!parameterOnly || !livePlaying) stopAudio();
         resumeLive |= resume;
+        if(!parameterOnly) definition.qualityResolved=false;
         runner.invalidate();
+        mixedReady = false;
         notice[0] = 0;
     }
     void addRow(const char* text, unsigned value = 0)
@@ -337,6 +436,10 @@ class ChainScreen
     }
     const char* name(const Node& n)
     {
+        if(palette::contains(n.effect)) {
+            snprintf(nativeName,sizeof(nativeName),"%s: %s",palette::category(n.effect),palette::typeName(n.effect,unsigned(n.params[palette::Type])));
+            return nativeName;
+        }
         if (n.effect == kSample) return "Current Sample";
         if (n.effect == kPlugin)
         {
@@ -349,6 +452,7 @@ class ChainScreen
     void navigate(int delta);
     void shiftColumn(int delta);
     void editValue(int delta);
+    void editMix(int delta);
     void hideColumns();
     bool ensureSchema();
     void drawColumns(bool pageChanged, unsigned previousCount);
@@ -357,26 +461,32 @@ class ChainScreen
     void choose();
     void addSelectedEffect();
     void browseSource();
-    void preview(bool render = false);
+    void preview(Output action = Audition);
     void startRealtime();
     void playPrepared();
+    void startPrepared(const Audio&);
+    void prepareOutput(bool play);
+    void finishOutput(bool play);
+    void updateMix();
+    const Audio& result() const { return mixedReady ? mixed : runner.result(); }
     void publishParameters()
     {
-        if (!livePlaying) return;
+        if (!livePlaying || waitingFade) return;
         DISABLE_AUDIO_INTERRUPTS();
-        live->setParameters(recipe);
+        live->setParameters(definition);
         ENABLE_AUDIO_INTERRUPTS();
     }
     void update();
     void discard();
     void leave();
-    void moveStage(int direction);
     void removeOrReset();
     void finishRestore();
     bool pluginNode(unsigned index, Node& n);
-    void recipeFile(unsigned slot, bool save);
+    void chainFile(unsigned slot, bool save);
+    void scanSavedChains();
     void render(unsigned slot);
     void finishRender();
+    void measureCpu();
 };
 
 ChainScreen screen;
@@ -410,6 +520,55 @@ bool ChainScreen::pluginNode(unsigned index, Node& n)
     return true;
 }
 
+void ChainScreen::scanSavedChains()
+{
+    menuCount = 0;
+    if (!savingChain && haveLast) addMenuRow(lastUsed.name[0] ? lastUsed.name : "Last Used", 0);
+    const unsigned first = menuCount;
+    int found = kSavedChainLimit;
+    fs->listDirContents(kChainDir, FileSystem::kFiles, [](const char* name) {
+        const size_t length = strlen(name);
+        return length > 8 && length < kChainFilenameBytes &&
+            !strchr(name, '/') && !strchr(name, '\\') &&
+            !strcasecmp(name + length - 8, ".ptchain");
+    }, menuRows[first], (kMenuRows - first) * kChainFilenameBytes,
+       kChainFilenameBytes, found, menuPointers + first);
+    menuCount = first + std::clamp(found, 0, int(kSavedChainLimit));
+    // Expand the packed directory results into the existing menu rows, moving
+    // backwards so no unread filename is overwritten. Keep the extension after
+    // the display string's NUL: both filename and label share the same storage.
+    for (unsigned i = menuCount; i-- > first;)
+    {
+        const size_t length = strlen(menuPointers[i]);
+        memmove(menuRows[i], menuPointers[i], length + 1);
+        menuRows[i][length - 8] = 0;
+        menuPointers[i] = menuRows[i];
+    }
+    std::sort(menuPointers + first, menuPointers + menuCount,
+              [](const char* a, const char* b) { return strcmp(a, b) < 0; });
+    for (unsigned i = first; i < menuCount; ++i) menuEntries[i] = i + 1;
+    // Keep numbered destinations for new unnamed chains, while existing named
+    // files are replaced directly under their own filenames.
+    for (unsigned slot = 1; savingChain && menuCount < 16 && slot <= 16; ++slot)
+    {
+        char name[16];
+        snprintf(name, sizeof(name), "Chain%02u", slot);
+        bool exists = false;
+        for (unsigned i = 0; i < menuCount; ++i) exists |= !strcasecmp(menuPointers[i], name);
+        if (exists) continue;
+        snprintf(menuRows[menuCount], sizeof(menuRows[menuCount]), "%s.ptchain", name);
+        menuRows[menuCount][strlen(name)] = 0;
+        menuPointers[menuCount] = menuRows[menuCount];
+        menuEntries[menuCount] = menuCount + 1;
+        ++menuCount;
+    }
+    if (!menuCount) addMenuRow("No saved chains", 255);
+    if (savingChain && definition.name[0])
+        for (unsigned i = 0; i < menuCount; ++i)
+            if (!strcmp(menuPointers[i], definition.name)) selected = i;
+    savedChainCount = menuCount;
+}
+
 void ChainScreen::show(Page next)
 {
     const bool pageChanged = page != next;
@@ -417,13 +576,17 @@ void ChainScreen::show(Page next)
     page = next;
     count = 0;
     char text[96];
-    stageSelection = std::min<unsigned>(stageSelection, recipe.count);
-    if (recipe.source.effect == kSample && recipe.count && !stageSelection) stageSelection = 1;
+    stageSelection = std::min<unsigned>(stageSelection, definition.count);
+    if (definition.source.effect == kSample && definition.count && !stageSelection) stageSelection = 1;
     selectedNode = stageSelection;
     // Keep the left-hand catalog independent of the selected chain stage,
     // just as the Sample Loader keeps its file browser independent of slots.
     for (unsigned i = 0; i < kBuiltInEffectsCount; ++i)
         if (listedInChain(i)) addRow(effectNamesLabels[i], i);
+    for(unsigned id=palette::kFirst;id<=palette::kLast;++id) {
+        snprintf(text,sizeof(text),"Palette - %s",palette::category(id));
+        addRow(text,id);
+    }
     for (unsigned i = 0; i < PtfxManager::getPluginCount(); ++i)
     {
         const auto* plugin = PtfxManager::getPlugin(i);
@@ -442,13 +605,14 @@ void ChainScreen::show(Page next)
             addMenuRow("Duplicate"); addMenuRow("Remove"); addMenuRow("Replace Effect", 20);
         }
         else addMenuRow("Choose Generator");
-        addMenuRow("Load Recipe", 10); addMenuRow("Save Recipe", 11);
+        addMenuRow("Load Chain", 10); addMenuRow("Save Chain", 11);
+        if(palette::contains(node().effect)) addMenuRow("Measure CPU",12);
+        addMenuRow("Render to new slot", 13);
     }
-    else if (page == Recipes)
+    else if (page == SavedChains)
     {
-        if (!saveRecipes && haveLast) addMenuRow("Last Used", 0);
-        for (unsigned i = 1; i <= 16; ++i)
-        { snprintf(text, sizeof(text), "Chain %02u", i); addMenuRow(text, i); }
+        if (pageChanged) scanSavedChains();
+        else menuCount = savedChainCount;
     }
     else if (page == Destinations)
     {
@@ -459,8 +623,13 @@ void ChainScreen::show(Page next)
     }
     selected = menuCount ? std::min(selected, menuCount - 1) : 0;
     if (notice[0]) snprintf(title, sizeof(title), "%s", notice);
-    else snprintf(title, sizeof(title), "FX Chain %u/8%s", recipe.count,
-                  busy() ? " - Preparing" : livePlaying ? " - Live" : "");
+    else {
+        bool economy=false;
+        for(unsigned i=0;i<definition.count;++i) economy |= !definition.stages[i].bypass && palette::contains(definition.stages[i].effect) && definition.stages[i].quality;
+        snprintf(title, sizeof(title), "FX Chain %u/8%s%s%s%s", definition.count,
+                  definition.name[0] ? " - " : "", definition.name,
+                  busy() ? " - Preparing" : livePlaying ? " - Live" : "", economy ? " - Economy" : "");
+    }
     if (!visible)
     {
         editor->showTitleBar(notice[0] ? notice : playing ? "Sample Editor - Preview" : "Sample Editor");
@@ -477,7 +646,8 @@ void ChainScreen::show(Page next)
     // restore may replace shared plugin code, so their lists must detach.
     if (!busy() || !toolbarReady || work == Processing || work == Restoring)
         drawColumns(pageChanged, previousCount);
-    const char* labels[8] = { "Preview", "Add", "Move Up", "Move Down", "Back", "Render", "", valueName };
+    snprintf(mixText, sizeof(mixText), "%u%%", definition.mix);
+    const char* labels[8] = { "Preview", "Add", "Back", "Apply", "Actions", "Mix", "", valueName };
     if (page != Chain)
     { labels[0] = "Back"; labels[1] = "Select"; for (unsigned i = 2; i < 8; ++i) labels[i] = ""; }
     else
@@ -491,25 +661,32 @@ void ChainScreen::show(Page next)
     for (unsigned i = 0; i < 8; ++i)
     {
         const bool changed = !toolbarReady || strcmp(toolbarPrimary[i], labels[i]) ||
+            (i == kMixButton && toolbarMixPercent != definition.mix) ||
             (i == kValueButton && (toolbarHasValue != hasValue || strcmp(toolbarSecondary, hasValue ? valueText : "")));
         if (!changed) continue;
         if (!toolbarReady)
         {
             display.setControlStyle(editor->label[i], controlStyleCenterX | controlStyleCenterY | controlStyleFont3);
             display.setControlStyle2(editor->label[i], controlStyleCenterX | controlStyleCenterY | controlStyleFont2);
-            display.setControlColors(editor->label[i], i == kValueButton ? display.getTheme().activeLabelsColors
+            display.setControlColors(editor->label[i], i == kValueButton || i == kMixButton ? display.getTheme().activeLabelsColors
                                                               : display.getTheme().activeButtonLabelsColors);
             display.setControlPosition(editor->label[i], i * 100 + 50, 424);
             display.setControlSize(editor->label[i], 94, 55);
             display.setControlData(editor->label[i], nullptr);
             display.setControlShow(editor->label[i]);
         }
-        display.setControlValue(editor->label[i], i == kValueButton && hasValue ? 1 : 0);
+        const char* detail = i == kValueButton && hasValue ? valueText :
+            page == Chain && i == kMixButton ? mixText : "";
+        display.setControlValue(editor->label[i], detail[0] ? 1 : 0);
         display.setControlText(editor->label[i], labels[i]);
-        display.setControlText2(editor->label[i], i == kValueButton && hasValue ? valueText : "");
+        display.setControlText2(editor->label[i], detail);
         display.refreshControl(editor->label[i]);
         snprintf(toolbarPrimary[i], sizeof(toolbarPrimary[i]), "%s", labels[i]);
     }
+    // Exclude the cached value footer immediately when entering a menu, even
+    // if its old label is still waiting for a display-list refresh.
+    if (page == Chain) display.setControlShow(editor->label[kValueButton]);
+    else display.setControlHide(editor->label[kValueButton]);
     if (!toolbarReady)
     {
         display.setControlValue(editor->bgLabel, 255);
@@ -518,6 +695,7 @@ void ChainScreen::show(Page next)
     }
     snprintf(toolbarSecondary, sizeof(toolbarSecondary), "%s", hasValue ? valueText : "");
     toolbarHasValue = hasValue;
+    toolbarMixPercent = definition.mix;
     toolbarReady = true;
     editor->ip->clearAll();
     editor->setViewSwitchFunctions();
@@ -564,19 +742,19 @@ void ChainScreen::drawColumns(bool pageChanged, unsigned previousCount)
     const unsigned activeColumn = page == Chain ? focus : 1;
     // Snap changed selections before publishing the batch. Animated high-
     // priority lists otherwise delay the matching parameter/value controls.
-    const bool implicitSample = recipe.source.effect == kSample;
+    const bool implicitSample = definition.source.effect == kSample;
     unsigned stageCount = 0;
-    for (unsigned i = 0; i <= recipe.count; ++i)
+    for (unsigned i = 0; i <= definition.count; ++i)
     {
         if (!i && implicitSample) continue;
-        const Node& n = i ? recipe.stages[i - 1] : recipe.source;
+        const Node& n = i ? definition.stages[i - 1] : definition.source;
         if (!i) snprintf(stageRows[stageCount], sizeof(stageRows[stageCount]), "Gen: %s", name(n));
         else snprintf(stageRows[stageCount], sizeof(stageRows[stageCount]), "%02u %s%s", i,
             n.bypass ? "- " : "", name(n));
         stagePointers[stageCount] = stageRows[stageCount];
         ++stageCount;
     }
-    const unsigned stageCursor = stageSelection - (implicitSample && recipe.count ? 1 : 0);
+    const unsigned stageCursor = stageSelection - (implicitSample && definition.count ? 1 : 0);
     stagesList.data = stagePointers;
     stagesList.length = stageCount;
     stagesList.linesCount = stageCount;
@@ -638,15 +816,16 @@ void ChainScreen::drawColumns(bool pageChanged, unsigned previousCount)
     display.setControlColors(parametersControl, colorsFor(2));
     display.setControlColors(valuesControl, colorsFor(3));
 
-    bool available = !busy() && ensureSchema();
+    bool available = page == Chain && !busy() && ensureSchema();
     const Node& n = node();
-    const auto& d = n.effect == kPlugin ? editor->s_modularEffectParams
-        : effectDisplayConstantParams[n.effect < kBuiltInEffectsCount ? n.effect : 0];
-    unsigned parameterCount = available ? n.count + (!selectedNode && n.effect == kPlugin ? 1 : 0) : 0;
+    const auto& d = schema();
+    unsigned parameterCount = available ? visibleParameterCount() : 0;
     const unsigned parameterCursor = parameterCount ? std::min(parameterSelection, parameterCount - 1) : 0;
     if (!busy()) parameterSelection = parameterCursor;
-    for (unsigned i = 0; i < n.count && available; ++i) parameterPointers[i] = const_cast<char*>(d.labelsText[i]);
-    if (available && parameterCount > n.count) parameterPointers[n.count] = lengthLabel;
+    unsigned row=0;
+    for (unsigned i = 0; i < n.count && available; ++i)
+        if(!palette::contains(n.effect) || palette::visible(n,i)) parameterPointers[row++] = const_cast<char*>(d.labelsText[i]);
+    if (available && parameterCount > n.count) parameterPointers[row++] = lengthLabel;
     if (!parameterCount) parameterPointers[0] = const_cast<char*>(n.effect == kSample ? "Sample source" :
         busy() ? "Preparing..." : n.count ? "Unavailable" : "No parameters");
     parametersList.data = parameterPointers;
@@ -661,7 +840,7 @@ void ChainScreen::drawColumns(bool pageChanged, unsigned previousCount)
         boundParameterCount = parametersList.length;
     }
     display.setControlValue(parametersControl, parameterCursor);
-    if (n.effect == kSample) display.setControlHide(parametersControl);
+    if (page != Chain || n.effect == kSample) display.setControlHide(parametersControl);
     else display.setControlShow(parametersControl);
     display.refreshControl(parametersControl);
 
@@ -670,7 +849,7 @@ void ChainScreen::drawColumns(bool pageChanged, unsigned previousCount)
     // A queued auto-refresh must not follow strings into a plugin image that
     // the offline runner is about to replace.
     if (!available) valuesList.length = 0;
-    unsigned param = parameterSelection;
+    unsigned param = parameterIndex();
     float value = 0, low = 0, high = 1;
     const char* unit = "";
     if (available && param < n.count)
@@ -678,7 +857,18 @@ void ChainScreen::drawColumns(bool pageChanged, unsigned previousCount)
         value = n.params[param]; low = d.downConstrain[param]; high = d.upConstrain[param];
         unit = d.afterValueText[param] ? d.afterValueText[param] : "";
         snprintf(valueText, sizeof(valueText), d.displayType[param] == 'd' ? "%.0f%s" : "%.3f%s", value * d.displayMult[param], unit);
-        if (n.effect == kPlugin && PtfxManager::getActiveHeader().params[param].display_type == PARAM_LIST)
+        if (palette::contains(n.effect) && (param==palette::Type || param==palette::Sync))
+        {
+            unsigned length=param==palette::Type?6:palette::syncCount();
+            for(unsigned i=0;i<length;++i) valuePointers[i]=const_cast<char*>(param==palette::Type?palette::typeName(n.effect,i):palette::syncName(i));
+            valuesList.data=valuePointers; valuesList.length=length;
+            valuesList.linesCount=std::min(12u,length); valuesList.lineWidthMax=activeColumn==3?78:0;
+            valuesList.lineTextLenMax=32; valuesList.start=unsigned(value);
+            display.setControlData(valuesControl,&valuesList); display.setControlValue(valuesControl,unsigned(value));
+            display.setControlShow(valuesControl); display.refreshControl(valuesControl);
+            snprintf(valueText,sizeof(valueText),"%s",valuePointers[unsigned(value)]);
+        }
+        else if (n.effect == kPlugin && PtfxManager::getActiveHeader().params[param].display_type == PARAM_LIST)
         {
             const auto& p = PtfxManager::getActiveHeader().params[param];
             unsigned offset = uint8_t(p.unit[0]) | unsigned(uint8_t(p.unit[1])) << 8;
@@ -704,7 +894,7 @@ void ChainScreen::drawColumns(bool pageChanged, unsigned previousCount)
     }
     else if (available)
     {
-        value = recipe.generatorFrames; low = 1; high = kCapacity;
+        value = definition.generatorFrames; low = 1; high = kCapacity;
         snprintf(valueText, sizeof(valueText), "%.3f s", value / 44100.0f);
         display.setControlShow(valueBar);
     }
@@ -712,17 +902,18 @@ void ChainScreen::drawColumns(bool pageChanged, unsigned previousCount)
     int percent = high > low ? int((double(std::clamp(value, low, high)) - low) * 100 / (double(high) - low)) : 0;
     display.setControlValue(valueBar, std::clamp(percent, 0, 100));
     display.refreshControl(valueBar);
-    valueName = available ? (param < n.count ? d.labelsText[param] : lengthLabel) : n.effect == kSample ? "" : "Value";
+    valueName = available ? (param < n.count ? d.labelsText[param] : lengthLabel) : "";
 
-    const char* titles[4] = {"Effects", page == Actions ? "Actions" : page == Recipes ? "Recipes" :
+    const char* titles[4] = {"Effects", page == Actions ? "Actions" : page == SavedChains ? (savingChain ? "Save Chain" : "Load Chain") :
         page == Destinations ? "Render to" : "Chain", "Parameter", "Value"};
     for (unsigned i = 0; i < 4; ++i)
     {
         display.setControlText(headers[i], titles[i]);
-        display.setControlShow(headers[i]);
+        if (page != Chain && i >= 2) display.setControlHide(headers[i]);
+        else display.setControlShow(headers[i]);
         display.refreshControl(headers[i]);
     }
-    display.setControlValue(focusControl, page == Chain ? focus : 1);
+    display.setControlValue(focusControl, activeColumn);
     display.setControlShow(focusControl);
     display.refreshControl(focusControl);
 }
@@ -730,34 +921,41 @@ void ChainScreen::drawColumns(bool pageChanged, unsigned previousCount)
 void ChainScreen::navigate(int delta)
 {
     if (busy() || !delta) return;
+    if (mixHeld()) { editMix(-delta); return; }
     if (page != Chain)
         selected = std::clamp<int>(int(selected) + delta, 0, menuCount ? menuCount - 1 : 0);
     else if (focus == 0)
         browserSelection = std::clamp<int>(int(browserSelection) + delta, 0, count ? count - 1 : 0);
     else if (focus == 1)
     {
-        const int firstStage = recipe.source.effect == kSample && recipe.count ? 1 : 0;
-        stageSelection = std::clamp<int>(int(stageSelection) + delta, firstStage, recipe.count);
+        const int firstStage = definition.source.effect == kSample && definition.count ? 1 : 0;
+        stageSelection = std::clamp<int>(int(stageSelection) + delta, firstStage, definition.count);
         selectedNode = stageSelection;
         parameterSelection = 0;
         schemaReady = false;
     }
     else if (focus == 2 && ensureSchema())
     {
-        unsigned length = node().count + (!selectedNode && node().effect == kPlugin ? 1 : 0);
+        unsigned length = visibleParameterCount();
         parameterSelection = std::clamp<int>(int(parameterSelection) + delta, 0, length ? length - 1 : 0);
         boundValueParameter = 255;
     }
-    else if (focus == 3) { editValue(-delta); return; }
+    else if (focus == 3) {
+        if(!ensureSchema())return;
+        unsigned parameter=parameterIndex();
+        bool list=parameter<node().count && schema().displayType[parameter]=='l';
+        editValue(list?delta:-delta); return;
+    }
     show(page);
 }
 
 void ChainScreen::shiftColumn(int delta)
 {
     if (busy()) return;
+    if (mixHeld()) { editMix(delta); return; }
     if (page != Chain)
     {
-        if (delta < 0) { focus = 1; show(Chain); }
+        if (delta < 0) { if (page == Destinations) output = Audition; focus = 1; show(Chain); }
         else choose();
         return;
     }
@@ -769,28 +967,35 @@ void ChainScreen::shiftColumn(int delta)
 void ChainScreen::editValue(int delta)
 {
     if (!ensureSchema()) return;
-    changed(true);
     Node& n = node();
-    unsigned i = parameterSelection;
+    unsigned i = parameterIndex();
+    if(i<n.count) {
+        const auto& d=schema();
+        if(std::clamp(n.params[i]+delta*d.changeStep[i],d.downConstrain[i],d.upConstrain[i])==n.params[i]) return;
+    }
+    bool typeChange=palette::contains(n.effect) && (i==palette::Type || i==palette::Sync);
+    changed(!typeChange);
     if (i >= n.count)
     {
         unsigned step = (n.flags & PTFX_FLAG_WAVETABLE) ? 2048 : 441;
-        recipe.generatorFrames = std::clamp<int64_t>(int64_t(recipe.generatorFrames) + int64_t(delta) * step,
+        definition.generatorFrames = std::clamp<int64_t>(int64_t(definition.generatorFrames) + int64_t(delta) * step,
             step == 2048 ? 2048 : 1, kCapacity);
     }
     else
     {
-        const auto& d = n.effect == kPlugin ? editor->s_modularEffectParams : effectDisplayConstantParams[n.effect];
+        const auto& d = schema();
         n.params[i] = std::clamp(n.params[i] + delta * d.changeStep[i], d.downConstrain[i], d.upConstrain[i]);
     }
-    publishParameters();
+    if(typeChange) { schemaReady=false; boundParameterCount=255; boundValueParameter=255; }
+    else publishParameters();
     show(Chain);
 }
 
 void ChainScreen::turn(int delta)
 {
     if (busy()) return;
-    if (page == Chain && focus == 3) editValue(delta);
+    if (mixHeld()) editMix(delta);
+    else if (page == Chain && focus == 3) editValue(delta);
     else navigate(delta);
 }
 
@@ -801,8 +1006,8 @@ void ChainScreen::browseSource()
     for (unsigned i = 0; i < count; ++i)
     {
         unsigned id = entries[i];
-        if (id >= 256 && ((recipe.source.effect == kSample && (PtfxManager::getPlugin(id - 256)->flags & PTFX_FLAG_GENERATOR)) ||
-            (recipe.source.effect == kPlugin && !strcmp(PtfxManager::getPlugin(id - 256)->filename, recipe.source.filename))))
+        if (id >= 256 && ((definition.source.effect == kSample && (PtfxManager::getPlugin(id - 256)->flags & PTFX_FLAG_GENERATOR)) ||
+            (definition.source.effect == kPlugin && !strcmp(PtfxManager::getPlugin(id - 256)->filename, definition.source.filename))))
         { browserSelection = i; break; }
     }
     snprintf(notice, sizeof(notice), "Choose a generator, then Use src");
@@ -818,7 +1023,7 @@ void ChainScreen::addSelectedEffect()
     { error("Select a chain effect to replace"); return; }
     if (replacingEffect && selectedNode && source)
     { error("Generators belong in Source"); return; }
-    if (!source && !replacingEffect && recipe.count >= kMaxStages)
+    if (!source && !replacingEffect && definition.count >= kMaxStages)
     { error("Maximum 8 effects"); return; }
     Node n;
     if (id >= 256)
@@ -828,7 +1033,8 @@ void ChainScreen::addSelectedEffect()
     else
     {
         n.effect = id;
-        if (id != kSample)
+        if(palette::contains(id)) n=palette::defaults(id);
+        else if (id != kSample)
         {
             n.count = effectDisplayConstantParams[id].paramsNumber;
             memcpy(n.params, effectDefaultParamsTable[id].parameter, sizeof(n.params));
@@ -837,15 +1043,15 @@ void ChainScreen::addSelectedEffect()
     changed();
     if (source)
     {
-        recipe.source = n;
+        definition.source = n;
         stageSelection = 0;
-        if (n.flags & PTFX_FLAG_WAVETABLE) recipe.generatorFrames = 8 * 2048;
+        if (n.flags & PTFX_FLAG_WAVETABLE) definition.generatorFrames = 8 * 2048;
     }
-    else if (replacingEffect) recipe.stages[selectedNode - 1] = n;
+    else if (replacingEffect) definition.stages[selectedNode - 1] = n;
     else
     {
-        if (!recipe.add(n)) { error("Maximum 8 effects"); return; }
-        stageSelection = recipe.count;
+        if (!definition.add(n)) { error("Maximum 8 effects"); return; }
+        stageSelection = definition.count;
     }
     bool replaced = replacingEffect;
     replacingEffect = false;
@@ -870,6 +1076,8 @@ void ChainScreen::choose()
     if (page == Actions)
     {
         unsigned action = menuEntries[selected];
+        if (action == 12) { measureCpu(); return; }
+        if (action == 13) { preview(NewSlot); return; }
         if (action == 20)
         {
             replacingEffect = true;
@@ -878,34 +1086,55 @@ void ChainScreen::choose()
             show(Chain); return;
         }
         if (action >= 10)
-        { saveRecipes = action == 11; selected = 0; show(Recipes); return; }
+        { savingChain = action == 11; selected = 0; show(SavedChains); return; }
         if (!selectedNode) { browseSource(); return; }
         changed();
         unsigned i = selectedNode - 1;
-        if (selected == 0) recipe.stages[i].bypass = !recipe.stages[i].bypass;
-        if (selected == 1 && recipe.move(i, -1)) --selectedNode;
-        if (selected == 2 && recipe.move(i, 1)) ++selectedNode;
-        if (selected == 3 && !recipe.duplicate(i)) snprintf(notice, sizeof(notice), "Maximum 8 effects");
-        if (selected == 4) { recipe.remove(i); selectedNode = std::min<unsigned>(selectedNode, recipe.count); }
+        if (selected == 0) definition.stages[i].bypass = !definition.stages[i].bypass;
+        if (selected == 1 && definition.move(i, -1)) --selectedNode;
+        if (selected == 2 && definition.move(i, 1)) ++selectedNode;
+        if (selected == 3 && !definition.duplicate(i)) snprintf(notice, sizeof(notice), "Maximum 8 effects");
+        if (selected == 4) { definition.remove(i); selectedNode = std::min<unsigned>(selectedNode, definition.count); }
         stageSelection = selectedNode;
         schemaReady = false;
         focus = 1;
         show(Chain);
     }
-    else if (page == Recipes) recipeFile(menuEntries[selected], saveRecipes);
+    else if (page == SavedChains && menuEntries[selected] != 255) chainFile(menuEntries[selected], savingChain);
     else if (page == Destinations && menuEntries[selected] != 255) render(menuEntries[selected]);
 }
 
-void ChainScreen::moveStage(int direction)
+void ChainScreen::measureCpu()
 {
-    if (busy() || !selectedNode) return;
-    const unsigned index = selectedNode - 1;
-    if ((direction < 0 && !index) || (direction > 0 && index + 1 >= recipe.count)) return;
-    changed();
-    recipe.move(index, direction);
-    stageSelection = selectedNode = int(selectedNode) + direction;
-    focus = 1;
-    show(Chain);
+    if(!palette::contains(node().effect) || busy())return;
+    stopAudio();
+    Timer* timer=Tracker::getInstance()->getPlatform()->getTimer();
+#ifdef TRACKER_DESKTOP
+    // Headless scripts freeze virtual firmware time inside a command. Measure
+    // actual host work rather than exporting meaningless zero-duration rows.
+    auto clock=[](void*) -> uint32_t { return uint32_t(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()); };
+    unsigned ticksPerUs=1;
+#else
+    auto clock=[](void* t) -> uint32_t {return static_cast<Timer*>(t)->clockCycles();};
+    unsigned ticksPerUs=timer->clockCyclesPerUs();
+#endif
+    fs->mkdir(0,"/Effects");
+    auto [ok,file]=fs->openFile("/Effects/PaletteCPU.csv",FileSystem::kWriteCreateNew);
+    if(!ok){error("Cannot save CPU report");return;}
+    static const char heading[]="category,type,quality,processing_quality,channels,max_ticks,average_ticks,ticks_per_us,arena_bytes\n";
+    bool success=fs->writeFile(heading,sizeof(heading)-1,file)==sizeof(heading)-1;
+    for(unsigned q=0;q<3 && success;++q) {
+        Node n=node();n.quality=q;
+        RealtimeArena arena;arena.reset(externalRamScratchBuff,SHARED_SCRATCH_MEMORY_SIZE);
+        auto result=palette::profile(n,chainChannels(),{&arena,[](void* a,size_t bytes){return static_cast<RealtimeArena*>(a)->allocate(bytes);}},timer,clock);
+        char line[192];
+        int length=snprintf(line,sizeof(line),"%s,%s,%u,%u,%u,%lu,%lu,%lu,%lu\n",palette::category(n.effect),palette::typeName(n.effect,unsigned(n.params[0])),q,palette::processingQuality(n),chainChannels(),(unsigned long)result.maximumTicks,(unsigned long)(result.blocks?result.totalTicks/result.blocks:0),(unsigned long)ticksPerUs,(unsigned long)(SHARED_SCRATCH_MEMORY_SIZE-arena.available()));
+        success=result.success && length>0 && unsigned(length)<sizeof(line) && fs->writeFile(line,length,file)==length;
+    }
+    fs->closeFile(file);
+    schemaReady=false;
+    snprintf(notice,sizeof(notice),success?"Saved Effects/PaletteCPU.csv":"CPU measurement failed");
+    focus=1;show(Chain);
 }
 
 void ChainScreen::removeOrReset()
@@ -914,22 +1143,24 @@ void ChainScreen::removeOrReset()
     if (focus == 3 && ensureSchema())
     {
         changed(true);
-        unsigned i = parameterSelection;
-        if (i < node().count) node().params[i] = node().effect == kPlugin ?
+        unsigned i = parameterIndex();
+        if(palette::contains(node().effect) && i==palette::Type) changed();
+        if (i < node().count) node().params[i] = palette::contains(node().effect)?palette::defaults(node().effect).params[i]:node().effect == kPlugin ?
             PtfxManager::getActiveHeader().params[i].default_val : effectDefaultParamsTable[node().effect].parameter[i];
+        schemaReady=false;
         publishParameters();
     }
-    else if (focus == 1 && !selectedNode && recipe.source.effect == kPlugin)
+    else if (focus == 1 && !selectedNode && definition.source.effect == kPlugin)
     {
         changed();
-        recipe.source = {};
+        definition.source = {};
         schemaReady = false;
     }
     else if (focus == 1 && selectedNode)
     {
         changed();
-        recipe.remove(selectedNode - 1);
-        stageSelection = selectedNode = std::min<unsigned>(selectedNode, recipe.count);
+        definition.remove(selectedNode - 1);
+        stageSelection = selectedNode = std::min<unsigned>(selectedNode, definition.count);
         schemaReady = false;
     }
     show(Chain);
@@ -937,25 +1168,24 @@ void ChainScreen::removeOrReset()
 
 void ChainScreen::input(unsigned button)
 {
-    if (button == 4) { leave(); return; }
+    if (button == kBackButton && page == Chain) { leave(); return; }
     if (busy()) return;
     if (page != Chain)
     {
-        if (button == 0) { focus = 1; show(Chain); }
+        if (button == 0) { if (page == Destinations) output = Audition; focus = 1; show(Chain); }
         else if (button == 1) choose();
         return;
     }
     if (button == 0) { if (playing) { stopAudio(); show(Chain); } else preview(); }
     else if (button == 1) addSelectedEffect();
-    else if (button == 2) moveStage(-1);
-    else if (button == 3) moveStage(1);
-    else if (button == 5) preview(true);
+    else if (button == kApplyButton) preview(Apply);
+    else if (button == kActionsButton) { focus = 1; selected = 0; show(Actions); }
     else if (button == kValueButton && ensureSchema()) { focus = 3; show(Chain); }
 }
 
 void ChainScreen::playPrepared()
 {
-    const Audio& audio = runner.result();
+    const Audio& audio = result();
     std::vector<int16_t*> addresses = { audio.channel[0], audio.channel[audio.channels == 2 ? 1 : 0] };
     instrumentPlayer[0].clearInterfacePlayingEndFlag();
     mtPadBoard.startNoteWithoutInstrument(60, addresses, audio.frames, DEFAULT_INSTRUMENT_VOLUME, INTERFACE_BUTTON_PREVIEW);
@@ -963,13 +1193,108 @@ void ChainScreen::playPrepared()
     show(Chain);
 }
 
+void ChainScreen::editMix(int delta)
+{
+    const unsigned next = std::clamp<int>(int(definition.mix) + delta, 0, 100);
+    if (next == definition.mix) return;
+    definition.mix = next;
+    notice[0] = 0;
+    mixedReady = false;
+    if (livePlaying && !waitingFade) publishParameters();
+    else if (runner.state() == Runner::State::Ready)
+    {
+        const bool resume = playing;
+        stopAudio();
+        prepareOutput(resume);
+        return;
+    }
+    show(Chain);
+}
+
+void ChainScreen::startPrepared(const Audio& source)
+{
+    mixedReady = false;
+    generatorDryFrames = 0;
+    backend.dryDelay = 0;
+    if (!runner.start(definition, source, buffers, kCapacity)) { error(runner.error()); return; }
+    work = Processing;
+}
+
+void ChainScreen::finishOutput(bool play)
+{
+    if (output == Apply) render(sourceSlot);
+    else if (output == NewSlot) { selected = 0; show(Destinations); }
+    else if (play) playPrepared();
+    else show(Chain);
+}
+
+void ChainScreen::prepareOutput(bool play)
+{
+    if (definition.mix == 100) { mixedReady = false; finishOutput(play); return; }
+    if (mixedReady && mixedPercent == definition.mix) { finishOutput(play); return; }
+    mixedReady = false;
+    const auto& wet = runner.result();
+    const unsigned destination = wet.channel[0] == buffers[0][0] ? 1 : 0;
+    mixed = {{buffers[destination][0], buffers[destination][1]}, wet.frames, wet.channels};
+    const bool sample = definition.source.effect == kSample;
+    const unsigned frames = sample ? sourceFrames : generatorDryFrames;
+    const unsigned channels = sample ? (sourceStereo ? 2 : 1) : generatorDryChannels;
+    if (!openIo(sample ? snapshotPath : generatorDryPath, FileSystem::kRead) ||
+        fs->getFileSize(io) != size_t(frames) * channels * 2)
+    { error("Cannot read dry source for Mix"); return; }
+    preparedMix.reset(definition.mix);
+    playAfterMix = play;
+    work = Mixing;
+    show(Chain);
+}
+
+void ChainScreen::updateMix()
+{
+    const auto& wet = runner.result();
+    const unsigned count = std::min<uint32_t>(kIoFrames, wet.frames - offset);
+    const bool sample = definition.source.effect == kSample;
+    const unsigned dryFrames = sample ? sourceFrames : generatorDryFrames;
+    const unsigned dryChannels = sample ? (sourceStereo ? 2 : 1) : generatorDryChannels;
+    auto* dry = reinterpret_cast<int16_t*>(externalRamScratchBuff);
+    static_assert(2 * kIoFrames * sizeof(int16_t) <= SHARED_SCRATCH_MEMORY_SIZE, "Mix scratch exceeds arena");
+    const unsigned prefix = offset < backend.dryDelay ? std::min<uint32_t>(count, backend.dryDelay - offset) : 0;
+    const unsigned at = offset + prefix >= backend.dryDelay ? offset + prefix - backend.dryDelay : 0;
+    const unsigned read = at < dryFrames ? std::min(count - prefix, dryFrames - at) : 0;
+    for (unsigned c = 0; c < dryChannels; ++c)
+    {
+        auto* channel = dry + c * kIoFrames;
+        memset(channel, 0, count * sizeof(int16_t));
+        if (read && (!fs->seekFile((uint32_t(c) * dryFrames + at) * 2, io) ||
+            fs->readFile(channel + prefix, read * 2, io) != int32_t(read * 2)))
+        { error("Dry source read failed"); return; }
+    }
+    for (unsigned i = 0; i < count; ++i)
+    {
+        const int32_t gain = preparedMix.advance();
+        int16_t left = dry[i];
+        if (wet.channels == 1 && dryChannels == 2) left = int16_t((int32_t(left) + dry[kIoFrames + i]) / 2);
+        mixed.channel[0][offset + i] = ChainMix::blend(left, wet.channel[0][offset + i], gain);
+        if (wet.channels == 2)
+            mixed.channel[1][offset + i] = ChainMix::blend(dry[(dryChannels == 2 ? kIoFrames : 0) + i], wet.channel[1][offset + i], gain);
+    }
+    offset += count;
+    if (offset != wet.frames) return;
+    closeIo();
+    mixedPercent = definition.mix;
+    mixedReady = true;
+    work = Idle;
+    finishOutput(playAfterMix);
+}
+
 void ChainScreen::startRealtime()
 {
     runner.invalidate();
-    for (unsigned i = 0; i < recipe.count; ++i)
+    mixedReady = false;
+    for (unsigned i = 0; i < definition.count; ++i)
     {
-        const Node& n = recipe.stages[i];
+        const Node& n = definition.stages[i];
         if (n.bypass || n.effect == kPlugin) continue;
+        if(palette::contains(n.effect)) { if(!palette::valid(n)){error("Invalid native effect");return;} continue; }
         if (!supported(n.effect) || n.count != effectDisplayConstantParams[n.effect].paramsNumber)
         { error("Effect unavailable"); return; }
         const auto& d = effectDisplayConstantParams[n.effect];
@@ -988,12 +1313,14 @@ void ChainScreen::startRealtime()
     live = new (reinterpret_cast<void*>(aligned)) RealtimeChain;
     // Source remains immutable in the first work area. Private code, scratch,
     // delay lines and stage state use the second; the SD snapshot restores it.
-    if (live->prepare(recipe, source, reinterpret_cast<void*>(begin + reserved),
-                      kCapacity * sizeof(int16_t) - reserved, liveLoader, kCapacity))
+    if (live->prepare(definition, source, reinterpret_cast<void*>(begin + reserved),
+                      kCapacity * sizeof(int16_t) - reserved, liveLoader, kCapacity,mtProject.values.globalTempo))
     {
         liveRequested = false;
         livePlaying = playing = true;
         notice[0] = 0;
+        engine.getSampleFxPreview()->setBudgetTimer(Tracker::getInstance()->getPlatform()->getTimer());
+        liveTempo=mtProject.values.globalTempo;
         engine.getSampleFxPreview()->start(live);
         show(Chain);
         return;
@@ -1001,30 +1328,35 @@ void ChainScreen::startRealtime()
     snprintf(notice, sizeof(notice), "%s", live->error());
     if (live) { live->~RealtimeChain(); live = nullptr; }
     liveRequested = false;
+    for(unsigned i=0;i<definition.count;++i) if(palette::contains(definition.stages[i].effect))
+    { error(live ? live->error() : "Native preview memory limit"); return; }
     // Noncausal effects (normalization and prepending) keep exact offline
     // behavior. Never silently bypass a stage in order to start live audio.
-    runner.start(recipe, source, buffers, kCapacity);
-    work = Processing;
+    startPrepared(source);
     show(Chain);
 }
 
-void ChainScreen::preview(bool render)
+void ChainScreen::preview(Output action)
 {
     stopAudio();
+    const bool render = action != Audition;
+    bool native=false; for(unsigned i=0;i<definition.count;++i) native |= palette::contains(definition.stages[i].effect);
+    if(native && (!definition.qualityResolved || !render) && !palette::resolve(definition,chainChannels(),kCapacity*2-65536,render?~0u:1000))
+    { error("Realtime budget exceeded; Apply or Render"); return; }
 #ifdef TRACKER_DESKTOP
-    bool armPlugin = recipe.source.effect == kPlugin;
-    for (unsigned i = 0; i < recipe.count; ++i)
-        armPlugin |= recipe.stages[i].effect == kPlugin && !recipe.stages[i].bypass;
+    bool armPlugin = definition.source.effect == kPlugin;
+    for (unsigned i = 0; i < definition.count; ++i)
+        armPlugin |= definition.stages[i].effect == kPlugin && !definition.stages[i].bypass;
     if (armPlugin) { error("PTFX: Tracker only"); return; }
 #endif
-    renderPending = render;
+    output = action;
     liveRequested = !render;
     if (render && runner.state() == Runner::State::Ready)
-    { selected = 0; show(Destinations); return; }
+    { prepareOutput(false); return; }
     if (sourceFrames && !snapshotReady) { error("Source snapshot unavailable; reopen Chain"); return; }
     schemaReady = false;
     touched = true;
-    if (recipe.source.effect == kSample)
+    if (definition.source.effect == kSample)
     {
         if (!snapshotReady || !sourceFrames) { error("Choose a generator or an existing sample"); return; }
         if (!openIo(snapshotPath, FileSystem::kRead)) { error("Cannot read source snapshot"); return; }
@@ -1034,46 +1366,52 @@ void ChainScreen::preview(bool render)
     else
     {
         Audio source{ { buffers[0][0], buffers[0][1] }, 0, 1 };
-        runner.start(recipe, source, buffers, kCapacity);
-        work = Processing;
+        startPrepared(source);
     }
     show(Chain);
 }
 
-void ChainScreen::recipeFile(unsigned slot, bool save)
+void ChainScreen::chainFile(unsigned slot, bool save)
 {
     stopAudio();
-    if (!slot && !save && haveLast) { changed(); recipe = lastUsed; stageSelection = 0; schemaReady = false; focus = 1; selected = 0; show(Chain); return; }
-    fs->mkdir(0, "/Effects"); fs->mkdir(0, kRecipeDir);
+    if (!slot && !save && haveLast) { changed(); definition = lastUsed; stageSelection = 0; schemaReady = false; focus = 1; selected = 0; show(Chain); return; }
+    if (!slot || slot > savedChainCount) { error("Choose a saved chain"); return; }
+    fs->mkdir(0, "/Effects"); fs->mkdir(0, kChainDir);
     char path[80], temp[84], backup[84];
-    snprintf(path, sizeof(path), "%s/Chain%02u.ptchain", kRecipeDir, slot);
+    const char* filename = menuPointers[slot - 1];
+    const char* extension = filename + strlen(filename) + 1;
+    snprintf(path, sizeof(path), "%s/%s.%s", kChainDir, filename, extension);
     snprintf(temp, sizeof(temp), "%s.tmp", path);
     snprintf(backup, sizeof(backup), "%s.bak", path);
     // Recover an interrupted replacement before attempting another read/write.
     if (!fs->exists(path) && fs->exists(backup)) fs->rename(backup, path);
-    uint8_t bytes[kRecipeBytes];
+    uint8_t bytes[kChainFileBytes];
     if (save)
     {
-        if (!encode(recipe, bytes, sizeof(bytes)) || !openIo(temp, FileSystem::kWriteCreateNew))
-        { error("Cannot save recipe"); return; }
+        snprintf(definition.name, sizeof(definition.name), "%s", filename);
+        if (!encode(definition, bytes, sizeof(bytes)) || !openIo(temp, FileSystem::kWriteCreateNew))
+        { error("Cannot save chain"); return; }
         bool ok = fs->writeFile(bytes, sizeof(bytes), io) == int32_t(sizeof(bytes));
         closeIo();
-        if (!ok) { fs->remove(temp); error("Recipe write failed"); return; }
+        if (!ok) { fs->remove(temp); error("Chain write failed"); return; }
         fs->remove(backup);
         bool previous = fs->exists(path);
         if ((previous && !fs->rename(path, backup)) || !fs->rename(temp, path))
-        { if (previous && !fs->exists(path)) fs->rename(backup, path); fs->remove(temp); error("Recipe save failed"); return; }
+        { if (previous && !fs->exists(path)) fs->rename(backup, path); fs->remove(temp); error("Chain save failed"); return; }
         fs->remove(backup);
-        snprintf(notice, sizeof(notice), "Saved Chain %02u", slot);
+        snprintf(notice, sizeof(notice), "Saved %s", filename);
     }
     else
     {
-        if (!openIo(path, FileSystem::kRead)) { error("Recipe not found"); return; }
-        Recipe loaded;
+        if (!openIo(path, FileSystem::kRead)) { error("Chain not found"); return; }
+        ChainDefinition loaded;
         bool ok = fs->getFileSize(io) == sizeof(bytes) && fs->readFile(bytes, sizeof(bytes), io) == int32_t(sizeof(bytes)) && decode(bytes, sizeof(bytes), loaded);
         closeIo();
-        if (!ok) { error("Invalid or unsupported recipe"); return; }
-        changed(); recipe = loaded; stageSelection = 0; schemaReady = false; focus = 1;
+        if (!ok) { error("Invalid or unsupported chain"); return; }
+        // The filename is also the display name, including for old unnamed files.
+        snprintf(loaded.name, sizeof(loaded.name), "%s", filename);
+        changed(); definition = loaded; stageSelection = 0; schemaReady = false; focus = 1;
+        if (definition.name[0]) snprintf(notice, sizeof(notice), "Loaded %s", definition.name);
     }
     selected = 0;
     show(Chain);
@@ -1082,28 +1420,42 @@ void ChainScreen::recipeFile(unsigned slot, bool save)
 void ChainScreen::render(unsigned slot)
 {
     stopAudio();
-    if (slot >= kSampleInstrumentsCount || mtProject.instrument[slot].isActive || runner.state() != Runner::State::Ready)
+    const bool replacing = output == Apply;
+    if (slot >= kSampleInstrumentsCount || (!replacing && mtProject.instrument[slot].isActive) ||
+        runner.state() != Runner::State::Ready)
     { error("Choose an empty sample slot"); return; }
     destinationSlot = slot;
     outputInstrument = sourceInstrument;
-    if (recipe.source.effect != kSample) newFileManager.setDefaultActiveInstrument(&outputInstrument);
-    const auto& audio = runner.result();
+    if (definition.source.effect != kSample) newFileManager.setDefaultActiveInstrument(&outputInstrument);
+    const auto& audio = result();
     outputInstrument.isActive = 1;
     outputInstrument.sample.length = audio.frames;
     outputInstrument.sample.address = nullptr;
-    snprintf(outputInstrument.sample.file_name, SAMPLE_NAME_SIZE, "Chain %02u", slot + 1);
+    if (!replacing || !sourceInstrument.isActive)
+        snprintf(outputInstrument.sample.file_name, SAMPLE_NAME_SIZE, "Chain %02u", slot + 1);
+    else
+        memcpy(outputInstrument.sample.file_name, sourceInstrument.sample.file_name, SAMPLE_NAME_SIZE);
     // Length-changing operations have no general loop/slice mapping yet.
-    if (recipe.source.effect != kSample || audio.frames != sourceFrames)
+    if (definition.source.effect != kSample || audio.frames != sourceFrames)
     {
         outputInstrument.sliceNumber = 0;
         memset(outputInstrument.slices, 0, sizeof(outputInstrument.slices));
         outputInstrument.loopPoint1 = 1;
         outputInstrument.loopPoint2 = MAX_16BIT - 1;
-        outputInstrument.playMode = (recipe.source.flags & PTFX_FLAG_WAVETABLE) ? playModeWavetable : playModeSingleShot;
+        outputInstrument.playMode = (definition.source.flags & PTFX_FLAG_WAVETABLE) ? playModeWavetable : playModeSingleShot;
     }
     if (outputInstrument.playMode == playModeWavetable &&
         (!outputInstrument.sample.wavetable_window_size || audio.frames % outputInstrument.sample.wavetable_window_size))
     { error("Wavetable needs complete windows"); return; }
+    if (replacing)
+    {
+        if (!newFileManager.importSampleFromSampleEditor(audio.channel[0],
+              audio.channels == 2 ? audio.channel[1] : nullptr, audio.frames, slot, outputInstrument))
+        { error("Cannot apply sample: check SD and sample memory"); return; }
+        work = Applying;
+        show(Chain);
+        return;
+    }
     uint32_t ramFrames = isPlayModeStreamable(outputInstrument.playMode) ? std::min<uint32_t>(audio.frames, kStreamPreCacheFrames) : audio.frames;
     if (mtProject.used_memory + ramFrames * audio.channels * 2 > std::min<uint32_t>(mtProject.max_memory, EDIT_BUFF_OFFSET))
     { error("Not enough sample memory"); return; }
@@ -1119,7 +1471,7 @@ void ChainScreen::render(unsigned slot)
 void ChainScreen::finishRender()
 {
     closeIo();
-    const auto& audio = runner.result();
+    const auto& audio = result();
     if (fs->getFileSize(outputPath) != sizeof(outputHeader) + size_t(audio.frames) * audio.channels * 2)
     { error("Rendered sample write incomplete"); return; }
     char backup[110]; snprintf(backup, sizeof(backup), "%s.chainbak", destinationPath);
@@ -1177,24 +1529,25 @@ void ChainScreen::finishRender()
     haveDraft = false;
     newFileManager.setInstrumentStructChanged(destinationSlot);
     newFileManager.setProjectStructChanged();
-    lastUsed = recipe;
+    lastUsed = definition;
     haveLast = true;
     // Restore current editor data before it is saved or another instrument is selected.
     work = Idle;
-    renderPending = false;
+    output = Audition;
     discard();
 }
 
 void ChainScreen::leave()
 {
-    haveDraft = !committed && (recipe.count || recipe.source.effect == kPlugin);
+    haveDraft = !committed && (definition.count || definition.source.effect == kPlugin);
     draftSlot = sourceSlot;
     autoPreview = false;
     stopAudio();
     // A commit already writing is allowed to finish before dispatching a view switch.
-    if (work == Writing || work == Restoring) return;
+    if (work == Writing || work == Restoring || work == Applying) return;
     runner.cancel();
-    renderPending = liveRequested = false;
+    output = Audition;
+    liveRequested = false;
     closeIo();
     work = Idle;
     discard();
@@ -1216,26 +1569,31 @@ void ChainScreen::finishRestore()
 {
     closeIo();
     if (live) { live->~RealtimeChain(); live = nullptr; }
-    if (savedEffectIdx == editorEffectModular)
+    const bool applied = work == Applying;
+    if (!applied)
     {
-        if (!PtfxManager::loadPlugin(savedPlugin, sampleEditorModular))
-        { error("Cannot restore editor plugin"); return; }
-        editor->loadModularEffectUI(PtfxManager::getActiveHeader());
+        if (savedEffectIdx == editorEffectModular)
+        {
+            if (!PtfxManager::loadPlugin(savedPlugin, sampleEditorModular))
+            { error("Cannot restore editor plugin"); return; }
+            editor->loadModularEffectUI(PtfxManager::getActiveHeader());
+        }
+        editor->currentEffect = savedEffect;
+        editor->currentEffectIdx = savedEffectIdx;
+        memcpy(editor->effectDisplayParamsToAdjust[savedEffectIdx].parameter, savedParams, sizeof(savedParams));
+        if (sourceFrames && sourceAddress[0])
+        {
+            if (!sourceStereo) sourceAddress[1] = sourceAddress[0];
+            unsigned b = sourceAddress[0] == buffers[0][0] ? 1 : 0;
+            int16_t* dst[2] = { buffers[b][0], buffers[b][1] };
+            savedEffect->bindOffline(sourceAddress, dst, sourceFrames);
+        }
+        for (unsigned i = 0; i < editor->getCurrentEffectDisplayParams().paramsNumber; ++i)
+        { float v = savedParams[i]; savedEffect->setParameter(v, i); }
+        savedEffect->changeSelectionRange(editor->selection.startPoint, editor->selection.endPoint);
     }
-    editor->currentEffect = savedEffect;
-    editor->currentEffectIdx = savedEffectIdx;
-    memcpy(editor->effectDisplayParamsToAdjust[savedEffectIdx].parameter, savedParams, sizeof(savedParams));
-    if (sourceFrames && sourceAddress[0])
-    {
-        if (!sourceStereo) sourceAddress[1] = sourceAddress[0];
-        unsigned b = sourceAddress[0] == buffers[0][0] ? 1 : 0;
-        int16_t* dst[2] = { buffers[b][0], buffers[b][1] };
-        savedEffect->bindOffline(sourceAddress, dst, sourceFrames);
-    }
-    for (unsigned i = 0; i < editor->getCurrentEffectDisplayParams().paramsNumber; ++i)
-    { float v = savedParams[i]; savedEffect->setParameter(v, i); }
-    savedEffect->changeSelectionRange(editor->selection.startPoint, editor->selection.endPoint);
     fs->remove(snapshotPath);
+    fs->remove(generatorDryPath);
     fs->remove(outputPath);
     work = Idle;
     open = false;
@@ -1243,21 +1601,11 @@ void ChainScreen::finishRestore()
     sequencer.setMidiInVoiceMode(Sequencer::midiInVoiceMode_SampleEditor);
     if (visible) hideColumns();
     visible = false;
+    if (applied) return;
     if (committed)
     {
-        editor->afterReloadInstrumentIdx = destinationSlot;
-        if (editor->confirmedDataIsChanged)
-        {
-            editor->reloadOnEndSaving = true;
-            if (newFileManager.importSampleFromSampleEditor(sourceAddress[0], sourceAddress[sourceStereo ? 1 : 0], sourceFrames, sourceSlot))
-                editor->ip->blockAllInputs();
-            else { editor->reloadOnEndSaving = false; editor->restoreFunctions(); }
-        }
-        else
-        {
-            mtProject.values.lastUsedInstrument = destinationSlot;
-            editor->start(0);
-        }
+        mtProject.values.lastUsedInstrument = destinationSlot;
+        editor->start(0);
         return;
     }
     editor->reloadSpectrumData();
@@ -1267,6 +1615,25 @@ void ChainScreen::finishRestore()
 
 void ChainScreen::update()
 {
+    if(open && livePlaying && live && liveTempo!=mtProject.values.globalTempo) {
+        liveTempo=mtProject.values.globalTempo;
+        DISABLE_AUDIO_INTERRUPTS(); live->setTempo(liveTempo); ENABLE_AUDIO_INTERRUPTS();
+    }
+    if(open && waitingFade) {
+        if(engine.getSampleFxPreview()->isPlaying()) return;
+        bool resume=resumeLive; stopAudio(); resumeLive=resume;
+    }
+    if(open && livePlaying && live && live->needsDowngrade()) {
+        unsigned best=kMaxStages,saving=0;
+        for(unsigned i=0;i<definition.count;++i) {
+            Node& n=definition.stages[i]; if(!palette::contains(n.effect)||n.bypass||n.quality==palette::Minimum)continue;
+            Node lower=n; if(!palette::lowerQuality(lower))continue;
+            unsigned gain=palette::estimatedUs(n,chainChannels())-palette::estimatedUs(lower,chainChannels());
+            if(gain>saving){saving=gain;best=i;}
+        }
+        if(best==kMaxStages) { stopAudio(); snprintf(notice,sizeof(notice),"Realtime budget exceeded; Apply or Render"); show(page); return; }
+        changed(); palette::lowerQuality(definition.stages[best]); definition.qualityResolved=true; return;
+    }
     if (open && autoPreview && work == Idle)
     { autoPreview = false; preview(); return; }
     if (open && resumeLive && work == Idle)
@@ -1294,6 +1661,27 @@ void ChainScreen::update()
         show(page);
     }
     if (!open || work == Idle) return;
+    if (work == Applying)
+    {
+        const auto status = newFileManager.getStatus();
+        if (status >= fmError)
+        {
+            newFileManager.clearStatus();
+            pendingEditorAction = {};
+            error("Apply failed; chain retained");
+        }
+        else if (status == fmImportSampleFromSampleEditorEnd)
+        {
+            lastUsed = definition;
+            haveLast = true;
+            haveDraft = false;
+            // The editor reopens the committed slot on its next update.
+            finishRestore();
+            editor->ip->blockAllInputs();
+        }
+        return;
+    }
+    if (work == Mixing) { updateMix(); return; }
     if (work == Loading)
     {
         savedEffect->update();
@@ -1304,15 +1692,16 @@ void ChainScreen::update()
         if (!openIo(snapshotPath, FileSystem::kWriteCreateNew)) { error("Cannot snapshot source"); return; }
         work = Snapshot;
     }
-    if (work == Snapshot || work == Reading || work == Restoring || work == Writing)
+    if (work == Snapshot || work == Reading || work == Restoring || work == Writing || work == CapturingDry)
     {
-        const bool writing = work == Snapshot || work == Writing;
-        uint32_t frames = work == Writing ? runner.result().frames : sourceFrames;
-        unsigned channels = work == Writing ? runner.result().channels : (sourceStereo ? 2 : 1);
+        const bool writing = work == Snapshot || work == Writing || work == CapturingDry;
+        uint32_t frames = work == Writing || work == CapturingDry ? (work == Writing ? result().frames : runner.result().frames) : sourceFrames;
+        unsigned channels = work == Writing || work == CapturingDry ? (work == Writing ? result().channels : runner.result().channels) : (sourceStereo ? 2 : 1);
         unsigned size = std::min<uint32_t>(kIoFrames, frames - offset);
         int16_t* address = nullptr;
         if (work == Snapshot || work == Restoring) address = sourceAddress[channel];
-        else if (work == Writing) address = runner.result().channel[channel];
+        else if (work == Writing) address = result().channel[channel];
+        else if (work == CapturingDry) address = runner.result().channel[channel];
         else address = buffers[originalPlaying ? destinationSlot : 0][channel];
         int32_t result = writing ? fs->writeFile(address + offset, size * 2, io)
                                  : fs->readFile(address + offset, size * 2, io);
@@ -1330,6 +1719,7 @@ void ChainScreen::update()
         if (finished == Snapshot) { snapshotReady = true; show(Chain); }
         else if (finished == Restoring) finishRestore();
         else if (finished == Writing) finishRender();
+        else if (finished == CapturingDry) { work = Processing; show(Chain); }
         else if (originalPlaying)
         {
             std::vector<int16_t*> addresses = { buffers[destinationSlot][0], buffers[destinationSlot][sourceStereo ? 1 : 0] };
@@ -1342,8 +1732,7 @@ void ChainScreen::update()
         else
         {
             Audio source{ { buffers[0][0], buffers[0][1] }, sourceFrames, uint8_t(sourceStereo ? 2 : 1) };
-            runner.start(recipe, source, buffers, kCapacity);
-            work = Processing;
+            startPrepared(source);
             show(Chain);
         }
     }
@@ -1353,20 +1742,28 @@ void ChainScreen::update()
         runner.update();
         if (runner.state() == Runner::State::Failed) { error(runner.error()); return; }
         if (runner.state() == Runner::State::Ready)
-        { work = Idle; if (renderPending) preview(true); else playPrepared(); }
+        { work = Idle; prepareOutput(output == Audition); }
+        else if (before == 0 && runner.stage() == 1 && definition.source.effect == kPlugin)
+        {
+            generatorDryFrames = runner.result().frames;
+            generatorDryChannels = runner.result().channels;
+            if (!openIo(generatorDryPath, FileSystem::kWriteCreateNew)) { error("Cannot snapshot generator dry source"); return; }
+            work = CapturingDry;
+            show(Chain);
+        }
         else if (runner.stage() != before)
-        { snprintf(notice, sizeof(notice), "Stage %u/%u", runner.stage(), recipe.count); show(Chain); }
+        { snprintf(notice, sizeof(notice), "Stage %u/%u", runner.stage(), definition.count); show(Chain); }
     }
 }
 }
 
 bool sampleChainHasDraft() { return screen.haveDraft && screen.draftSlot == mtProject.values.lastUsedInstrument; }
-unsigned sampleChainStageCount() { return screen.recipe.count; }
+unsigned sampleChainStageCount() { return screen.definition.count; }
 bool sampleChainIsOpen() { return screen.open && screen.visible; }
 bool sampleChainUpdate()
 {
     if (screen.open) { screen.update(); return true; }
-    if (screen.pendingEditorAction && !screen.editor->reloadOnEndSaving &&
+    if (screen.pendingEditorAction && newFileManager.getStatus() == fmIdle &&
         newFileManager.getCurrentOperation() == fmNoOperation)
     {
         auto action = std::move(screen.pendingEditorAction);
@@ -1421,7 +1818,7 @@ static void openChainSession(cSampleEditor* editor, bool visible)
         for (unsigned c = 0; c < 2; ++c)
             screen.buffers[b][c] = externalRamEffectsBuff + (c < mtEffect::kChannels ? c : 0) * EDIT_BUFF_SIZE + b * kCapacity;
     screen.committed = false;
-    if (!screen.haveDraft || screen.draftSlot != screen.sourceSlot) screen.recipe = {};
+    if (!screen.haveDraft || screen.draftSlot != screen.sourceSlot) screen.definition = {};
     screen.runner.invalidate();
     screen.notice[0] = 0;
     screen.open = true;
@@ -1430,7 +1827,9 @@ static void openChainSession(cSampleEditor* editor, bool visible)
     screen.autoPreview = !visible;
     screen.touched = false;
     screen.snapshotReady = false;
-    screen.renderPending = false;
+    screen.output = ChainScreen::Audition;
+    screen.mixedReady = false;
+    screen.generatorDryFrames = 0;
     screen.liveRequested = false;
     screen.selected = 0;
     screen.listBound = false;
@@ -1447,6 +1846,7 @@ static void openChainSession(cSampleEditor* editor, bool visible)
     screen.fs->removeOnlyDirFiles(kTempDir);
     static unsigned session = 0;
     snprintf(screen.snapshotPath, sizeof(screen.snapshotPath), "%s/source-%u.raw", kTempDir, ++session);
+    snprintf(screen.generatorDryPath, sizeof(screen.generatorDryPath), "%s/dry-%u.raw", kTempDir, session);
     snprintf(screen.outputPath, sizeof(screen.outputPath), "%s/output-%u.pti", kTempDir, session);
     if (screen.sourceFrames)
     {

@@ -36,6 +36,7 @@ class Profiler
     void startMeasuringAudio();
     void stopMeasuringAudio();
     void resetMeasuringAudio();
+    int lastAudioUpdateUs() const { return lastSampleUs; }
 
   private:
     static constexpr uint8_t kStackWatermark =

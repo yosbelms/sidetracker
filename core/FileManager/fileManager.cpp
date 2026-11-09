@@ -184,7 +184,7 @@ bool cFileManager::importSamplesToProject(uint8_t fileFrom,
 {
     stopAutosave();
 
-    return sampleImport.importSamplesToProject(
+    const bool started = sampleImport.importSamplesToProject(
       fileFrom,
       fileTo,
       instrumentSlot,
@@ -192,17 +192,19 @@ bool cFileManager::importSamplesToProject(uint8_t fileFrom,
       dataTo,
       isLofi,
       stereoSampleMode ? FileManagerOperation::kLeftAndRight : FileManagerOperation::kLeft);
+    if (started) sampleMemorySave.invalidateUndo(instrumentSlot, instrumentSlot + std::max(0, fileTo - fileFrom));
+    return started;
 }
 
 bool cFileManager::importSampleToProject(char* filePath, char* fileName, uint8_t instrumentSlot)
 {
     stopAutosave();
 
-    return sampleImport.importSampleToProject(filePath,
-                                              fileName,
-                                              instrumentSlot,
-                                              stereoSampleMode ? FileManagerOperation::kLeftAndRight
-                                                               : FileManagerOperation::kLeft);
+    const bool started = sampleImport.importSampleToProject(
+      filePath, fileName, instrumentSlot,
+      stereoSampleMode ? FileManagerOperation::kLeftAndRight : FileManagerOperation::kLeft);
+    if (started) sampleMemorySave.invalidateUndo(instrumentSlot, instrumentSlot);
+    return started;
 }
 
 bool cFileManager::importModAfterLoadNewProject(char* path, char* name)
@@ -246,8 +248,10 @@ bool cFileManager::saveRecordedSound(char* dirPath,
 {
     stopAutosave();
 
-    return recordingSave.saveRecordedSound(
+    const bool started = recordingSave.saveRecordedSound(
       dirPath, fileName, importSlot, leftChannelAddress, rightChannelAddress, length);
+    if (started && importSlot) sampleMemorySave.invalidateUndo(*importSlot, *importSlot);
+    return started;
 }
 
 bool cFileManager::saveProject(char* projectPathToSave, char* projectNameToSave)
@@ -264,14 +268,18 @@ bool cFileManager::copyInstrumentsInWorkspace(uint8_t copyInstrSrc,
 {
     stopAutosave();
 
-    return instrumentCopy.copyInstrumentsInWorkspace(copyInstrSrc, copyInstrCount, copyInstrDest);
+    const bool started = instrumentCopy.copyInstrumentsInWorkspace(copyInstrSrc, copyInstrCount, copyInstrDest);
+    if (started) sampleMemorySave.invalidateUndo(copyInstrDest, copyInstrDest + copyInstrCount - 1);
+    return started;
 }
 
 bool cFileManager::deleteInstruments(uint8_t instrumentSlotFrom, uint8_t instrumentSlotTo)
 {
     stopAutosave();
 
-    return instrumentDelete.deleteInstruments(instrumentSlotFrom, instrumentSlotTo);
+    const bool started = instrumentDelete.deleteInstruments(instrumentSlotFrom, instrumentSlotTo);
+    if (started) sampleMemorySave.invalidateUndo(instrumentSlotFrom, instrumentSlotTo);
+    return started;
 }
 
 bool cFileManager::loadWorkspacePattern(uint8_t index)
@@ -327,12 +335,19 @@ bool cFileManager::deleteMod(char* modPathWithName)
 bool cFileManager::importSampleFromSampleEditor(int16_t* memoryAddressL,
                                                 int16_t* memoryAddressR,
                                                 uint32_t samplesCount,
-                                                uint8_t instrumentIdx)
+                                                uint8_t instrumentIdx,
+                                                const strInstrument& instrument)
 {
     stopAutosave();
 
     return sampleMemorySave.saveSampleFromSampleEditor(
-      memoryAddressL, memoryAddressR, samplesCount, instrumentIdx);
+      memoryAddressL, memoryAddressR, samplesCount, instrumentIdx, instrument);
+}
+
+bool cFileManager::undoSampleEdit(int slot)
+{
+    stopAutosave();
+    return sampleMemorySave.undo(slot);
 }
 
 bool cFileManager::reloadSamplesFromWorkspace()

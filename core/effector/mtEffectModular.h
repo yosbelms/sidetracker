@@ -26,9 +26,10 @@ class mtEffectModular : public mtEffect
     bool hasProcessingError() const override { return m_failed; }
     void setOfflineChannels(uint8_t channels) override { m_channels = channels; }
 
-    void onApplyCommitted(int instrumentIdx);
+    void prepareOutputInstrument(strInstrument& instrument, int instrumentIdx);
 
     uint16_t getFlags() const { return m_flags; }
+    uint32_t getPrependSamples() const { return m_prependSamples; }
     void setTargetLength(uint32_t len) { m_targetLength = len; }
     void setExtraSamples(uint32_t prependSamples, uint32_t appendSamples)
     {

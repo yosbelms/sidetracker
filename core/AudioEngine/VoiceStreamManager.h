@@ -80,7 +80,8 @@ class VoiceStreamManager
                                const char* filePath,
                                uint32_t dataOffset,
                                uint32_t totalFrames,
-                               bool isStereo);
+                               bool isStereo,
+                               const int16_t* const* preparedAudio = nullptr);
     bool rebindInstrumentStreamFile(int instrIdx,
                                     const char* filePath,
                                     uint32_t dataOffset);

@@ -386,15 +386,15 @@ bool cFileManager::loadSampleData(int idx,
     return false;
 }
 
-void cFileManager::setInstrumentSampleAddress(int idx, uint16_t channelCount, uint32_t samplesCount)
+void cFileManager::setInstrumentSampleAddress(int idx, uint16_t channelCount, uint32_t samplesCount,
+                                              bool streamPrepared)
 {
     assert(idx >= 0 && idx < kSampleInstrumentsCount);
 
-    voiceStreamManager.clearInstrumentMetadata(idx);
+    if (!streamPrepared) voiceStreamManager.clearInstrumentMetadata(idx);
 
-    // for safety
-    mtProject.instrument[idx].sample.length = samplesCount;
-    mtProject.sampleMemory[idx].isStreamed = false;
+    if (!streamPrepared) mtProject.instrument[idx].sample.length = samplesCount;
+    mtProject.sampleMemory[idx].isStreamed = streamPrepared;
     mtProject.sampleMemory[idx].isStereo = (channelCount == 2);
     mtProject.sampleMemory[idx].ramFrames = samplesCount;
     mtProject.sampleMemory[idx].preCacheFrames = samplesCount;
@@ -447,12 +447,12 @@ void cFileManager::setInstrumentSampleAddress(int idx, uint16_t channelCount, ui
     if (channelCount == 2)
     {
         assert(mtProject.sampleMemory[idx].address[strSampleMemory::Channel::kLeft] +
-                 mtProject.instrument[idx].sample.length <
+                 samplesCount <
                externalRamSampleMemory + SAMPLE_MEMORY_SIZE / 2);
 
         mtProject.sampleMemory[idx].address[strSampleMemory::Channel::kRight] =
           mtProject.sampleMemory[idx].address[strSampleMemory::Channel::kLeft] +
-          mtProject.instrument[idx].sample.length;
+          samplesCount;
     }
     else
     {

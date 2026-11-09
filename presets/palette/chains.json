@@ -1,0 +1,765 @@
+{
+  "format": "PTCH v2",
+  "quality": "Automatic at preview; unresolved in the supplied files",
+  "source": "Current sample",
+  "chains": [
+    {
+      "slot": 1,
+      "name": "Worn Cassette",
+      "mix": 100,
+      "description": "Warm console saturation, mechanical tape wow/flutter, short tape echoes and cassette degradation.",
+      "input": "Drums, acoustic guitar, keys or full mixes.",
+      "tweak": "Raise Cassette Drift for more tape warble; raise Vibrato Amount for deeper pitch wow.",
+      "stages": [
+        {
+          "category": "Character",
+          "type": "Sweeten",
+          "amount": 45,
+          "macro": 38,
+          "drift": 18,
+          "sync": "Free",
+          "tail": 0
+        },
+        {
+          "category": "Movement",
+          "type": "Vibrato",
+          "amount": 24,
+          "macro": 16,
+          "drift": 35,
+          "sync": "Free",
+          "tail": 0.05
+        },
+        {
+          "category": "Diffusion",
+          "type": "Reels",
+          "amount": 32,
+          "macro": 28,
+          "drift": 25,
+          "sync": "Free",
+          "tail": 0.8
+        },
+        {
+          "category": "Texture",
+          "type": "Cassette",
+          "amount": 58,
+          "macro": 42,
+          "drift": 30,
+          "sync": "Free",
+          "tail": 0
+        }
+      ]
+    },
+    {
+      "slot": 2,
+      "name": "Radio Static",
+      "mix": 100,
+      "description": "Hot input drive, mu-law digital crushing and heavy vari-mu pumping compression.",
+      "input": "Breaks, synth riffs, basslines and voice samples.",
+      "tweak": "Adjust Interference Macro to shift the aliasing carrier; raise Squash Amount for more aggressive pump.",
+      "stages": [
+        {
+          "category": "Character",
+          "type": "Drive",
+          "amount": 42,
+          "macro": 65,
+          "drift": 12,
+          "sync": "Free",
+          "tail": 0
+        },
+        {
+          "category": "Texture",
+          "type": "Interference",
+          "amount": 55,
+          "macro": 40,
+          "drift": 38,
+          "sync": "Free",
+          "tail": 0
+        },
+        {
+          "category": "Texture",
+          "type": "Squash",
+          "amount": 68,
+          "macro": 55,
+          "drift": 15,
+          "sync": "Free",
+          "tail": 0
+        }
+      ]
+    },
+    {
+      "slot": 3,
+      "name": "Metallic Chimes",
+      "mix": 85,
+      "description": "Inharmonic frequency shifting feeding a tuned acoustic Karplus resonator chord bank and diffuse chamber.",
+      "input": "Plucks, percussion, one-shots, bells or single notes. Halo root defaults to A2.",
+      "tweak": "Halo Macro changes the root chord pitch; Shift Macro shifts metallic sideband overtones.",
+      "stages": [
+        {
+          "category": "Movement",
+          "type": "Shift",
+          "amount": 36,
+          "macro": 53.5,
+          "drift": 14,
+          "sync": "Free",
+          "tail": 0
+        },
+        {
+          "category": "Texture",
+          "type": "Halo",
+          "amount": 62,
+          "macro": 50,
+          "drift": 25,
+          "sync": "Free",
+          "tail": 2.0
+        },
+        {
+          "category": "Diffusion",
+          "type": "Space",
+          "amount": 48,
+          "macro": 68,
+          "drift": 20,
+          "sync": "Free",
+          "tail": 2.2
+        }
+      ]
+    },
+    {
+      "slot": 4,
+      "name": "Kinetic Stutter",
+      "mix": 100,
+      "description": "Slow sweeping comb filter notches chopped by a synced rhythmic gate and bouncing polyrhythmic delay.",
+      "input": "Sustained pads, drones, basslines or ambient guitars.",
+      "tweak": "Tremolo Sync changes the chop rate; Cascade Sync sets the delay polyrhythm.",
+      "stages": [
+        {
+          "category": "Movement",
+          "type": "Phaser",
+          "amount": 58,
+          "macro": 24,
+          "drift": 22,
+          "sync": "1/1",
+          "tail": 0
+        },
+        {
+          "category": "Movement",
+          "type": "Tremolo",
+          "amount": 82,
+          "macro": 50,
+          "drift": 45,
+          "sync": "1/8",
+          "tail": 0
+        },
+        {
+          "category": "Diffusion",
+          "type": "Cascade",
+          "amount": 42,
+          "macro": 50,
+          "drift": 16,
+          "sync": "1/8D",
+          "tail": 1.6
+        }
+      ]
+    },
+    {
+      "slot": 5,
+      "name": "Abyssal Drone",
+      "mix": 80,
+      "description": "Pitch-dropped octave sub-harmonics, dynamic slow swell, and an expansive pitch-regenerating shimmer wash.",
+      "input": "Dry hits, isolated plucks, stabs or sparse vocal fragments.",
+      "tweak": "Pitch Amount balances the deep sub rumble; Bloom Amount controls the ambient wash duration.",
+      "stages": [
+        {
+          "category": "Movement",
+          "type": "Pitch",
+          "amount": 62,
+          "macro": 25,
+          "drift": 30,
+          "sync": "Free",
+          "tail": 0.12
+        },
+        {
+          "category": "Character",
+          "type": "Swell",
+          "amount": 72,
+          "macro": 72,
+          "drift": 15,
+          "sync": "Free",
+          "tail": 0
+        },
+        {
+          "category": "Diffusion",
+          "type": "Bloom",
+          "amount": 60,
+          "macro": 80,
+          "drift": 25,
+          "sync": "Free",
+          "tail": 3.5
+        }
+      ]
+    },
+    {
+      "slot": 6,
+      "name": "Acid Screamer",
+      "mix": 90,
+      "description": "Vocal formant filter-fuzz growl pushed into aggressive West Coast wavefolding and resonant filtering.",
+      "input": "Synth leads, acid sequences, drum breaks and bass.",
+      "tweak": "Howl Macro sweeps the formant throat; Filter Amount sweeps low-pass (<50) or high-pass (>50).",
+      "stages": [
+        {
+          "category": "Character",
+          "type": "Howl",
+          "amount": 70,
+          "macro": 44,
+          "drift": 26,
+          "sync": "Free",
+          "tail": 0
+        },
+        {
+          "category": "Character",
+          "type": "Fold",
+          "amount": 64,
+          "macro": 58,
+          "drift": 20,
+          "sync": "Free",
+          "tail": 0
+        },
+        {
+          "category": "Texture",
+          "type": "Filter",
+          "amount": 42,
+          "macro": 55,
+          "drift": 18,
+          "sync": "Free",
+          "tail": 0
+        }
+      ]
+    },
+    {
+      "slot": 7,
+      "name": "Glitch Collage",
+      "mix": 85,
+      "description": "Stereo micro-detuning feeding an asynchronous granular cloud with randomized pitch and backward delay fragments.",
+      "input": "Vocal phrases, acoustic instruments, percussion or field recordings.",
+      "tweak": "Collage Drift controls grain unpredictability; Reverse Delay Macro adjusts reversed slice length.",
+      "stages": [
+        {
+          "category": "Movement",
+          "type": "Doubler",
+          "amount": 35,
+          "macro": 30,
+          "drift": 28,
+          "sync": "Free",
+          "tail": 0.1
+        },
+        {
+          "category": "Diffusion",
+          "type": "Collage",
+          "amount": 66,
+          "macro": 42,
+          "drift": 75,
+          "sync": "1/8",
+          "tail": 1.8
+        },
+        {
+          "category": "Diffusion",
+          "type": "Reverse Delay",
+          "amount": 46,
+          "macro": 48,
+          "drift": 18,
+          "sync": "1/4",
+          "tail": 1.1
+        }
+      ]
+    },
+    {
+      "slot": 8,
+      "name": "Motor Breakdown",
+      "mix": 100,
+      "description": "Erratic motor drag, tape chewing dropouts, sputtering vintage transistor fuzz and cassette wear.",
+      "input": "Melodic loops, chords, drum grooves or bass riffs.",
+      "tweak": "Broken Amount sets the stall severity; Fuzz Amount dials in the sputtering transistor grit.",
+      "stages": [
+        {
+          "category": "Texture",
+          "type": "Broken",
+          "amount": 76,
+          "macro": 42,
+          "drift": 70,
+          "sync": "Free",
+          "tail": 0.22
+        },
+        {
+          "category": "Character",
+          "type": "Fuzz",
+          "amount": 54,
+          "macro": 38,
+          "drift": 22,
+          "sync": "Free",
+          "tail": 0
+        },
+        {
+          "category": "Texture",
+          "type": "Cassette",
+          "amount": 46,
+          "macro": 48,
+          "drift": 32,
+          "sync": "Free",
+          "tail": 0
+        }
+      ]
+    },
+    {
+      "slot": 9,
+      "name": "Vaporwave VHS",
+      "mix": 85,
+      "description": "Lush stereo chorus detuning, analog tape wow, warm reel-to-reel slapback and exciter presence.",
+      "input": "Synth pads, electric pianos, Rhodes, polyphonic synth stabs.",
+      "tweak": "Raise Vibrato Drift for warped tape tracking; adjust Reels Macro for tape warmth.",
+      "stages": [
+        {
+          "category": "Movement",
+          "type": "Doubler",
+          "amount": 48,
+          "macro": 35,
+          "drift": 20,
+          "sync": "Free",
+          "tail": 0.08
+        },
+        {
+          "category": "Movement",
+          "type": "Vibrato",
+          "amount": 32,
+          "macro": 20,
+          "drift": 45,
+          "sync": "Free",
+          "tail": 0.04
+        },
+        {
+          "category": "Diffusion",
+          "type": "Reels",
+          "amount": 38,
+          "macro": 24,
+          "drift": 28,
+          "sync": "Free",
+          "tail": 0.6
+        },
+        {
+          "category": "Character",
+          "type": "Sweeten",
+          "amount": 50,
+          "macro": 45,
+          "drift": 15,
+          "sync": "Free",
+          "tail": 0
+        }
+      ]
+    },
+    {
+      "slot": 10,
+      "name": "Resonant Formant",
+      "mix": 100,
+      "description": "Vocal vowel formant peaks driving resonant filtering and heavy companding punch.",
+      "input": "Sustained synth leads, wavetable sweeps, basslines and organ chords.",
+      "tweak": "Howl Macro sweeps vowel formants; Filter Macro shapes the resonant frequency cutoff.",
+      "stages": [
+        {
+          "category": "Character",
+          "type": "Howl",
+          "amount": 65,
+          "macro": 55,
+          "drift": 32,
+          "sync": "Free",
+          "tail": 0
+        },
+        {
+          "category": "Texture",
+          "type": "Filter",
+          "amount": 52,
+          "macro": 60,
+          "drift": 18,
+          "sync": "Free",
+          "tail": 0
+        },
+        {
+          "category": "Texture",
+          "type": "Squash",
+          "amount": 58,
+          "macro": 40,
+          "drift": 10,
+          "sync": "Free",
+          "tail": 0
+        }
+      ]
+    },
+    {
+      "slot": 11,
+      "name": "Sub Weight",
+      "mix": 90,
+      "description": "Sub-octave harmonic generation, warm preamp overdrive and steep low-pass contouring.",
+      "input": "Synth bass, thin sample plucks, kick drums and mono synth leads.",
+      "tweak": "Pitch Amount balances the sub-octave rumble; Drive Amount adjusts harmonic thickness.",
+      "stages": [
+        {
+          "category": "Movement",
+          "type": "Pitch",
+          "amount": 55,
+          "macro": 20,
+          "drift": 12,
+          "sync": "Free",
+          "tail": 0.08
+        },
+        {
+          "category": "Character",
+          "type": "Drive",
+          "amount": 48,
+          "macro": 45,
+          "drift": 15,
+          "sync": "Free",
+          "tail": 0
+        },
+        {
+          "category": "Texture",
+          "type": "Filter",
+          "amount": 38,
+          "macro": 40,
+          "drift": 10,
+          "sync": "Free",
+          "tail": 0
+        }
+      ]
+    },
+    {
+      "slot": 12,
+      "name": "Crystalline Halo",
+      "mix": 70,
+      "description": "Tuned Karplus physical resonator chord bank, delicate frequency-shifted detuning and shimmering bloom.",
+      "input": "Bell synths, electric piano, ambient chords and sparse plucks.",
+      "tweak": "Halo Macro alters the resonator chord root; Bloom Macro controls high-frequency shimmer decay.",
+      "stages": [
+        {
+          "category": "Texture",
+          "type": "Halo",
+          "amount": 58,
+          "macro": 64,
+          "drift": 22,
+          "sync": "Free",
+          "tail": 2.4
+        },
+        {
+          "category": "Movement",
+          "type": "Shift",
+          "amount": 28,
+          "macro": 52,
+          "drift": 16,
+          "sync": "Free",
+          "tail": 0
+        },
+        {
+          "category": "Diffusion",
+          "type": "Bloom",
+          "amount": 54,
+          "macro": 75,
+          "drift": 20,
+          "sync": "Free",
+          "tail": 3.2
+        }
+      ]
+    },
+    {
+      "slot": 13,
+      "name": "Digital Rust",
+      "mix": 100,
+      "description": "Aggressive mu-law downsampling and aliasing, West Coast wavefolding and degraded cassette grit.",
+      "input": "Drum breaks, digital synths, industrial bass and gritty sample hits.",
+      "tweak": "Interference Macro alters aliasing bit-depth; Fold Amount introduces jagged folded overtones.",
+      "stages": [
+        {
+          "category": "Texture",
+          "type": "Interference",
+          "amount": 62,
+          "macro": 48,
+          "drift": 30,
+          "sync": "Free",
+          "tail": 0
+        },
+        {
+          "category": "Character",
+          "type": "Fold",
+          "amount": 52,
+          "macro": 62,
+          "drift": 18,
+          "sync": "Free",
+          "tail": 0
+        },
+        {
+          "category": "Texture",
+          "type": "Cassette",
+          "amount": 50,
+          "macro": 36,
+          "drift": 25,
+          "sync": "Free",
+          "tail": 0
+        }
+      ]
+    },
+    {
+      "slot": 14,
+      "name": "Spectral Shiver",
+      "mix": 75,
+      "description": "Slow sweeping comb filter notches, eerie inharmonic frequency shifting and a vast reverberant space.",
+      "input": "Synth strings, choir pads, drone textures and atmospheric soundscapes.",
+      "tweak": "Phaser Sync alters sweep cycles; Shift Macro introduces ghostly bell-like dissonances.",
+      "stages": [
+        {
+          "category": "Movement",
+          "type": "Phaser",
+          "amount": 60,
+          "macro": 35,
+          "drift": 24,
+          "sync": "1/2",
+          "tail": 0
+        },
+        {
+          "category": "Movement",
+          "type": "Shift",
+          "amount": 32,
+          "macro": 48.5,
+          "drift": 20,
+          "sync": "Free",
+          "tail": 0
+        },
+        {
+          "category": "Diffusion",
+          "type": "Space",
+          "amount": 52,
+          "macro": 62,
+          "drift": 25,
+          "sync": "Free",
+          "tail": 2.6
+        }
+      ]
+    },
+    {
+      "slot": 15,
+      "name": "Ambient Bloom Swell",
+      "mix": 80,
+      "description": "Gradual envelope auto-swell, expansive chamber reflections and a rich pitch-shifted bloom shimmer.",
+      "input": "Percussive clicks, guitar plucks, piano chords and short synth arps.",
+      "tweak": "Swell Amount adjusts the attack swell rise; Bloom Tail sets the ambient decay duration.",
+      "stages": [
+        {
+          "category": "Character",
+          "type": "Swell",
+          "amount": 78,
+          "macro": 68,
+          "drift": 14,
+          "sync": "Free",
+          "tail": 0
+        },
+        {
+          "category": "Diffusion",
+          "type": "Space",
+          "amount": 58,
+          "macro": 55,
+          "drift": 18,
+          "sync": "Free",
+          "tail": 2.8
+        },
+        {
+          "category": "Diffusion",
+          "type": "Bloom",
+          "amount": 62,
+          "macro": 72,
+          "drift": 26,
+          "sync": "Free",
+          "tail": 3.8
+        }
+      ]
+    },
+    {
+      "slot": 16,
+      "name": "Sputter Drone",
+      "mix": 90,
+      "description": "Velcro transistor fuzz, mechanical motor dropouts and deep cavernous reverberation.",
+      "input": "Analog saw waves, heavy basslines, distorted beats and noise loops.",
+      "tweak": "Fuzz Amount increases sputtering saturation; Broken Drift randomizes dropout stutter rate.",
+      "stages": [
+        {
+          "category": "Character",
+          "type": "Fuzz",
+          "amount": 68,
+          "macro": 44,
+          "drift": 25,
+          "sync": "Free",
+          "tail": 0
+        },
+        {
+          "category": "Texture",
+          "type": "Broken",
+          "amount": 64,
+          "macro": 38,
+          "drift": 65,
+          "sync": "Free",
+          "tail": 0.18
+        },
+        {
+          "category": "Diffusion",
+          "type": "Space",
+          "amount": 44,
+          "macro": 40,
+          "drift": 20,
+          "sync": "Free",
+          "tail": 2.0
+        }
+      ]
+    },
+    {
+      "slot": 17,
+      "name": "Tape Chorus Echo",
+      "mix": 85,
+      "description": "Wide stereo double-tracking, pitch-drifted tape vibrato and synchronized multi-tap delay bounces.",
+      "input": "Synth brass, lead synths, arpeggios, electric guitars and vocal tracks.",
+      "tweak": "Doubler Macro alters stereo spread; Cascade Sync sets delay division to the project tempo.",
+      "stages": [
+        {
+          "category": "Movement",
+          "type": "Doubler",
+          "amount": 52,
+          "macro": 45,
+          "drift": 22,
+          "sync": "Free",
+          "tail": 0.12
+        },
+        {
+          "category": "Movement",
+          "type": "Vibrato",
+          "amount": 28,
+          "macro": 22,
+          "drift": 40,
+          "sync": "Free",
+          "tail": 0.06
+        },
+        {
+          "category": "Diffusion",
+          "type": "Cascade",
+          "amount": 45,
+          "macro": 48,
+          "drift": 20,
+          "sync": "1/4D",
+          "tail": 1.8
+        }
+      ]
+    },
+    {
+      "slot": 18,
+      "name": "Overfolded Drive",
+      "mix": 85,
+      "description": "Hot analog overdrive pushing into Buchla-style asymmetric wavefolding and high-frequency exciter air.",
+      "input": "Sine/triangle synth leads, Rhodes chords, 808 subs and acoustic drums.",
+      "tweak": "Drive Amount controls input breakup; Fold Amount dials in rich wavefolded overtones.",
+      "stages": [
+        {
+          "category": "Character",
+          "type": "Drive",
+          "amount": 58,
+          "macro": 60,
+          "drift": 15,
+          "sync": "Free",
+          "tail": 0
+        },
+        {
+          "category": "Character",
+          "type": "Fold",
+          "amount": 56,
+          "macro": 52,
+          "drift": 18,
+          "sync": "Free",
+          "tail": 0
+        },
+        {
+          "category": "Character",
+          "type": "Sweeten",
+          "amount": 42,
+          "macro": 50,
+          "drift": 12,
+          "sync": "Free",
+          "tail": 0
+        }
+      ]
+    },
+    {
+      "slot": 19,
+      "name": "Granular Warp",
+      "mix": 75,
+      "description": "Detuned micro-pitch shifting feeding a randomized granular particle cloud and reversed temporal slices.",
+      "input": "Vocal samples, acoustic instruments, ambient pads and melodic synth lines.",
+      "tweak": "Collage Drift varies grain dispersion; Reverse Delay Sync sets the backward loop division.",
+      "stages": [
+        {
+          "category": "Movement",
+          "type": "Pitch",
+          "amount": 40,
+          "macro": 55,
+          "drift": 25,
+          "sync": "Free",
+          "tail": 0.14
+        },
+        {
+          "category": "Diffusion",
+          "type": "Collage",
+          "amount": 62,
+          "macro": 50,
+          "drift": 70,
+          "sync": "1/16D",
+          "tail": 2.0
+        },
+        {
+          "category": "Diffusion",
+          "type": "Reverse Delay",
+          "amount": 50,
+          "macro": 45,
+          "drift": 20,
+          "sync": "1/8",
+          "tail": 1.4
+        }
+      ]
+    },
+    {
+      "slot": 20,
+      "name": "Pumping Noise Floor",
+      "mix": 90,
+      "description": "Cassette RF interference and aliasing grit compressed by an aggressive pumping vari-mu compressor into vintage tape reels.",
+      "input": "Drum grooves, synth plucks, basslines and minimal percussive sequences.",
+      "tweak": "Squash Amount sets the compression pump depth; Interference Amount adjusts background noise texture.",
+      "stages": [
+        {
+          "category": "Texture",
+          "type": "Interference",
+          "amount": 46,
+          "macro": 32,
+          "drift": 35,
+          "sync": "Free",
+          "tail": 0
+        },
+        {
+          "category": "Texture",
+          "type": "Squash",
+          "amount": 75,
+          "macro": 62,
+          "drift": 16,
+          "sync": "Free",
+          "tail": 0
+        },
+        {
+          "category": "Diffusion",
+          "type": "Reels",
+          "amount": 36,
+          "macro": 35,
+          "drift": 24,
+          "sync": "1/8",
+          "tail": 0.9
+        }
+      ]
+    }
+  ]
+}

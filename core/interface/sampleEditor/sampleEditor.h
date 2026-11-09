@@ -412,14 +412,9 @@ class cSampleEditor : public ModuleBase
     bool playingInProgress;
 
     bool isLoadedData;
-    bool isProcessedData;
 
-    bool confirmedDataIsChanged;
-    bool reloadOnEndSaving;
-    uint8_t afterReloadInstrumentIdx;
-    uint8_t beforeReloadInstrumentIdx;
-
-    uint8_t moduleToChange;
+    void prepareToolOutput(bool audition);
+    void finishToolOutput();
 
     bool avoidStop;
     // labelsTxt

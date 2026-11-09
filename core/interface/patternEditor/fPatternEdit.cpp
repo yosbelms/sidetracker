@@ -431,9 +431,8 @@ void cPatternEditor::setDefaultScreenFunct()
 
     ip->setButtonObj(interfaceButtonNote, functNote);
     ip->setButtonObj(interfaceButtonInstr, functInstrument);
-    // ip->setButtonObj(interfaceButtonVol, functVolume);
-    ip->setButtonObj(interfaceButtonVol, functFx1);
-    ip->setButtonObj(interfaceButtonFx, functFx2);
+    ip->setButtonObj(interfaceButtonFx1, functFx1);
+    ip->setButtonObj(interfaceButtonFx2, functFx2);
 
     ip->setButtonObj(interfaceButtonPattern, functPattern);
 
@@ -3057,11 +3056,12 @@ static uint8_t getSelectedElement()
     }
     else if (PTE->buttons->isButtonPressed(interfaceButtonFx1))
     {
-        return PTE->isMicVolView ? Sequencer::ELEMENTS_MICROMOVE : Sequencer::ELEMENTS_FX1;
+        // The first displayed FX column uses the second stored FX slot.
+        return PTE->isMicVolView ? Sequencer::ELEMENTS_MICROMOVE : Sequencer::ELEMENTS_FX2;
     }
     else if (PTE->buttons->isButtonPressed(interfaceButtonFx2))
     {
-        return PTE->isMicVolView ? Sequencer::ELEMENTS_VOLUME : Sequencer::ELEMENTS_FX2;
+        return PTE->isMicVolView ? Sequencer::ELEMENTS_VOLUME : Sequencer::ELEMENTS_FX1;
     }
     else if (PTE->buttons->isButtonPressed(interfaceButtonPattern))
     {
@@ -4935,7 +4935,8 @@ void cPatternEditor::showFx1Popup()
     songTimer.hide();
     hideActualParamOnBar();
 
-    PTE->ip->clearButton(interfaceButtonFx1);
+    // Keep the opening key registered so releasing it closes the popup.
+    PTE->ip->clearButton(interfaceButtonFx2);
 
     // odswiezenie paternu bez danych zakrytych przez popup
     PTE->trackerPattern.popupMode |= 2;
@@ -4959,7 +4960,7 @@ void cPatternEditor::showFx2Popup()
     songTimer.hide();
     hideActualParamOnBar();
 
-    PTE->ip->clearButton(interfaceButtonFx2);
+    PTE->ip->clearButton(interfaceButtonFx1);
 
     // odswiezenie paternu bez danych zakrytych przez popup
     PTE->trackerPattern.popupMode |= 2;

@@ -45,7 +45,7 @@ struct ChainTest : testing::Test
     Runner runner{backend};
     int16_t storage[2][2][16] = {};
     int16_t* work[2][2] = { { storage[0][0], storage[0][1] }, { storage[1][0], storage[1][1] } };
-    Recipe recipe;
+    ChainDefinition definition;
     Audio source{ { storage[0][0], storage[0][1] }, 8, 1 };
     Node stage(uint8_t kind, float value)
     { Node n; n.effect = kind; n.count = 1; n.params[0] = value; return n; }
@@ -59,33 +59,33 @@ struct ChainTest : testing::Test
 TEST_F(ChainTest, OrderedPassesAndIndependentDuplicateSettings)
 {
     storage[0][0][0] = 5;
-    recipe.add(stage(3, 2)); recipe.add(stage(4, 1));
-    ASSERT_TRUE(recipe.duplicate(0));
-    recipe.stages[1].params[0] = 3;
-    ASSERT_TRUE(runner.start(recipe, source, work, 16)); finish();
+    definition.add(stage(3, 2)); definition.add(stage(4, 1));
+    ASSERT_TRUE(definition.duplicate(0));
+    definition.stages[1].params[0] = 3;
+    ASSERT_TRUE(runner.start(definition, source, work, 16)); finish();
     ASSERT_EQ(runner.state(), Runner::State::Ready);
     EXPECT_EQ(runner.result().channel[0][0], 31);
     EXPECT_EQ(backend.begun, (std::vector<float>{2, 3, 1}));
-    EXPECT_EQ(recipe.stages[0].params[0], 2);
+    EXPECT_EQ(definition.stages[0].params[0], 2);
 }
 TEST_F(ChainTest, BypassSkipsBackendAndPreservesAudio)
 {
     storage[0][0][0] = 123;
-    recipe.add(stage(3, 10)); recipe.stages[0].bypass = true;
-    ASSERT_TRUE(runner.start(recipe, source, work, 16)); finish();
+    definition.add(stage(3, 10)); definition.stages[0].bypass = true;
+    ASSERT_TRUE(runner.start(definition, source, work, 16)); finish();
     ASSERT_EQ(runner.state(), Runner::State::Ready);
     EXPECT_EQ(runner.result().channel[0][0], 123);
     EXPECT_TRUE(backend.begun.empty());
 }
 TEST_F(ChainTest, GeneratorWorksWithoutInputAndFeedsEffects)
 {
-    recipe.source = stage(kPlugin, 0);
-    recipe.source.flags = 1;
-    strcpy(recipe.source.filename, "kick.ptfx");
-    recipe.generatorFrames = 12;
+    definition.source = stage(kPlugin, 0);
+    definition.source.flags = 1;
+    strcpy(definition.source.filename, "kick.ptfx");
+    definition.generatorFrames = 12;
     source.frames = 0;
-    recipe.add(stage(3, 4));
-    ASSERT_TRUE(runner.start(recipe, source, work, 16)); finish();
+    definition.add(stage(3, 4));
+    ASSERT_TRUE(runner.start(definition, source, work, 16)); finish();
     ASSERT_EQ(runner.state(), Runner::State::Ready);
     EXPECT_EQ(runner.result().frames, 12);
     EXPECT_EQ(runner.result().channel[0][11], 12);
@@ -95,21 +95,21 @@ TEST_F(ChainTest, GeneratorWorksWithoutInputAndFeedsEffects)
 }
 TEST_F(ChainTest, CancelAndParameterChangesInvalidatePreparedAudio)
 {
-    recipe.add(stage(3, 2));
-    ASSERT_TRUE(runner.start(recipe, source, work, 16));
+    definition.add(stage(3, 2));
+    ASSERT_TRUE(runner.start(definition, source, work, 16));
     runner.update(); runner.cancel(); runner.update();
     EXPECT_EQ(runner.state(), Runner::State::Dirty);
     EXPECT_EQ(runner.result().frames, 0);
-    ASSERT_TRUE(runner.start(recipe, source, work, 16)); finish();
+    ASSERT_TRUE(runner.start(definition, source, work, 16)); finish();
     runner.invalidate();
     EXPECT_EQ(runner.state(), Runner::State::Dirty);
     EXPECT_EQ(runner.result().frames, 0);
 }
 TEST_F(ChainTest, ErrorsNeverPublishIntermediateResults)
 {
-    recipe.add(stage(3, 2));
+    definition.add(stage(3, 2));
     backend.failStep = true;
-    ASSERT_TRUE(runner.start(recipe, source, work, 16)); finish();
+    ASSERT_TRUE(runner.start(definition, source, work, 16)); finish();
     EXPECT_EQ(runner.state(), Runner::State::Failed);
     EXPECT_EQ(runner.result().frames, 0);
     EXPECT_STREQ(runner.error(), "injected failure");
@@ -117,11 +117,11 @@ TEST_F(ChainTest, ErrorsNeverPublishIntermediateResults)
 TEST_F(ChainTest, OversizedGenerationAndEmptySampleAreRejected)
 {
     source.frames = 0;
-    EXPECT_FALSE(runner.start(recipe, source, work, 16));
-    recipe.source.effect = kPlugin; recipe.source.flags = 1;
-    strcpy(recipe.source.filename, "generator.ptfx");
-    recipe.generatorFrames = 17;
-    ASSERT_TRUE(runner.start(recipe, source, work, 16)); finish();
+    EXPECT_FALSE(runner.start(definition, source, work, 16));
+    definition.source.effect = kPlugin; definition.source.flags = 1;
+    strcpy(definition.source.filename, "generator.ptfx");
+    definition.generatorFrames = 17;
+    ASSERT_TRUE(runner.start(definition, source, work, 16)); finish();
     EXPECT_EQ(runner.state(), Runner::State::Failed);
     EXPECT_TRUE(backend.begun.size() <= 1);
 }
@@ -131,21 +131,21 @@ TEST_F(ChainTest, MonoConversionReachesDownstreamStage)
     storage[0][0][0] = 5; storage[0][1][0] = 9;
     Node convert = stage(kPlugin, 0); convert.flags = 8;
     strcpy(convert.filename, "mono.ptfx");
-    recipe.add(convert); recipe.add(stage(3, 2));
-    ASSERT_TRUE(runner.start(recipe, source, work, 16)); finish();
+    definition.add(convert); definition.add(stage(3, 2));
+    ASSERT_TRUE(runner.start(definition, source, work, 16)); finish();
     ASSERT_EQ(runner.state(), Runner::State::Ready);
     EXPECT_EQ(runner.result().channels, 1);
     EXPECT_EQ(runner.result().channel[0][0], 10);
 }
-TEST_F(ChainTest, RecipeRoundTripIsVersionedAndChecksummed)
+TEST_F(ChainTest, ChainRoundTripIsVersionedAndChecksummed)
 {
-    recipe.add(stage(3, 2));
-    recipe.source.effect = kPlugin; recipe.source.flags = 5;
-    recipe.source.fingerprint = 0xdeadbeef;
-    strcpy(recipe.source.filename, "wavetable.ptfx");
-    std::array<uint8_t, kRecipeBytes> bytes;
-    ASSERT_TRUE(encode(recipe, bytes.data(), bytes.size()));
-    Recipe restored;
+    definition.add(stage(3, 2));
+    definition.source.effect = kPlugin; definition.source.flags = 5;
+    definition.source.fingerprint = 0xdeadbeef;
+    strcpy(definition.source.filename, "wavetable.ptfx");
+    std::array<uint8_t, kChainFileBytes> bytes;
+    ASSERT_TRUE(encode(definition, bytes.data(), bytes.size()));
+    ChainDefinition restored;
     ASSERT_TRUE(decode(bytes.data(), bytes.size(), restored));
     EXPECT_EQ(restored.source.flags, 5);
     EXPECT_EQ(restored.source.fingerprint, 0xdeadbeef);
@@ -155,31 +155,63 @@ TEST_F(ChainTest, RecipeRoundTripIsVersionedAndChecksummed)
     EXPECT_FALSE(decode(bytes.data(), bytes.size(), restored));
     EXPECT_EQ(restored.count, 7); // Invalid files cannot replace a draft.
     EXPECT_FALSE(decode(bytes.data(), bytes.size() - 1, restored));
+
+    definition = {};
+    strcpy(definition.name, "Worn Cassette");
+    definition.add(stage(3, 4));
+    ASSERT_TRUE(encode(definition, bytes.data(), bytes.size()));
+    ASSERT_TRUE(decode(bytes.data(), bytes.size(), restored));
+    EXPECT_STREQ(restored.name, "Worn Cassette");
 }
-TEST_F(ChainTest, InvalidRecipesAndStageBoundsAreRejected)
+TEST_F(ChainTest, InvalidChainsAndStageBoundsAreRejected)
 {
-    for (unsigned i = 0; i < kMaxStages; ++i) ASSERT_TRUE(recipe.add(stage(3, i)));
-    EXPECT_FALSE(recipe.add(stage(3, 1)));
-    EXPECT_FALSE(recipe.move(0, -1));
-    EXPECT_FALSE(recipe.move(7, 1));
-    EXPECT_FALSE(recipe.duplicate(0));
-    ASSERT_TRUE(recipe.remove(1));
-    EXPECT_EQ(recipe.stages[1].params[0], 2);
-    std::array<uint8_t, kRecipeBytes> bytes;
-    recipe.stages[0].params[0] = NAN;
-    EXPECT_FALSE(encode(recipe, bytes.data(), bytes.size()));
-    recipe.stages[0].params[0] = 0;
-    recipe.source.effect = kPlugin; recipe.source.flags = 1;
-    strcpy(recipe.source.filename, "../escape.ptfx");
-    EXPECT_FALSE(encode(recipe, bytes.data(), bytes.size()));
+    for (unsigned i = 0; i < kMaxStages; ++i) ASSERT_TRUE(definition.add(stage(3, i)));
+    EXPECT_FALSE(definition.add(stage(3, 1)));
+    EXPECT_FALSE(definition.move(0, -1));
+    EXPECT_FALSE(definition.move(7, 1));
+    EXPECT_FALSE(definition.duplicate(0));
+    ASSERT_TRUE(definition.remove(1));
+    EXPECT_EQ(definition.stages[1].params[0], 2);
+    std::array<uint8_t, kChainFileBytes> bytes;
+    definition.stages[0].params[0] = NAN;
+    EXPECT_FALSE(encode(definition, bytes.data(), bytes.size()));
+    definition.stages[0].params[0] = 0;
+    definition.source.effect = kPlugin; definition.source.flags = 1;
+    strcpy(definition.source.filename, "../escape.ptfx");
+    EXPECT_FALSE(encode(definition, bytes.data(), bytes.size()));
+}
+
+TEST_F(ChainTest, ChainMixPersistsWithoutChangingLegacyDefaults)
+{
+    std::array<uint8_t, kChainFileBytes> bytes;
+    ChainDefinition restored;
+    ASSERT_TRUE(encode(definition, bytes.data(), bytes.size()));
+    EXPECT_EQ(bytes[7], 0);
+    ASSERT_TRUE(decode(bytes.data(), bytes.size(), restored));
+    EXPECT_EQ(restored.mix, 100);
+    for (unsigned percent : {0u, 35u, 100u})
+    {
+        definition.mix = percent;
+        ASSERT_TRUE(encode(definition, bytes.data(), bytes.size()));
+        ASSERT_TRUE(decode(bytes.data(), bytes.size(), restored));
+        EXPECT_EQ(restored.mix, percent);
+    }
+    definition.mix = 101;
+    EXPECT_FALSE(encode(definition, bytes.data(), bytes.size()));
+    bytes[7] = 101;
+    uint32_t hash = fingerprint(bytes.data() + 16, bytes.size() - 16, fingerprint(bytes.data(), 12));
+    for (unsigned i = 0; i < 4; ++i) bytes[12 + i] = hash >> (i * 8);
+    restored.mix = 35;
+    EXPECT_FALSE(decode(bytes.data(), bytes.size(), restored));
+    EXPECT_EQ(restored.mix, 35);
 }
 
 TEST_F(ChainTest, MissingOrAliasedBuffersAreRejectedBeforeProcessing)
 {
     source.channel[0] = nullptr;
-    EXPECT_FALSE(runner.start(recipe, source, work, 16));
+    EXPECT_FALSE(runner.start(definition, source, work, 16));
     source.channel[0] = storage[0][0];
     work[1][0] = work[0][0];
-    EXPECT_FALSE(runner.start(recipe, source, work, 16));
+    EXPECT_FALSE(runner.start(definition, source, work, 16));
     EXPECT_TRUE(backend.begun.empty());
 }

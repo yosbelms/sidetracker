@@ -239,10 +239,17 @@ bool VoiceStreamManager::setupInstrumentStream(int instrIdx,
                                                const char* filePath,
                                                uint32_t dataOffset,
                                                uint32_t totalFrames,
-                                               bool isStereo)
+                                               bool isStereo,
+                                               const int16_t* const* preparedAudio)
 {
     if (fs == nullptr || instrIdx < 0 || instrIdx >= kMaxInstruments || filePath == nullptr ||
         filePath[0] == '\0' || totalFrames == 0)
+    {
+        return false;
+    }
+
+    auto [isOpen, fh] = fs->openFile(filePath, FileSystem::kRead);
+    if (!isOpen || fh == nullptr)
     {
         return false;
     }
@@ -266,12 +273,6 @@ bool VoiceStreamManager::setupInstrumentStream(int instrIdx,
     mem.databaseSector = 0;
     mem.sectorsPerCluster = 0;
 
-    auto [isOpen, fh] = fs->openFile(filePath, FileSystem::kRead);
-    if (!isOpen || fh == nullptr)
-    {
-        return false;
-    }
-
     s_instrumentClmt[instrIdx][0] = kClmtElementCount;
     uint32_t dbSector = 0;
     uint32_t csize = 0;
@@ -283,7 +284,7 @@ bool VoiceStreamManager::setupInstrumentStream(int instrIdx,
 
     // 1. Read Attack Pre-Cache into SDRAM for Left (and Right if stereo)
     int numChannels = mem.isStereo ? 2 : 1;
-    for (int ch = 0; ch < numChannels; ++ch)
+    for (int ch = 0; !preparedAudio && ch < numChannels; ++ch)
     {
         int16_t* dst = mem.address[ch];
         if (dst == nullptr)
@@ -316,7 +317,7 @@ bool VoiceStreamManager::setupInstrumentStream(int instrIdx,
     hash = (hash ^ (uint32_t)numChannels) * 16777619u;
     for (int ch = 0; ch < numChannels; ++ch)
     {
-        const int16_t* dst = mem.address[ch];
+        const int16_t* dst = preparedAudio ? preparedAudio[ch] : mem.address[ch];
         if (dst != nullptr)
         {
             uint32_t step = (preCacheFrames > 256) ? (preCacheFrames / 256) : 1;
@@ -336,7 +337,7 @@ bool VoiceStreamManager::setupInstrumentStream(int instrIdx,
     int16_t windowBuf[64];
     for (int ch = 0; ch < numChannels; ++ch)
     {
-        const int16_t* ramBase = mem.address[ch];
+        const int16_t* ramBase = preparedAudio ? preparedAudio[ch] : mem.address[ch];
         WaveformPeakPoint* peaks = s_instrumentWaveformPeaks[instrIdx][ch];
         uint32_t chOffset = dataOffset + (ch == 1 ? (totalFrames * sizeof(int16_t)) : 0);
 
@@ -357,7 +358,7 @@ bool VoiceStreamManager::setupInstrumentStream(int instrIdx,
             int16_t up = 0;
             int16_t firstSample = 0;
 
-            if (end <= preCacheFrames && ramBase != nullptr)
+            if (ramBase && (preparedAudio || end <= preCacheFrames))
             {
                 uint32_t count = end - start;
                 if (count > 200)
@@ -431,8 +432,8 @@ bool VoiceStreamManager::setupInstrumentStream(int instrIdx,
 
     s_instrumentSliceCacheValid[instrIdx] = false;
     memset(s_instrumentSliceCache[instrIdx], 0, sizeof(s_instrumentSliceCache[instrIdx]));
-    if (mtProject.instrument[instrIdx].playMode == playModeSlice ||
-        mtProject.instrument[instrIdx].playMode == playModeBeatSlice)
+    if (!preparedAudio && (mtProject.instrument[instrIdx].playMode == playModeSlice ||
+                           mtProject.instrument[instrIdx].playMode == playModeBeatSlice))
     {
         refreshInstrumentSliceCache(instrIdx);
     }

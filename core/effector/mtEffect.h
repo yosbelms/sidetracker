@@ -98,6 +98,8 @@ class mtEffect
     uint32_t getExpectedProcessedSampleLength();
     int16_t* const getSampleAddresToPreview(Channel channel = Channel::kLeft);
     uint32_t getSampleLengthToPreview();
+    int16_t* processedAudio(Channel channel) { return processed[channel < kChannels ? channel : kLeft].area.addr; }
+    uint32_t processedFrames() const { return processed[0].area.length; }
     int16_t* getAddresToPolyphonicPlay(Channel channel = Channel::kLeft);
     uint32_t getLengthToPolyphonicPlay();
     void changeSelectionRange(uint16_t a, uint16_t b);

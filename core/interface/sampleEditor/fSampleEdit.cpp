@@ -53,7 +53,6 @@ static void functSelectStartPoint();
 static void functSelectEndPoint();
 static void functSelectZoom();
 static void functUndo();
-static void functApply();
 static void functTools() { if (sampleChainDeferEditorAction(functTools)) return; SE->screenType = cSampleEditor::toolsScreen; SE->switchScreen(SE->screenType); }
 static void functToolsBack() { SE->screenType = cSampleEditor::mainScreen; SE->switchScreen(SE->screenType); }
 static void functToolUp() { SE->moveTool(-1); }
@@ -198,7 +197,6 @@ void cSampleEditor::start([[maybe_unused]] uint32_t options)
 
     screenType = mainScreen;
     previewState = previewStatePreview;
-    confirmedDataIsChanged = 0;
 
     setMainScreenFunctions();
     setCommonFunctions();
@@ -286,67 +284,22 @@ void cSampleEditor::update()
     else if (!currentEffect->isDataProcessed() && currentEffect->getProcessingSelectionState())
     {
         currentEffect->update();
-        if (!currentEffect->getProcessingSelectionState())
-        {
-            if (currentEffect->isDataLoaded() || applyingProgress)
-            {
-                reloadSpectrumData();
-                needRefreshSpectrum = 1;
-            }
+    }
 
-            isProcessedData = currentEffect->isDataProcessed();
-
-            applyingInProgress = 0;
-
-            if (processingInProgress)
-            {
-                //				processingInProgress = false;
-                processingProgress = 0;
-                showProgressProcessing();
-                setPlayFunction();
-            }
-
-            if (applyingProgress)
-            {
-                if (currentEffectIdx == editorEffectModular)
-                {
-                    sampleEditorModular.onApplyCommitted(mtProject.values.lastUsedInstrument);
-                }
-                editorInstrument->isActive = 1;
-                editorInstrument->volume = mtProject.instrument[mtProject.values.lastUsedInstrument].volume;
-                editorInstrument->sample.length = currentEffect->getLengthToPolyphonicPlay();
-                strncpy(editorInstrument->sample.file_name,
-                        mtProject.instrument[mtProject.values.lastUsedInstrument].sample.file_name,
-                        SAMPLE_NAME_SIZE);
-                resetZoom();
-                screenType = cSampleEditor::mainScreen;
-                switchScreen(screenType);
-                applyingProgress = 0;
-            }
-            showProgressApplying();
-
-            hideProgressPopup();
-
-            if (currentEffect->isDataLoaded())
-            {
-                selection.startPoint = currentEffect->getNewStartPoint();
-                selection.endPoint = currentEffect->getNewEndPoint();
-
-                refreshStartPoint();
-                refreshEndPoint();
-            }
-
-            refreshUndoState();
-
-            restoreFunctions();
-
-            if (processingInProgress)
-            {
-                processingInProgress = false; // kasowanie dopiero  tutaj zeby moc odpalic play po
-                                              // przeprocesowaniu wszystkich danych
-                functPlay();
-            }
-        }
+    if ((applyingInProgress || processingInProgress) &&
+        !currentEffect->getLoadingState() && !currentEffect->getProcessingSelectionState())
+    {
+        const bool applyResult = applyingInProgress;
+        applyingInProgress = false;
+        processingInProgress = false;
+        hideProgressPopup();
+        restoreFunctions();
+        if (applyResult)
+            finishToolOutput();
+        else if (currentEffect->isDataProcessed() && !currentEffect->hasProcessingError())
+            functPlay();
+        else
+            showTitleBar("Cannot prepare sample");
     }
 
     if (applyingInProgress)
@@ -380,11 +333,6 @@ void cSampleEditor::update()
 
     if (fileManagerStatus == fmImportSampleFromSampleEditorEnd)
     {
-        newFileManager.clearStatus();
-        newFileManager.reloadSamplesFromWorkspace();
-    }
-    else if (fileManagerStatus == fmReloadSamplesEnd)
-    {
         ip->unblockAllInputs();
         newFileManager.clearStatus();
 #ifdef TRACKER_MINI
@@ -393,21 +341,14 @@ void cSampleEditor::update()
             mtMenuPopup.hideModulePopup(SE);
         }
 #endif
-        if (reloadOnEndSaving)
-        {
-            reloadOnEndSaving = false;
-            mtProject.values.lastUsedInstrument = afterReloadInstrumentIdx;
-            start(0);
-        }
-        else
-        {
-            SE->eventFunct(eventSwitchModule, SE, &SE->moduleToChange, 0);
-        }
+        start(0);
     }
     else if (fileManagerStatus >= fmError)
     {
         ip->unblockAllInputs();
         newFileManager.clearStatus();
+        if (fileManagerStatus == fmImportSampleFromSampleEditorError)
+            showTitleBar("Sample edit save failed");
     }
 }
 
@@ -530,11 +471,15 @@ void cSampleEditor::setParamsScreenFunctions()
     if (mtProject.values.lastUsedInstrument > kSampleInstrumentsCount - 1)
         return;
 
-    ip->setButtonObj(interfaceButtonLeft, buttonPress, functParamsScreenLeft);
-    ip->setButtonObj(interfaceButtonRight, buttonPress, functParamsScreenRight);
-    ip->setButtonObj(interfaceButtonUp, buttonPress, functParamsScreenUp);
-    ip->setButtonObj(interfaceButtonDown, buttonPress, functParamsScreenDown);
-    ip->setButtonObj(interfaceButtonDelete, buttonPress, functParamsScreenDelete);
+    if (getCurrentPageParams())
+    {
+        ip->setButtonObj(interfaceButtonLeft, buttonPress, functParamsScreenLeft);
+        ip->setButtonObj(interfaceButtonRight, buttonPress, functParamsScreenRight);
+        ip->setButtonObj(interfaceButtonUp, buttonPress, functParamsScreenUp);
+        ip->setButtonObj(interfaceButtonDown, buttonPress, functParamsScreenDown);
+        ip->setButtonObj(interfaceButtonDelete, buttonPress, functParamsScreenDelete);
+        ip->setPotObj(interfacePot0, functParamsScreenEncoder);
+    }
     ip->setButtonObj(interfaceButton4, buttonPress, functParamsScreenMore);
 
     for (uint8_t i = interfaceButton0; i <= interfaceButton3; i++)
@@ -559,8 +504,6 @@ void cSampleEditor::setParamsScreenFunctions()
     }
 
     ip->setButtonObj(interfaceButton7, buttonPress, functSave);
-
-    ip->setPotObj(interfacePot0, functParamsScreenEncoder);
 }
 void cSampleEditor::setStopSeqFunctions()
 {
@@ -620,6 +563,7 @@ void cSampleEditor::handleStartupWithPopupAndMenu()
 
 void cSampleEditor::switchScreen(enScreenType s)
 {
+    screenType = s;
     if (s == mainScreen)
     {
         prepareDisplayDataMainScreen();
@@ -706,14 +650,6 @@ void cSampleEditor::noteOffHandle(uint8_t channel,
 
 bool cSampleEditor::isCurrentSampleStereo()
 {
-#ifdef PLATFORM_IMX
-    if (currentEffectIdx == editorEffectModular &&
-        (sampleEditorModular.getFlags() & PTFX_FLAG_CONVERT_TO_MONO) &&
-        confirmedDataIsChanged)
-    {
-        return false;
-    }
-#endif
     return newFileManager.isInstrumentStereo(mtProject.values.lastUsedInstrument);
 }
 
@@ -1181,7 +1117,7 @@ void cSampleEditor::refreshUndoState()
 {
     if ((editorInstrument->isActive) && (screenType == mainScreen))
     {
-        if (!currentEffect->undoParams.isEnable)
+        if (!newFileManager.canUndoSampleEdit(mtProject.values.lastUsedInstrument))
             display.setControlColors(label[3], display.getTheme().inactiveLabelsColors);
         else
             display.setControlColors(label[3], display.getTheme().activeLabelsColors);
@@ -1446,7 +1382,7 @@ void cSampleEditor::modParameter(int16_t value, uint8_t idx)
 
     currentEffect->setParameter(effectDisplayParamsToAdjust[currentEffectIdx].parameter[idx], idx);
 
-    setPreviewFunction();
+    if (!playingInProgress) setPreviewFunction();
     currentEffect->clearProcessedData();
     refreshParameter(idx);
 }
@@ -1469,7 +1405,7 @@ void cSampleEditor::setDefaultParameter(uint8_t idx)
     }
     currentEffect->setParameter(effectDisplayParamsToAdjust[currentEffectIdx].parameter[idx], idx);
 
-    setPreviewFunction();
+    if (!playingInProgress) setPreviewFunction();
     currentEffect->clearProcessedData();
     refreshParameter(idx);
 }
@@ -1518,6 +1454,11 @@ void cSampleEditor::setPreviewFunction()
 
 void cSampleEditor::setPlayFunction()
 {
+    if (screenType == effectScreen && !currentEffect->isDataProcessed())
+    {
+        setPreviewFunction();
+        return;
+    }
     const auto button = screenType == mainScreen ? interfaceButton0 : interfaceButton6;
     ip->clearButton(button);
     ip->setButtonObj(button, buttonPress, screenType == mainScreen ? functWaveformPreview : functPlay);
@@ -1529,8 +1470,11 @@ void cSampleEditor::setPlayFunction()
 
 void cSampleEditor::setStopFunction()
 {
-    ip->clearAll();
-    setViewSwitchFunctions();
+    if (screenType != effectScreen)
+    {
+        ip->clearAll();
+        setViewSwitchFunctions();
+    }
     const auto button = screenType == mainScreen ? interfaceButton0 : interfaceButton6;
     ip->clearButton(button);
     ip->setButtonObj(button, buttonPress, functStop);
@@ -1546,25 +1490,7 @@ void cSampleEditor::cancelGlobalPopups()
     if (mtPopups.getStepPopupState() != stepPopupNone)
     {
         mtPopups.hideStepPopups();
-        if (confirmedDataIsChanged)
-        {
-            reloadOnEndSaving = true;
-            bool isStereo = isCurrentSampleStereo();
-
-            if (newFileManager.importSampleFromSampleEditor(
-                  SE->currentEffect->getAddresToPolyphonicPlay(mtEffect::Channel::kLeft),
-                  SE->currentEffect->getAddresToPolyphonicPlay(isStereo ? mtEffect::Channel::kRight
-                                                                        : mtEffect::Channel::kLeft),
-                  SE->currentEffect->getLengthToPolyphonicPlay(),
-                  mtProject.values.lastUsedInstrument))
-            {
-                SE->ip->blockAllInputs();
-            }
-        }
-        else
-        {
-            start(0);
-        }
+        start(0);
     }
 }
 
@@ -1583,29 +1509,7 @@ static void functSwitchModule(uint8_t button)
         SE->restoreCurrentScreenFunctions();
     }
     else
-    {
-        if (SE->confirmedDataIsChanged)
-        {
-            SE->moduleToChange = button;
-
-            bool isStereo = SE->isCurrentSampleStereo();
-
-            if (newFileManager.importSampleFromSampleEditor(
-                  SE->currentEffect->getAddresToPolyphonicPlay(mtEffect::Channel::kLeft),
-                  SE->currentEffect->getAddresToPolyphonicPlay(isStereo ? mtEffect::Channel::kRight
-                                                                        : mtEffect::Channel::kLeft),
-                  SE->currentEffect->getLengthToPolyphonicPlay(),
-                  mtProject.values.lastUsedInstrument))
-            {
-                SE->ip->blockAllInputs();
-            }
-            //			SE->showPopupSaveChangesWindow();
-            //			SE->setSaveChangesFunctions();
-            //			SE->moduleToChange = button;
-        }
-        else
-            SE->eventFunct(eventSwitchModule, SE, &button, 0);
-    }
+        SE->eventFunct(eventSwitchModule, SE, &button, 0);
 }
 
 static void functMiniMiddle(uint8_t state)
@@ -1660,16 +1564,12 @@ static void functInstrument(uint8_t state)
 {
     if (state == buttonRelease)
     {
-        SE->afterReloadInstrumentIdx = mtProject.values.lastUsedInstrument;
-        if (SE->confirmedDataIsChanged)
-            mtProject.values.lastUsedInstrument = SE->beforeReloadInstrumentIdx;
         SE->cancelGlobalPopups();
         SE->currentEffect->undoParams.isEnable = false;
     }
     else if (state == buttonPress)
     {
         SE->hideUselessControls();
-        SE->beforeReloadInstrumentIdx = mtProject.values.lastUsedInstrument;
         mtPopups.showStepPopup(stepPopupInstr, mtProject.values.lastUsedInstrument);
     }
 }
@@ -1788,40 +1688,15 @@ static void functSelectZoom()
 static void functUndo()
 {
     if (sampleChainDeferEditorAction(functUndo)) return;
-    if (!SE->currentEffect->undoParams.isEnable)
+    const auto slot = mtProject.values.lastUsedInstrument;
+    if (!newFileManager.canUndoSampleEdit(slot)) return;
+    mtPadBoard.cutAllInstrument();
+    if (newFileManager.undoSampleEdit(slot))
     {
-        return;
+        SE->currentEffect->clearLoadedData();
+        SE->ip->blockAllInputs();
     }
-
-    SE->currentEffect->undo();
-    SE->refreshUndoState();
-
-    SE->reloadSpectrumData();
-
-    SE->selection.startPoint = SE->currentEffect->getNewStartPoint();
-    SE->selection.endPoint = SE->currentEffect->getNewEndPoint();
-
-    SE->refreshStartPoint();
-    SE->refreshEndPoint();
-    SE->needRefreshSpectrum = 1;
-}
-
-static void functApply()
-{
-    if (!SE->canApplyCurrentEffect())
-    {
-        return;
-    }
-
-    if (SE->isParametersScreen())
-    {
-        functSave();
-        return;
-    }
-
-    SE->screenType = cSampleEditor::effectScreen;
-
-    SE->switchScreen(SE->screenType);
+    else SE->showTitleBar("Cannot undo sample edit");
 }
 
 // Parameter screen functions
@@ -1916,73 +1791,7 @@ static void functSelectParameter(uint8_t button)
 static void functPreview()
 {
     if (SE->screenType == cSampleEditor::mainScreen) { functWaveformPreview(); return; }
-    if (!SE->canApplyCurrentEffect())
-    {
-        return;
-    }
-
-    uint32_t processedLength = SE->currentEffect->getExpectedProcessedSampleLength();
-    if (processedLength == 0)
-    {
-        return;
-    }
-
-    if (processedLength > EDIT_BUFF_SIZE / 2)
-    {
-        SE->showPopupTooLongProcessedSampleWindow();
-        SE->setTooLongProcessedSampleFunctions();
-        return;
-    }
-
-    uint32_t oldRamFrames =
-      mtProject.sampleMemory[mtProject.values.lastUsedInstrument].isStreamed
-        ? mtProject.sampleMemory[mtProject.values.lastUsedInstrument].ramFrames
-        : std::min<uint32_t>(
-            mtProject.instrument[mtProject.values.lastUsedInstrument].sample.length,
-            kStreamPreCacheFrames);
-    uint32_t newRamFrames = std::min<uint32_t>(processedLength, kStreamPreCacheFrames);
-    int32_t memoryBankChange = (int32_t)newRamFrames - (int32_t)oldRamFrames;
-
-    if (mtProject.used_memory + memoryBankChange > mtProject.max_memory)
-    {
-        SE->showPopupTooLongProcessedSampleWindow();
-        SE->setTooLongProcessedSampleFunctions();
-        return;
-    }
-
-    SE->processingSteps = 1;
-
-    uint8_t instr_idx = mtProject.values.lastUsedInstrument;
-    bool hasInstrumentSample = (instr_idx < kSampleInstrumentsCount) &&
-                               mtProject.instrument[instr_idx].isActive &&
-                               (mtProject.sampleMemory[instr_idx].address[0] != nullptr) &&
-                               (mtProject.instrument[instr_idx].sample.length > 0);
-
-    SE->isLoadedData = SE->currentEffect->isDataLoaded() || !hasInstrumentSample;
-    SE->isProcessedData = SE->currentEffect->isDataProcessed();
-
-    if (!SE->isLoadedData)
-        SE->processingSteps++;
-
-    if (SE->processingSteps)
-    {
-        SE->showPopupProcessing();
-        SE->processingInProgress = 1;
-        SE->ip->clearAll();
-    }
-
-    SE->processingProgress = 0;
-    SE->showProgressProcessing();
-    SE->currentEffect->processSelection();
-
-    if (SE->processingSteps &&
-        !SE->currentEffect->getLoadingState() &&
-        !SE->currentEffect->getProcessingSelectionState())
-    {
-        SE->processingInProgress = 0;
-        SE->hideProgressPopup();
-        SE->restoreFunctions();
-    }
+    SE->prepareToolOutput(true);
 }
 
 static void functPlay()
@@ -1995,7 +1804,7 @@ static void functPlay()
     for (int channel = 0; channel < mtEffect::kChannels; channel++)
     {
         addresses.push_back(
-          SE->currentEffect->getSampleAddresToPreview((mtEffect::Channel)channel));
+          SE->currentEffect->processedAudio((mtEffect::Channel)channel));
     }
 
     uint8_t vol = mtProject.instrument[mtProject.values.lastUsedInstrument].volume;
@@ -2007,7 +1816,7 @@ static void functPlay()
     mtPadBoard.startNoteWithoutInstrument(
       60,
       addresses,
-      SE->currentEffect->getSampleLengthToPreview(),
+      SE->currentEffect->processedFrames(),
       vol,
       INTERFACE_BUTTON_PREVIEW); // tego nie moze robic midi
     SE->playingInProgress = 1;
@@ -2029,118 +1838,78 @@ static void functStop()
 
 static void functBack()
 {
-    SE->screenType = cSampleEditor::mainScreen;
-    SE->switchScreen(SE->screenType);
+    if (SE->playingInProgress) functStop();
+    SE->switchScreen(cSampleEditor::mainScreen);
 }
 
 static void functSave()
 {
-    if (!SE->canApplyCurrentEffect())
+    SE->prepareToolOutput(false);
+}
+
+void cSampleEditor::prepareToolOutput(bool audition)
+{
+    if (!canApplyCurrentEffect()) return;
+    if (playingInProgress) functStop();
+    const auto frames = currentEffect->getExpectedProcessedSampleLength();
+    if (!frames) return;
+    if (frames > EDIT_BUFF_SIZE / 2 || mtProject.used_memory > EDIT_BUFF_OFFSET)
     {
+        showPopupTooLongProcessedSampleWindow();
+        setTooLongProcessedSampleFunctions();
+        return;
+    }
+    if (currentEffect->isDataProcessed() && !currentEffect->hasProcessingError())
+    {
+        if (audition) functPlay();
+        else finishToolOutput();
+        return;
+    }
+    currentEffect->processSelection();
+    if (!currentEffect->getLoadingState() && !currentEffect->getProcessingSelectionState())
+    {
+        showTitleBar("Cannot prepare sample");
         return;
     }
 
-    uint32_t processedLength = SE->currentEffect->getExpectedProcessedSampleLength();
-    if (processedLength == 0)
+    isLoadedData = currentEffect->isDataLoaded();
+    if (audition)
     {
+        processingSteps = isLoadedData ? 1 : 2;
+        processingProgress = 0;
+        processingInProgress = true;
+        showPopupProcessing();
+        showProgressProcessing();
+    }
+    else
+    {
+        applyingSteps = isLoadedData ? 1 : 2;
+        applyingProgress = 0;
+        applyingInProgress = true;
+        showPopupApplying();
+        showProgressApplying();
+    }
+    ip->clearAll();
+}
+
+void cSampleEditor::finishToolOutput()
+{
+    if (!currentEffect->isDataProcessed() || currentEffect->hasProcessingError())
+    {
+        showTitleBar("Cannot prepare sample");
         return;
     }
-
-    if (processedLength > EDIT_BUFF_SIZE / 2)
+    const auto slot = mtProject.values.lastUsedInstrument;
+    mtPadBoard.cutAllInstrument();
+    if (!newFileManager.importSampleFromSampleEditor(
+          currentEffect->processedAudio(mtEffect::kLeft),
+          isCurrentSampleStereo() ? currentEffect->processedAudio(mtEffect::kRight) : nullptr,
+          currentEffect->processedFrames(), slot, mtProject.instrument[slot]))
     {
-        SE->showPopupTooLongProcessedSampleWindow();
-        SE->setTooLongProcessedSampleFunctions();
+        showTitleBar("Cannot apply sample: check SD and sample memory");
         return;
     }
-
-    uint32_t oldRamFrames =
-      mtProject.sampleMemory[mtProject.values.lastUsedInstrument].isStreamed
-        ? mtProject.sampleMemory[mtProject.values.lastUsedInstrument].ramFrames
-        : std::min<uint32_t>(
-            mtProject.instrument[mtProject.values.lastUsedInstrument].sample.length,
-            kStreamPreCacheFrames);
-    uint32_t newRamFrames = std::min<uint32_t>(processedLength, kStreamPreCacheFrames);
-    int32_t memoryBankChange = (int32_t)newRamFrames - (int32_t)oldRamFrames;
-
-    if (mtProject.used_memory + memoryBankChange > mtProject.max_memory)
-    {
-        SE->showPopupTooLongProcessedSampleWindow();
-        SE->setTooLongProcessedSampleFunctions();
-        return;
-    }
-
-    SE->applyingSteps = 0;
-
-    uint8_t instr_idx = mtProject.values.lastUsedInstrument;
-    bool hasInstrumentSample = (instr_idx < kSampleInstrumentsCount) &&
-                               mtProject.instrument[instr_idx].isActive &&
-                               (mtProject.sampleMemory[instr_idx].address[0] != nullptr) &&
-                               (mtProject.instrument[instr_idx].sample.length > 0);
-
-    SE->isLoadedData = SE->currentEffect->isDataLoaded() || !hasInstrumentSample;
-    SE->isProcessedData = SE->currentEffect->isDataProcessed();
-
-    if (!SE->isLoadedData)
-        SE->applyingSteps++;
-    if (!SE->isProcessedData)
-        SE->applyingSteps++;
-
-    if (SE->applyingSteps)
-    {
-        SE->showPopupApplying();
-        SE->applyingInProgress = 1;
-        SE->applyingProgress = 0;
-        SE->showProgressApplying();
-        SE->ip->clearAll();
-    }
-
-    SE->applyingProgress = 0;
-    SE->currentEffect->apply();
-
-    if (SE->applyingSteps &&
-        !SE->currentEffect->getLoadingState() &&
-        !SE->currentEffect->getProcessingSelectionState())
-    {
-        SE->applyingInProgress = 0;
-        SE->applyingProgress = 0;
-        SE->hideProgressPopup();
-        SE->restoreFunctions();
-        return;
-    }
-
-    SE->confirmedDataIsChanged = 1;
-
-    if (!SE->applyingSteps)
-    {
-        if (SE->currentEffectIdx == editorEffectModular)
-        {
-            sampleEditorModular.onApplyCommitted(mtProject.values.lastUsedInstrument);
-        }
-
-        SE->editorInstrument->isActive = 1;
-        SE->editorInstrument->volume = mtProject.instrument[mtProject.values.lastUsedInstrument].volume;
-        SE->editorInstrument->sample.length = SE->currentEffect->getLengthToPolyphonicPlay();
-        strncpy(SE->editorInstrument->sample.file_name,
-                mtProject.instrument[mtProject.values.lastUsedInstrument].sample.file_name,
-                SAMPLE_NAME_SIZE);
-
-        SE->selection.startPoint = SE->currentEffect->getNewStartPoint();
-        SE->selection.endPoint = SE->currentEffect->getNewEndPoint();
-        SE->reloadSpectrumData();
-        SE->refreshStartPoint();
-        SE->refreshEndPoint();
-        SE->needRefreshSpectrum = 1;
-
-        SE->resetZoom();
-
-        SE->screenType = cSampleEditor::mainScreen;
-        SE->switchScreen(SE->screenType);
-        SE->setCommonFunctions();
-    }
-
-    SE->previewState = cSampleEditor::previewStatePreview;
-    SE->currentEffect->clearProcessedData();
-    SE->refreshUndoState();
+    ip->blockAllInputs();
 }
 
 // Stop Pattern Funct
@@ -2413,12 +2182,8 @@ void cSampleEditor::selectTool()
     for (unsigned i = 0; i < getCurrentEffectDisplayParams().paramsNumber; ++i)
         currentEffect->setParameter(effectDisplayParamsToAdjust[currentEffectIdx].parameter[i], i);
     hideEffectList();
-    if (isParametersScreen())
-    {
-        screenType = mainScreen;
-        switchScreen(mainScreen);
-    }
-    functApply();
+    previewState = previewStatePreview;
+    switchScreen(effectScreen);
 }
 
 static void functWaveformPreview()

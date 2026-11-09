@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Recipes contain settings only. DSP instances and audio buffers belong to the runner.
+// Chain definitions contain settings only. DSP instances and audio buffers belong to the runner.
 namespace samplefx
 {
 constexpr unsigned kMaxStages = 8;
@@ -15,6 +15,7 @@ struct Node
 {
     uint8_t effect = kSample;
     uint8_t count = 0;
+    uint8_t quality = 0; // Native Palette: Full/Economy/Minimum.
     bool bypass = false;
     uint16_t flags = 0;
     uint32_t fingerprint = 0;
@@ -22,12 +23,15 @@ struct Node
     float params[kMaxParams] = {};
 };
 
-struct Recipe
+struct ChainDefinition
 {
     Node source;
     Node stages[kMaxStages];
     uint32_t generatorFrames = 44100;
     uint8_t count = 0;
+    bool qualityResolved = false;
+    char name[32] = {};
+    uint8_t mix = 100;
 
     bool add(const Node& node);
     bool remove(unsigned index);
@@ -35,9 +39,9 @@ struct Recipe
     bool duplicate(unsigned index);
 };
 
-constexpr size_t kRecipeBytes = 16 + (kMaxStages + 1) * 100;
-bool encode(const Recipe& recipe, uint8_t* bytes, size_t size);
-bool decode(const uint8_t* bytes, size_t size, Recipe& recipe);
+constexpr size_t kChainFileBytes = 16 + (kMaxStages + 1) * 100;
+bool encode(const ChainDefinition& definition, uint8_t* bytes, size_t size);
+bool decode(const uint8_t* bytes, size_t size, ChainDefinition& definition);
 uint32_t fingerprint(const void* bytes, size_t size, uint32_t hash = 2166136261u);
 
 struct Audio
@@ -57,6 +61,7 @@ class Backend
                        uint32_t generatorFrames) = 0;
     virtual bool step(bool& complete) = 0;
     virtual const char* error() const = 0;
+    virtual void setStageIndex(unsigned) {}
 };
 
 class Runner
@@ -64,7 +69,7 @@ class Runner
   public:
     enum class State { Dirty, Preparing, Ready, Failed };
     Runner(Backend& backend) : backend(backend) {}
-    bool start(const Recipe&, const Audio& source, int16_t* work[2][2], uint32_t capacity);
+    bool start(const ChainDefinition&, const Audio& source, int16_t* work[2][2], uint32_t capacity);
     void update();
     void invalidate();
     void cancel() { invalidate(); }
@@ -75,7 +80,7 @@ class Runner
 
   private:
     Backend& backend;
-    Recipe recipe;
+    ChainDefinition definition;
     Audio input, output;
     int16_t* buffers[2][2] = {};
     uint32_t capacity = 0;

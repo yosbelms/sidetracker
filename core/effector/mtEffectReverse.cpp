@@ -34,9 +34,7 @@ int32_t mtEffectReverse::processBlock()
     {
         for (uint16_t i = 0; i < processedBlockLength; i++)
         {
-            *channelParams[channel].dstAddr = *channelParams[channel].srcAddr;
-            channelParams[channel].dstAddr--;
-            channelParams[channel].srcAddr++;
+            *--channelParams[channel].dstAddr = *channelParams[channel].srcAddr++;
         }
     }
 

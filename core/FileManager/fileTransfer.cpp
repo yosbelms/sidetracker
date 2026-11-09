@@ -845,9 +845,7 @@ uint8_t cFileTransfer::loadInstrumentRawSampleDataToMemory(const char* file,
             memStep = READ_WRITE_BUFOR_SIZE;
             sourceMemComplited = 0;
 
-            int32_t result = fileSystem->seekFile(fileOffset, transferFile);
-
-            if (result >= 0)
+            if (fileSystem->seekFile(fileOffset, transferFile))
             {
                 sourceMemTotal = fileSystem->getFileAvailable(transferFile);
                 sourceMemTotal = std::min(sourceMemTotal, sizeLimitBytes);

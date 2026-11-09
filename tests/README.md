@@ -17,12 +17,12 @@ mapping, natural sorting and seeded random values. `perf_tools_test.py` checks
 the performance gate's rejection paths.
 
 Sample-editor tests also cover chain ordering, bypass, duplicates, generation,
-recipe validation, invalidation/cancellation, real built-in DSP boundaries and
+chain validation, invalidation/cancellation, real built-in DSP boundaries and
 reset behavior, native generator callbacks through the modular adapter, and
 plugin metadata validation. Run `make -C tests STEREO=1 test` to check the
 stereo platform in a separate build directory.
 
-`make desktop-check` additionally exercises the actual chain UI, saved recipe
+`make desktop-check` additionally exercises the actual chain UI, saved chain
 reload, bypass, exact rendered sample bytes, and recovery
 from a failed source snapshot. It also checks Tools edits, independent Effects/Chain navigation, repeated Add,
 generator browsing without changing the source, value editing, explicit effect
@@ -104,6 +104,8 @@ Live chain tests compare block output with offline DSP, check independent repeat
 
 The frame audit records text at each actual display swap, checking that Chain never exposes a partial toolbar and that parameter names and their displayed values agree throughout navigation.
 
-Desktop PTFX checks add independent stages and a generator without execution, edit float/list parameters, save their recipes, reject malformed list payloads, and verify the hardware-only playback diagnostic.
+Desktop PTFX checks add independent stages and a generator without execution, edit float/list parameters, save their chains, reject malformed list payloads, and verify the hardware-only playback diagnostic.
 
-Tools UI checks apply Normalizer with an edited target, Fade In, and Fade Out, then inspect the saved sample audio. Older chain recipes retain support for those effects even though they are no longer in the chain browser.
+Tools UI checks apply Normalizer with an edited target, Fade In, and Fade Out, then inspect the saved sample audio. Older saved chains retain support for those effects even though they are no longer in the chain browser.
+
+Whole-chain Mix checks cover legacy/default persistence, 0/50/100% endpoints, tails, live ramps, Palette latency, generator dry history, stereo isolation/downmixing, and prepared-result cache reuse. Desktop checks save/reload Mix, inspect rendered PCM and verify that source audio remains unchanged.

@@ -63,5 +63,6 @@ bool cFileManager::createWorkspaceDirs()
 
 void cFileManager::clearWorkspace()
 {
+    sampleMemorySave.invalidateUndo(0, kSampleInstrumentsCount - 1);
     fileSystem->removeDirWithFiles(cWorkspacePath);
 }

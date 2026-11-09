@@ -392,7 +392,7 @@ int run(const Options& options)
                     newFileManager.clearStatus();
                     mtProject.values.lastUsedInstrument = slot;
                 }
-                else if (command == "button")
+                else if (command == "button" || command == "press" || command == "release")
                 {
                     std::string name; std::getline(fields >> std::ws, name);
                     int id = -1;
@@ -400,8 +400,17 @@ int run(const Options& options)
                     else for (unsigned i = 0; i < std::size(keys); ++i)
                         if (name == keys[i].label) id = buttonIds[i];
                     if (id < 0) throw std::runtime_error("Unknown desktop script button");
-                    send(platform, {id}, true); advance(60);
-                    send(platform, {id}, false); advance(80);
+                    if (command != "release") { send(platform, {id}, true); advance(60); }
+                    if (command != "press") { send(platform, {id}, false); advance(80); }
+                }
+                else if (command == "assert-sample")
+                {
+                    unsigned slot = 0, frame = 0;
+                    int expected = 0;
+                    if (!(fields >> slot >> frame >> expected) || slot >= kSampleInstrumentsCount ||
+                        !mtProject.instrument[slot].isActive || frame >= mtProject.sampleMemory[slot].ramFrames ||
+                        mtProject.sampleMemory[slot].address[0][frame] != expected)
+                        throw std::runtime_error("Unexpected resident sample PCM: " + line);
                 }
                 else if (command == "assert-chain")
                 {

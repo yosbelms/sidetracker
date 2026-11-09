@@ -275,7 +275,10 @@ class cFileManager
     bool importSampleFromSampleEditor(int16_t* memoryAddressL,
                                       int16_t* memoryAddressR,
                                       uint32_t samplesCount,
-                                      uint8_t instrumentIdx);
+                                      uint8_t instrumentIdx,
+                                      const strInstrument& instrument);
+    bool canUndoSampleEdit(int slot) const { return sampleMemorySave.canUndo(slot); }
+    bool undoSampleEdit(int slot);
 
     bool reloadSamplesFromWorkspace();
 
@@ -396,7 +399,8 @@ class cFileManager
     void createCurrentProjectFolderTree();
 
     bool isInstrumentStereo(int idx);
-    void setInstrumentSampleAddress(int idx, uint16_t channelCount, uint32_t samplesCount);
+    void setInstrumentSampleAddress(int idx, uint16_t channelCount, uint32_t samplesCount,
+                                    bool streamPrepared = false);
     bool promoteStreamedInstrumentToRam(int idx);
     bool demoteRamInstrumentToStream(int idx, const char* backingPtiPath, uint32_t dataOffset);
 

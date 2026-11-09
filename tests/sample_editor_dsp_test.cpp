@@ -230,13 +230,13 @@ samplefx::Node liveNode(uint8_t id, std::initializer_list<float> values = {})
     std::copy(values.begin(), values.end(), node.params);
     return node;
 }
-std::vector<int16_t> liveOutput(samplefx::Recipe recipe, std::vector<int16_t>& input)
+std::vector<int16_t> liveOutput(samplefx::ChainDefinition definition, std::vector<int16_t>& input)
 {
     samplefx::RealtimeChain chain;
     NoLivePlugins loader;
     std::vector<uint8_t> arena(2 * 1024 * 1024);
     samplefx::Audio source{{input.data(), input.data()}, uint32_t(input.size()), 1};
-    EXPECT_TRUE(chain.prepare(recipe, source, arena.data(), arena.size(), loader, 1000000)) << chain.error();
+    EXPECT_TRUE(chain.prepare(definition, source, arena.data(), arena.size(), loader, 1000000)) << chain.error();
     std::vector<int16_t> result;
     int16_t left[128], right[128];
     while (!chain.finished())
@@ -274,8 +274,8 @@ TEST(SampleFxRealtime, MatchesOfflineDspIncludingPartialBlocks)
         for (unsigned p = 0; p < entry.node.count; ++p)
         { float v = entry.node.params[p]; entry.fx->setParameter(v, p); }
         auto expected = run(*entry.fx, source);
-        samplefx::Recipe recipe; ASSERT_TRUE(recipe.add(entry.node));
-        EXPECT_EQ(liveOutput(recipe, source), expected);
+        samplefx::ChainDefinition definition; ASSERT_TRUE(definition.add(entry.node));
+        EXPECT_EQ(liveOutput(definition, source), expected);
     }
 }
 
@@ -287,10 +287,10 @@ TEST(SampleFxRealtime, RepeatedStatefulStagesAreIndependent)
     auto expected = run(sampleEditorChorus, source);
     parameters(sampleEditorChorus, {512, 5});
     expected = run(sampleEditorChorus, expected);
-    samplefx::Recipe recipe;
-    recipe.add(liveNode(editorEffectChorus, {256, 3}));
-    recipe.add(liveNode(editorEffectChorus, {512, 5}));
-    EXPECT_EQ(liveOutput(recipe, source), expected);
+    samplefx::ChainDefinition definition;
+    definition.add(liveNode(editorEffectChorus, {256, 3}));
+    definition.add(liveNode(editorEffectChorus, {512, 5}));
+    EXPECT_EQ(liveOutput(definition, source), expected);
 }
 
 TEST(SampleFxRealtime, ParameterEditChangesNextBlockWithoutRestartingSource)
@@ -298,20 +298,20 @@ TEST(SampleFxRealtime, ParameterEditChangesNextBlockWithoutRestartingSource)
     std::vector<int16_t> input(1024);
     for (unsigned i = 0; i < input.size(); ++i) input[i] = 1000 + i;
     std::vector<uint8_t> arena(8192);
-    NoLivePlugins loader; samplefx::RealtimeChain chain; samplefx::Recipe recipe;
-    recipe.add(liveNode(editorEffectAmplifier, {1}));
-    recipe.add(liveNode(editorEffectAmplifier, {2}));
+    NoLivePlugins loader; samplefx::RealtimeChain chain; samplefx::ChainDefinition definition;
+    definition.add(liveNode(editorEffectAmplifier, {1}));
+    definition.add(liveNode(editorEffectAmplifier, {2}));
     samplefx::Audio source{{input.data(), input.data()}, uint32_t(input.size()), 1};
-    ASSERT_TRUE(chain.prepare(recipe, source, arena.data(), arena.size(), loader, input.size()));
+    ASSERT_TRUE(chain.prepare(definition, source, arena.data(), arena.size(), loader, input.size()));
     int16_t left[128], right[128];
     ASSERT_EQ(chain.process(left, right, 128), 128);
     EXPECT_EQ(left[0], 2000);
-    recipe.stages[1].params[0] = 3;
-    chain.setParameters(recipe);
+    definition.stages[1].params[0] = 3;
+    chain.setParameters(definition);
     ASSERT_EQ(chain.process(left, right, 128), 128);
     EXPECT_EQ(left[0], input[128] * 3);
     EXPECT_EQ(chain.played(), 256);
-    EXPECT_EQ(recipe.stages[0].params[0], 1);
+    EXPECT_EQ(definition.stages[0].params[0], 1);
     EXPECT_EQ(input[128], 1128);
 }
 
@@ -322,12 +322,12 @@ TEST(SampleFxRealtime, DelayTailsFlowIntoFollowingStagesAndBypass)
     auto expected = run(sampleEditorDelay, source);
     parameters(sampleEditorFadeOut, {});
     expected = run(sampleEditorFadeOut, expected);
-    samplefx::Recipe recipe;
-    recipe.add(liveNode(editorEffectDelay, {0.5f, 1}));
+    samplefx::ChainDefinition definition;
+    definition.add(liveNode(editorEffectDelay, {0.5f, 1}));
     auto bypass = liveNode(editorEffectAmplifier, {5}); bypass.bypass = true;
-    recipe.add(bypass);
-    recipe.add(liveNode(editorEffectFadeOut));
-    EXPECT_EQ(liveOutput(recipe, source), expected);
+    definition.add(bypass);
+    definition.add(liveNode(editorEffectFadeOut));
+    EXPECT_EQ(liveOutput(definition, source), expected);
 }
 
 TEST(SampleFxRealtime, AnalysisAndMemoryLimitsFailBeforePlayback)
@@ -335,11 +335,11 @@ TEST(SampleFxRealtime, AnalysisAndMemoryLimitsFailBeforePlayback)
     std::vector<int16_t> input(1000, 2000);
     uint8_t arena[128]; NoLivePlugins loader; samplefx::RealtimeChain chain;
     samplefx::Audio source{{input.data(), input.data()}, uint32_t(input.size()), 1};
-    samplefx::Recipe recipe; recipe.add(liveNode(editorEffectNormalizer, {100}));
-    EXPECT_FALSE(chain.prepare(recipe, source, arena, sizeof(arena), loader, 10000));
+    samplefx::ChainDefinition definition; definition.add(liveNode(editorEffectNormalizer, {100}));
+    EXPECT_FALSE(chain.prepare(definition, source, arena, sizeof(arena), loader, 10000));
     EXPECT_NE(std::string(chain.error()).find("analysis"), std::string::npos);
-    recipe.stages[0] = liveNode(editorEffectChorus, {256, 3});
-    EXPECT_FALSE(chain.prepare(recipe, source, arena, sizeof(arena), loader, 10000));
+    definition.stages[0] = liveNode(editorEffectChorus, {256, 3});
+    EXPECT_FALSE(chain.prepare(definition, source, arena, sizeof(arena), loader, 10000));
     EXPECT_EQ(input[0], 2000);
 }
 
@@ -348,10 +348,10 @@ TEST(SampleFxRealtime, StereoChannelsKeepIndependentHistory)
     if (mtEffect::kChannels < 2) GTEST_SKIP() << "Stereo-only platform";
     std::vector<int16_t> left(300, 0), right(300, 0); left[0] = 12000;
     std::vector<uint8_t> arena(32000);
-    NoLivePlugins loader; samplefx::RealtimeChain chain; samplefx::Recipe recipe;
-    recipe.add(liveNode(editorEffectChorus, {256, 3}));
+    NoLivePlugins loader; samplefx::RealtimeChain chain; samplefx::ChainDefinition definition;
+    definition.add(liveNode(editorEffectChorus, {256, 3}));
     samplefx::Audio source{{left.data(), right.data()}, uint32_t(left.size()), 2};
-    ASSERT_TRUE(chain.prepare(recipe, source, arena.data(), arena.size(), loader, 1000));
+    ASSERT_TRUE(chain.prepare(definition, source, arena.data(), arena.size(), loader, 1000));
     int16_t outLeft[128], outRight[128]; bool heardLeft = false;
     while (!chain.finished())
     {
@@ -403,17 +403,17 @@ struct NativeLiveLoader : NoLivePlugins
 
 TEST(SampleFxRealtime, GeneratorAndProcessingPluginHaveIndependentState)
 {
-    NativeLiveLoader loader; samplefx::RealtimeChain chain; samplefx::Recipe recipe;
-    recipe.source = liveNode(samplefx::kPlugin, {2}); recipe.source.flags = PTFX_FLAG_GENERATOR;
-    recipe.generatorFrames = 301;
-    recipe.add(liveNode(samplefx::kPlugin, {3}));
+    NativeLiveLoader loader; samplefx::RealtimeChain chain; samplefx::ChainDefinition definition;
+    definition.source = liveNode(samplefx::kPlugin, {2}); definition.source.flags = PTFX_FLAG_GENERATOR;
+    definition.generatorFrames = 301;
+    definition.add(liveNode(samplefx::kPlugin, {3}));
     uint8_t arena[1024]; samplefx::Audio empty;
-    ASSERT_TRUE(chain.prepare(recipe, empty, arena, sizeof(arena), loader, 1000)) << chain.error();
+    ASSERT_TRUE(chain.prepare(definition, empty, arena, sizeof(arena), loader, 1000)) << chain.error();
     EXPECT_NE(NativeLivePlugin<0>::state, NativeLivePlugin<1>::state);
     int16_t left[128], right[128];
     ASSERT_EQ(chain.process(left, right, 128), 128);
     EXPECT_EQ(left[100], 600);
-    recipe.stages[0].params[0] = 4; chain.setParameters(recipe);
+    definition.stages[0].params[0] = 4; chain.setParameters(definition);
     ASSERT_EQ(chain.process(left, right, 128), 128);
     EXPECT_EQ(left[0], 128 * 8);
     EXPECT_EQ(NativeLivePlugin<0>::state->gain, 2);
@@ -444,14 +444,14 @@ struct SpecialLiveLoader : NativeLiveLoader
 }
 TEST(SampleFxRealtime, PrependedAudioUsesPreparedPreviewAndInvalidPluginOutputStops)
 {
-    samplefx::RealtimeChain chain; samplefx::Recipe recipe;
-    recipe.source = liveNode(samplefx::kPlugin, {1}); recipe.source.flags = PTFX_FLAG_GENERATOR;
+    samplefx::RealtimeChain chain; samplefx::ChainDefinition definition;
+    definition.source = liveNode(samplefx::kPlugin, {1}); definition.source.flags = PTFX_FLAG_GENERATOR;
     uint8_t arena[1024]; samplefx::Audio empty;
     SpecialLiveLoader prepend; prepend.prepend = true;
-    EXPECT_FALSE(chain.prepare(recipe, empty, arena, sizeof(arena), prepend, 100000));
+    EXPECT_FALSE(chain.prepare(definition, empty, arena, sizeof(arena), prepend, 100000));
     EXPECT_NE(std::string(chain.error()).find("inserts audio"), std::string::npos);
     SpecialLiveLoader invalid;
-    ASSERT_TRUE(chain.prepare(recipe, empty, arena, sizeof(arena), invalid, 100000));
+    ASSERT_TRUE(chain.prepare(definition, empty, arena, sizeof(arena), invalid, 100000));
     int16_t left[128], right[128];
     EXPECT_EQ(chain.process(left, right, 128), 0);
     EXPECT_TRUE(chain.hasFailed());
@@ -465,11 +465,11 @@ TEST(SampleFxRealtime, PreviewAudioStreamRoutesStereoAndStopsWithoutLeakingBlock
     static SampleFxPreview preview;
     static ce::test::BlockSink leftSink, rightSink;
     AudioConnection left(&preview, 0, &leftSink, 0), right(&preview, 1, &rightSink, 0);
-    samplefx::Recipe recipe; recipe.add(liveNode(editorEffectAmplifier, {2}));
+    samplefx::ChainDefinition definition; definition.add(liveNode(editorEffectAmplifier, {2}));
     std::vector<int16_t> input(131, 3000); std::vector<uint8_t> arena(8192);
     samplefx::Audio source{{input.data(), input.data()}, uint32_t(input.size()), 1};
     NoLivePlugins loader; samplefx::RealtimeChain chain;
-    ASSERT_TRUE(chain.prepare(recipe, source, arena.data(), arena.size(), loader, 1000));
+    ASSERT_TRUE(chain.prepare(definition, source, arena.data(), arena.size(), loader, 1000));
     const auto blocksBefore = AudioStream::memory_used;
     preview.start(&chain);
     preview.update(); leftSink.update(); rightSink.update();
@@ -480,7 +480,188 @@ TEST(SampleFxRealtime, PreviewAudioStreamRoutesStereoAndStopsWithoutLeakingBlock
     EXPECT_FALSE(preview.isPlaying());
     EXPECT_EQ(leftSink.samples[2], 6000); EXPECT_EQ(leftSink.samples[3], 0);
     EXPECT_EQ(AudioStream::memory_used, blocksBefore);
-    ASSERT_TRUE(chain.prepare(recipe, source, arena.data(), arena.size(), loader, 1000));
+    ASSERT_TRUE(chain.prepare(definition, source, arena.data(), arena.size(), loader, 1000));
     preview.start(&chain); preview.stop(); preview.update(); leftSink.update();
     EXPECT_FALSE(leftSink.received);
 }
+
+TEST(SampleFxRealtime, MixBlendsTheWholeChainWithOriginalAudioAndPreservesTails)
+{
+    std::vector<int16_t> input(131);
+    for (unsigned i = 0; i < input.size(); ++i) input[i] = int(i) * 11 - 700;
+    samplefx::ChainDefinition definition;
+    definition.add(liveNode(editorEffectAmplifier, {2}));
+    definition.add(liveNode(editorEffectAmplifier, {2}));
+    for (unsigned percent : {0u, 50u, 100u})
+    {
+        definition.mix = percent;
+        auto output = liveOutput(definition, input);
+        ASSERT_EQ(output.size(), input.size());
+        for (unsigned i = 0; i < input.size(); ++i)
+            EXPECT_NEAR(output[i], input[i] * (1 + 3 * percent / 100.0), .5);
+    }
+    input.assign(131, 0); input[0] = 10000;
+    definition = {};
+    definition.add(liveNode(editorEffectDelay, {.5f, 1}));
+    auto wet = liveOutput(definition, input);
+    definition.mix = 50;
+    auto blend = liveOutput(definition, input);
+    ASSERT_EQ(blend.size(), wet.size());
+    for (unsigned i = 0; i < wet.size(); ++i)
+        EXPECT_EQ(blend[i], std::lround((wet[i] + (i < input.size() ? input[i] : 0)) * .5));
+    definition.mix = 0;
+    auto dry = liveOutput(definition, input);
+    ASSERT_EQ(dry.size(), wet.size());
+    for (unsigned i = 0; i < dry.size(); ++i) EXPECT_EQ(dry[i], i < input.size() ? input[i] : 0);
+}
+
+TEST(SampleFxRealtime, MixChangesRampWithoutRestartingTheChain)
+{
+    samplefx::ChainDefinition definition; definition.add(liveNode(editorEffectAmplifier, {2}));
+    std::vector<int16_t> input(1000, 1000); std::vector<uint8_t> arena(4096);
+    samplefx::Audio source{{input.data(), nullptr}, unsigned(input.size()), 1};
+    NoLivePlugins loader; samplefx::RealtimeChain chain;
+    ASSERT_TRUE(chain.prepare(definition, source, arena.data(), arena.size(), loader, 2000));
+    int16_t left[128], right[128];
+    ASSERT_EQ(chain.process(left, right, 128), 128);
+    EXPECT_EQ(left[0], 2000);
+    definition.mix = 0; chain.setParameters(definition);
+    int previous = 2000;
+    for (unsigned block = 0; block < 4; ++block)
+    {
+        ASSERT_EQ(chain.process(left, right, 128), 128);
+        for (int value : left) { EXPECT_LE(value, previous); EXPECT_GE(value, 1000); previous = value; }
+    }
+    EXPECT_EQ(previous, 1000);
+    EXPECT_EQ(chain.played(), 640);
+    definition.mix = 100; chain.setParameters(definition);
+    ASSERT_EQ(chain.process(left, right, 128), 128);
+    EXPECT_GT(left[127], 1000);
+    EXPECT_LT(left[127], 2000);
+    EXPECT_EQ(chain.played(), 768);
+}
+
+TEST(SampleFxRealtime, MixCompensatesPaletteResamplingLatency)
+{
+    std::vector<int16_t> input(1025); input[37] = 10000;
+    samplefx::ChainDefinition definition;
+    auto stage = samplefx::palette::defaults(32);
+    stage.quality = samplefx::palette::Economy; stage.params[1] = 0;
+    definition.add(stage); definition.add(stage);
+    const unsigned latency = 2 * samplefx::palette::latencyFrames(stage);
+    ASSERT_GT(latency, 0);
+    for (unsigned percent : {0u, 50u, 100u})
+    {
+        definition.mix = percent;
+        auto output = liveOutput(definition, input);
+        ASSERT_EQ(output.size(), input.size() + latency);
+        for (unsigned i = 0; i < output.size(); ++i)
+            EXPECT_EQ(output[i], i >= latency && i - latency < input.size() ? input[i - latency] : 0);
+    }
+}
+
+TEST(SampleFxRealtime, GeneratorDryIsItsOutputBeforeFollowingEffects)
+{
+    for (unsigned percent : {0u, 50u, 100u})
+    {
+        NativeLiveLoader loader; samplefx::RealtimeChain chain; samplefx::ChainDefinition definition;
+        definition.source = liveNode(samplefx::kPlugin, {2}); definition.source.flags = PTFX_FLAG_GENERATOR;
+        definition.generatorFrames = 301; definition.mix = percent;
+        definition.add(liveNode(samplefx::kPlugin, {3}));
+        uint8_t arena[2048]; samplefx::Audio empty;
+        ASSERT_TRUE(chain.prepare(definition, empty, arena, sizeof(arena), loader, 1000)) << chain.error();
+        int16_t left[128], right[128]; unsigned at = 0;
+        while (!chain.finished())
+        {
+            const unsigned count = chain.process(left, right, 128); ASSERT_GT(count, 0);
+            for (unsigned i = 0; i < count; ++i)
+                EXPECT_EQ(left[i], std::lround((at + i) * (2 + 4 * percent / 100.0)));
+            at += count;
+        }
+        EXPECT_EQ(at, 301);
+    }
+}
+
+#ifdef PLATFORM_IMX
+TEST(SampleFxRealtime, StereoMixKeepsChannelsIndependent)
+{
+    std::vector<int16_t> left(131, 2000), right(131, -1000); std::vector<uint8_t> arena(4096);
+    NoLivePlugins loader; samplefx::RealtimeChain chain; samplefx::ChainDefinition definition;
+    definition.add(liveNode(editorEffectAmplifier, {2})); definition.mix = 50;
+    samplefx::Audio source{{left.data(), right.data()}, 131, 2};
+    ASSERT_TRUE(chain.prepare(definition, source, arena.data(), arena.size(), loader, 1000));
+    int16_t outLeft[128], outRight[128];
+    while (!chain.finished())
+    {
+        unsigned count = chain.process(outLeft, outRight, 128); ASSERT_GT(count, 0);
+        for (unsigned i = 0; i < count; ++i) { EXPECT_EQ(outLeft[i], 3000); EXPECT_EQ(outRight[i], -1500); }
+    }
+}
+#endif
+
+TEST(SampleFxRealtime, GeneratedDryRemainsAlignedAcrossBlocksAndTail)
+{
+    NativeLiveLoader loader; samplefx::RealtimeChain chain; samplefx::ChainDefinition definition;
+    definition.source = liveNode(samplefx::kPlugin, {2}); definition.source.flags = PTFX_FLAG_GENERATOR;
+    definition.generatorFrames = 301; definition.mix = 50;
+    auto neutral = samplefx::palette::defaults(32); neutral.params[1] = 0; neutral.quality = 1;
+    definition.add(neutral);
+    const unsigned latency = samplefx::palette::latencyFrames(neutral);
+    std::vector<uint8_t> arena(32768); samplefx::Audio empty;
+    ASSERT_TRUE(chain.prepare(definition, empty, arena.data(), arena.size(), loader, 1000)) << chain.error();
+    int16_t left[128], right[128]; unsigned at = 0;
+    while (!chain.finished())
+    {
+        const unsigned count = chain.process(left, right, 128); ASSERT_GT(count, 0);
+        for (unsigned i = 0; i < count; ++i)
+            EXPECT_EQ(left[i], at + i >= latency ? 2 * (at + i - latency) : 0);
+        at += count;
+    }
+    EXPECT_EQ(at, 301 + latency);
+}
+
+TEST(SampleFxRealtime, MixRampsStayBoundedAcrossRapidChangesAndFullScaleSamples)
+{
+    samplefx::ChainMix mixer; mixer.reset(100);
+    for (unsigned target : {0u, 80u, 10u, 100u, 0u})
+    {
+        mixer.set(target);
+        for (unsigned i = 0; i < 91; ++i)
+        {
+            const int32_t gain = mixer.advance();
+            ASSERT_GE(gain, 0); ASSERT_LE(gain, 32768);
+            const auto sample = samplefx::ChainMix::blend(-32768, 32767, gain);
+            EXPECT_GE(sample, -32768); EXPECT_LE(sample, 32767);
+        }
+    }
+    for (unsigned i = 0; i < 441; ++i) mixer.advance();
+    EXPECT_EQ(samplefx::ChainMix::blend(-32768, 32767, mixer.advance()), -32768);
+    mixer.reset(100);
+    EXPECT_EQ(samplefx::ChainMix::blend(32767, -32768, mixer.advance()), -32768);
+}
+
+#ifdef PLATFORM_IMX
+TEST(SampleFxRealtime, MonoOutputMixDownmixesTheOriginalStereoDrySource)
+{
+    for (unsigned percent : {0u, 50u, 100u})
+    {
+        std::vector<int16_t> left(131, 2000), right(131, -1000); std::vector<uint8_t> arena(4096);
+        NativeLiveLoader loader; samplefx::RealtimeChain chain; samplefx::ChainDefinition definition;
+        auto node = liveNode(samplefx::kPlugin, {2});
+        node.flags = PTFX_FLAG_STEREO | PTFX_FLAG_CONVERT_TO_MONO;
+        definition.add(node); definition.mix = percent;
+        samplefx::Audio source{{left.data(), right.data()}, 131, 2};
+        ASSERT_TRUE(chain.prepare(definition, source, arena.data(), arena.size(), loader, 1000));
+        int16_t outLeft[128], outRight[128];
+        while (!chain.finished())
+        {
+            unsigned count = chain.process(outLeft, outRight, 128); ASSERT_GT(count, 0);
+            for (unsigned i = 0; i < count; ++i)
+            {
+                EXPECT_EQ(outLeft[i], 500 + 35 * percent);
+                EXPECT_EQ(outRight[i], outLeft[i]);
+            }
+        }
+    }
+}
+#endif

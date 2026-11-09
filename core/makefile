@@ -100,3 +100,5 @@ clean:
 -include $(DEPS)
 
 .PHONY: build
+
+INCLUDES+=-I./effector/palette/vendor/clouds

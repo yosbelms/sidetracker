@@ -214,7 +214,7 @@ void cSampleEditor::showMainScreen()
 
     if (editorInstrument->isActive)
     {
-        if (!currentEffect->undoParams.isEnable)
+        if (!newFileManager.canUndoSampleEdit(mtProject.values.lastUsedInstrument))
         {
             display.setControlColors(label[3], display.getTheme().inactiveLabelsColors);
         }
@@ -441,14 +441,20 @@ void cSampleEditor::showEffectParamsScreen()
 
     // List
     hideEffectList();
-    // Waveform
-    hideSpectrum();
-
-    hideSpectrumPoints();
+    if (visibleParamsCount)
+    {
+        hideSpectrum();
+        hideSpectrumPoints();
+    }
+    else
+    {
+        showSpectrum();
+        showSpectrumPoints();
+    }
 
     hidePlayhead();
-    // frame
-    showFrame();
+    if (visibleParamsCount) showFrame();
+    else display.setControlHide(frame);
 
     // title label
     showTitleBar(paramsScreenLabel);
@@ -460,7 +466,8 @@ void cSampleEditor::showEffectParamsScreen()
     // empty space cover
     display.setControlSize(blankSpaceCover, (800 / 8) * (8 - visibleParamsCount) - 2, -1);
     display.setControlPosition(blankSpaceCover, (800 / 8) * visibleParamsCount + 1, -1);
-    display.setControlShow(blankSpaceCover);
+    if (visibleParamsCount) display.setControlShow(blankSpaceCover);
+    else display.setControlHide(blankSpaceCover);
     display.refreshControl(blankSpaceCover);
 
     // background label

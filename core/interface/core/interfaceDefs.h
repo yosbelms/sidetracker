@@ -172,8 +172,8 @@ enum mtInterfaceButtonsFunctions
 
     interfaceButtonGame = interfaceButton43,
 
-    interfaceButtonFx1 = interfaceButton21,
-    interfaceButtonFx2 = interfaceButton20,
+    interfaceButtonFx1 = interfaceButtonVol,
+    interfaceButtonFx2 = interfaceButtonFx,
 
     interfaceButtonMiniMiddle = interfaceButton33,  // srokdowy
     interfaceButtonMiniMenu = interfaceButton34,    // menu

@@ -41,10 +41,11 @@ void* RealtimeArena::allocate(size_t bytes)
 }
 RealtimeBuiltin::RealtimeBuiltin() = default;
 RealtimeBuiltin::~RealtimeBuiltin() = default;
-void RealtimeBuiltin::reset() { fx.reset(); }
+void RealtimeBuiltin::reset() { fx.reset(); native.reset(); }
 
 bool RealtimeBuiltin::supports(uint8_t id)
 {
+    if(palette::contains(id)) return true;
     switch (id)
     {
         case editorEffectAmplifier: case editorEffectOverdrive: case editorEffectDelay:
@@ -55,12 +56,15 @@ bool RealtimeBuiltin::supports(uint8_t id)
     }
 }
 
-bool RealtimeBuiltin::prepare(const Node& node, uint32_t frames, uint8_t ch, RealtimeArena& arena)
+bool RealtimeBuiltin::prepare(const Node& node, uint32_t frames, uint8_t ch, RealtimeArena& arena, unsigned stage, float tempo)
 {
     fx.reset();
+    native.reset(); nativeParametersValid=true;
     settings = node;
     channels = ch; inputFrames = frames; position = 0; heldFrames = 0;
     history[0] = history[1] = nullptr;
+    if(palette::contains(node.effect))
+        return native.prepare(node,ch,frames,{&arena,[](void* a,size_t n){return static_cast<RealtimeArena*>(a)->allocate(n);}},stage,tempo);
     switch (node.effect)
     {
         case editorEffectAmplifier: fx.reset(new mtEffectAmplifier{}); break;
@@ -107,9 +111,10 @@ bool RealtimeBuiltin::prepare(const Node& node, uint32_t frames, uint8_t ch, Rea
     return true;
 }
 
-void RealtimeBuiltin::parameters(const Node& node)
+void RealtimeBuiltin::parameters(const Node& node, float tempo)
 {
     settings = node;
+    if(palette::contains(node.effect)) { nativeParametersValid=native.parameters(node,tempo); return; }
     if (node.effect == editorEffectDelay)
     {
         delayFrames = std::max<uint32_t>(1u, uint32_t(uint16_t(node.params[1]) * 44.1f));
@@ -168,10 +173,11 @@ void RealtimeBuiltin::parameters(const Node& node)
     }
 }
 
-uint32_t RealtimeBuiltin::tail() const { return settings.effect == editorEffectDelay ? echoes * delayFrames : 0; }
+uint32_t RealtimeBuiltin::tail() const { return palette::contains(settings.effect) ? native.tail() : settings.effect == editorEffectDelay ? echoes * delayFrames : 0; }
 
 bool RealtimeBuiltin::process(int16_t* const* input, int16_t* const* output, unsigned frames)
 {
+    if(palette::contains(settings.effect)) return nativeParametersValid && native.process(input,output,frames);
     if (settings.effect == editorEffectDelay)
     {
         // Parameter edits cannot grow the allocation while audio is running.
@@ -232,25 +238,35 @@ bool RealtimeBuiltin::process(int16_t* const* input, int16_t* const* output, uns
     }
 }
 
-bool RealtimeChain::prepare(const Recipe& recipe, const Audio& audio, void* memory, size_t bytes,
-                            RealtimePluginLoader& loader, uint32_t maxFrames)
+bool RealtimeChain::prepare(const ChainDefinition& definition, const Audio& audio, void* memory, size_t bytes,
+                            RealtimePluginLoader& loader, uint32_t maxFrames, float tempo)
 {
     release();
+    this->tempo=tempo; slowBlocks=lastBlockUs=0;
+    nativeUsed=false;
     failed = false; message = ""; position = 0; capacity = maxFrames; source = audio;
-    if (!memory || !bytes || !capacity || recipe.count > kMaxStages || audio.channels < 1 || audio.channels > mtEffect::kChannels)
+    if (!memory || !bytes || !capacity || definition.count > kMaxStages || definition.mix > 100 || audio.channels < 1 || audio.channels > mtEffect::kChannels)
         return fail("Invalid live preview source");
-    if (recipe.source.effect == kSample && (!audio.frames || !audio.channel[0] || (audio.channels == 2 && !audio.channel[1])))
+    if (definition.source.effect == kSample && (!audio.frames || !audio.channel[0] || (audio.channels == 2 && !audio.channel[1])))
         return fail("Choose a sample or generator");
     RealtimeArena arena; arena.reset(memory, bytes);
     liveApi = *loader.hostApi(); liveApi.set_extra_samples = extraSamples;
-    pending = recipe;
-    count = recipe.count + 1;
-    uint32_t frames = recipe.source.effect == kSample ? source.frames : recipe.generatorFrames;
+    pending = definition;
+    mix.reset(definition.mix);
+    dryLatency = 0;
+    dryHistoryFrames = 0;
+    dryHistory[0] = dryHistory[1] = nullptr;
+    for (unsigned i = 0; i < definition.count; ++i)
+        if (!definition.stages[i].bypass && palette::contains(definition.stages[i].effect))
+            dryLatency += palette::latencyFrames(definition.stages[i]);
+    count = definition.count + 1;
+    uint32_t frames = definition.source.effect == kSample ? source.frames : definition.generatorFrames;
     uint8_t channels = source.channels;
     for (unsigned i = 0; i < count; ++i)
     {
         auto& stage = stages[i];
-        stage.node = i ? recipe.stages[i - 1] : recipe.source;
+        stage.node = i ? definition.stages[i - 1] : definition.source;
+        nativeUsed |= palette::contains(stage.node.effect) && !stage.node.bypass;
         stage.plugin = {};
         stage.inputFrames = frames;
         stage.channels = stage.outputChannels = channels;
@@ -284,7 +300,7 @@ bool RealtimeChain::prepare(const Recipe& recipe, const Audio& audio, void* memo
             if (plugin.prepend) return fail("Prepared preview: plugin inserts audio before source");
             stage.outputChannels = (stage.node.flags & PTFX_FLAG_CONVERT_TO_MONO) ? 1 : channels;
         }
-        else if (!stage.builtin.prepare(stage.node, frames, channels, arena))
+        else if (!stage.builtin.prepare(stage.node, frames, channels, arena, i, tempo))
             return fail(stage.node.effect == editorEffectNormalizer ? "Prepared preview: normalization needs analysis" :
                         "Prepared preview: effect or live memory limit");
         const uint64_t end = uint64_t(frames) + (stage.node.effect == kPlugin ? (i ? stage.plugin.append : 0) : stage.builtin.tail());
@@ -293,6 +309,16 @@ bool RealtimeChain::prepare(const Recipe& recipe, const Audio& audio, void* memo
         channels = stage.outputChannels;
     }
     totalFrames = frames; outputChannels = channels;
+    dryChannels = definition.source.effect == kSample ? source.channels : stages[0].outputChannels;
+    if (definition.source.effect != kSample)
+    {
+        dryHistoryFrames = dryLatency + kBlock + 1;
+        for (unsigned c = 0; c < dryChannels; ++c)
+        {
+            dryHistory[c] = static_cast<int16_t*>(arena.allocate(dryHistoryFrames * sizeof(int16_t)));
+            if (!dryHistory[c]) return fail("Generator dry history exceeds memory");
+        }
+    }
     parametersDirty = false;
     return true;
 }
@@ -317,6 +343,8 @@ bool RealtimeChain::applyParameters()
 {
     if (!parametersDirty) return true;
     parametersDirty = false;
+    if (pending.mix > 100) return fail("Invalid chain mix");
+    mix.set(pending.mix);
     for (unsigned i = 0; i < count; ++i)
     {
         auto& s = stages[i]; const auto& n = i ? pending.stages[i - 1] : pending.source;
@@ -328,7 +356,7 @@ bool RealtimeChain::applyParameters()
                 if (s.node.params[p] != n.params[p]) s.plugin.parameter(p, n.params[p]);
             activePlugin = nullptr;
         }
-        else s.builtin.parameters(n);
+        else s.builtin.parameters(n,tempo);
         s.node = n;
     }
     return updateLengths();
@@ -373,9 +401,33 @@ unsigned RealtimeChain::process(int16_t* left, int16_t* right, unsigned requeste
             else if (!s.builtin.process(in, out, count)) { fail("Live effect changed; restart preview"); return 0; }
         }
         current = next;
+        if (!i && dryHistoryFrames)
+            for (unsigned c = 0; c < dryChannels; ++c)
+                for (unsigned frame = 0; frame < frames; ++frame)
+                    dryHistory[c][(position + frame) % dryHistoryFrames] = work[current][c][frame];
     }
-    memcpy(left, work[current][0], frames * 2);
-    memcpy(right, work[current][outputChannels == 2 ? 1 : 0], frames * 2);
+    if (mix.fullyWet())
+    {
+        memcpy(left, work[current][0], frames * 2);
+        memcpy(right, work[current][outputChannels == 2 ? 1 : 0], frames * 2);
+    }
+    else for (unsigned frame = 0; frame < frames; ++frame)
+    {
+        const unsigned at = position + frame;
+        int16_t dry[2] = {};
+        if (at >= dryLatency)
+        {
+            const unsigned read = at - dryLatency;
+            if (pending.source.effect == kSample && read < source.frames)
+                for (unsigned c = 0; c < dryChannels; ++c) dry[c] = source.channel[c][read];
+            else if (dryHistoryFrames && read < stages[0].outputFrames)
+                for (unsigned c = 0; c < dryChannels; ++c) dry[c] = dryHistory[c][read % dryHistoryFrames];
+        }
+        if (outputChannels == 1 && dryChannels == 2) dry[0] = int16_t((int32_t(dry[0]) + dry[1]) / 2);
+        const int32_t gain = mix.advance();
+        left[frame] = ChainMix::blend(dry[0], work[current][0][frame], gain);
+        right[frame] = outputChannels == 1 ? left[frame] : ChainMix::blend(dry[dryChannels == 2 ? 1 : 0], work[current][1][frame], gain);
+    }
     position += frames;
     return frames;
 }
