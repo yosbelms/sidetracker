@@ -1341,8 +1341,9 @@ void ChainScreen::preview(Output action)
     stopAudio();
     const bool render = action != Audition;
     bool native=false; for(unsigned i=0;i<definition.count;++i) native |= palette::contains(definition.stages[i].effect);
-    if(native && (!definition.qualityResolved || !render) && !palette::resolve(definition,chainChannels(),kCapacity*2-65536,render?~0u:1000))
-    { error("Realtime budget exceeded; Apply or Render"); return; }
+    if(native && (!definition.qualityResolved || !render) &&
+       !palette::resolve(definition, chainChannels(), kCapacity*2-65536, render ? ~0u : RealtimeChain::kChainBudgetUs))
+    { error(render ? "FX memory limit" : "FX estimate too high. Apply"); return; }
 #ifdef TRACKER_DESKTOP
     bool armPlugin = definition.source.effect == kPlugin;
     for (unsigned i = 0; i < definition.count; ++i)
@@ -1623,7 +1624,8 @@ void ChainScreen::update()
         if(engine.getSampleFxPreview()->isPlaying()) return;
         bool resume=resumeLive; stopAudio(); resumeLive=resume;
     }
-    if(open && livePlaying && live && live->needsDowngrade()) {
+    const auto budget = open && livePlaying && live ? live->budgetOverrun() : RealtimeChain::BudgetOverrun{};
+    if(budget) {
         unsigned best=kMaxStages,saving=0;
         for(unsigned i=0;i<definition.count;++i) {
             Node& n=definition.stages[i]; if(!palette::contains(n.effect)||n.bypass||n.quality==palette::Minimum)continue;
@@ -1631,7 +1633,16 @@ void ChainScreen::update()
             unsigned gain=palette::estimatedUs(n,chainChannels())-palette::estimatedUs(lower,chainChannels());
             if(gain>saving){saving=gain;best=i;}
         }
-        if(best==kMaxStages) { stopAudio(); snprintf(notice,sizeof(notice),"Realtime budget exceeded; Apply or Render"); show(page); return; }
+        if(best==kMaxStages)
+        {
+            stopAudio();
+            if (budget.chainUs > RealtimeChain::kChainBudgetUs)
+                snprintf(notice, sizeof(notice), "FX %u/%u us. Apply", budget.chainUs, RealtimeChain::kChainBudgetUs);
+            else
+                snprintf(notice, sizeof(notice), "Audio %u FX %u. Apply", budget.callbackUs, budget.chainUs);
+            show(page);
+            return;
+        }
         changed(); palette::lowerQuality(definition.stages[best]); definition.qualityResolved=true; return;
     }
     if (open && autoPreview && work == Idle)

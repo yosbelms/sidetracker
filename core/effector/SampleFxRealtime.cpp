@@ -242,7 +242,9 @@ bool RealtimeChain::prepare(const ChainDefinition& definition, const Audio& audi
                             RealtimePluginLoader& loader, uint32_t maxFrames, float tempo)
 {
     release();
-    this->tempo=tempo; slowBlocks=lastBlockUs=0;
+    this->tempo=tempo;
+    slowBlocks = 0;
+    overrun.store(0, std::memory_order_relaxed);
     nativeUsed=false;
     failed = false; message = ""; position = 0; capacity = maxFrames; source = audio;
     if (!memory || !bytes || !capacity || definition.count > kMaxStages || definition.mix > 100 || audio.channels < 1 || audio.channels > mtEffect::kChannels)
@@ -337,6 +339,29 @@ bool RealtimeChain::updateLengths()
     }
     totalFrames = frames;
     return true;
+}
+
+void RealtimeChain::reportDuration(unsigned chainUs, unsigned callbackUs)
+{
+    if (chainUs <= kChainBudgetUs && callbackUs <= kCallbackBudgetUs)
+    {
+        if (slowBlocks == 2) overrun.store(0, std::memory_order_relaxed);
+        slowBlocks = 0;
+        return;
+    }
+
+    if (slowBlocks < 2) ++slowBlocks;
+    if (slowBlocks == 2)
+    {
+        const uint32_t measured = std::min(chainUs, 0xffffu) | (std::min(callbackUs, 0xffffu) << 16);
+        overrun.store(measured, std::memory_order_relaxed);
+    }
+}
+
+RealtimeChain::BudgetOverrun RealtimeChain::budgetOverrun() const
+{
+    const uint32_t measured = overrun.load(std::memory_order_relaxed);
+    return {measured & 0xffffu, measured >> 16};
 }
 
 bool RealtimeChain::applyParameters()

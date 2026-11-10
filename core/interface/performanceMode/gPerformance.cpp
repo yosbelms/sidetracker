@@ -4,6 +4,14 @@
 #include "mtPadsBacklight.h"
 #include "performanceMode.h"
 
+namespace
+{
+constexpr unsigned kFirstFxCenter = 42;
+constexpr unsigned kFxColumnPitch = 65;
+constexpr unsigned kFxGridTop = 34;
+constexpr unsigned kFxGridHeight = 389;
+}
+
 static char* getPerfTrackName(uint8_t track)
 {
     if (isSampleTrack(track))
@@ -62,7 +70,7 @@ void cPerformanceMode::initDisplayControls()
         prop.data = nullptr;
         prop.style = controlStyleCenterX | controlStyleCenterY | controlStyleFont2 |
                      controlStyleVerticalText;
-        prop.x = 42 + 65 * i;
+        prop.x = kFirstFxCenter + kFxColumnPitch * i;
         prop.y = 244;
         prop.colors = display.getTheme().perfFxNameTextLabelColors;
         textLabel[i] = display.createControl<cLabel>(&prop);
@@ -76,13 +84,25 @@ void cPerformanceMode::initDisplayControls()
 
         prop.style = (controlStyleCenterX | controlStyleFont2 | controlStyleBackground |
                       (display.getTheme().bottomScreenShadow > 0 ? controlStyleBottomShadow : 0));
-        prop.x = 42 + 65 * i;
-        prop.y = 34;
+        prop.y = kFxGridTop;
         prop.colors = display.getTheme().perfValueNormalMLabelColors;
         prop.w = 62;
-        prop.h = 174 + 210 + 5;
+        prop.h = kFxGridHeight;
         prop.data = &values[i];
         valueLabel[i] = display.createControl<cMultiLabel>(&prop);
+    }
+
+    groupDividerData.line = {0, 0, 0, kFxGridHeight, display.getTheme().inactiveLabelsColors[3]};
+    strControlProperties dividerProps;
+    dividerProps.style = controlStyleSpecialFx;
+    dividerProps.y = kFxGridTop;
+    dividerProps.data = &groupDividerData;
+    unsigned boundary = kFxColumnsPerGroup;
+    for (auto& divider : groupDividers)
+    {
+        dividerProps.x = kFirstFxCenter + kFxColumnPitch * boundary - kFxColumnPitch / 2;
+        divider = display.createControl<cLabel>(&dividerProps);
+        boundary += kFxColumnsPerGroup;
     }
 }
 
@@ -101,6 +121,11 @@ void cPerformanceMode::showPerformanceFxes()
         display.refreshControl(textLabel[i]);
         showColumn(i, rack.soundingLevel(i));
     }
+    for (auto divider : groupDividers)
+    {
+        display.setControlShow(divider);
+        display.refreshControl(divider);
+    }
     display.synchronizeRefresh();
 }
 
@@ -112,8 +137,8 @@ void cPerformanceMode::showTracks()
         const bool muted = isPerfTrackMuted(track);
         display.setControlText(label[i], getPerfTrackName(track));
         display.setControlText2(label[i], muted ? "Unmute" : "Mute");
-        display.setControlColors(label[i], muted ? display.getTheme().performMutedTrackLabelsColors
-                                                : display.getTheme().performActiveTrackLabelsColors);
+        display.setControlColors(label[i], muted ? display.getTheme().inactiveLabelsColors
+                                                : display.getTheme().activeLabelsColors);
         display.setControlStyle2(label[i], controlStyleCenterX | controlStyleCenterY | controlStyleFont2);
         display.setControlShow(label[i]);
         display.refreshControl(label[i]);
@@ -126,9 +151,13 @@ void cPerformanceMode::showColumn(unsigned column, int row)
     values[column].selected = row + 1;
     display.setControlShow(valueLabel[column]);
     display.refreshControl(valueLabel[column]);
+    const bool inMiddleGroup = column / kFxColumnsPerGroup == 1;
     for (unsigned i = 0; i < punch::kLevels; ++i)
-        padsBacklight.setBackLayer(static_cast<int>(i) == row, mtConfig.values.padsLightBack,
-                                  column + punch::kColumns * i);
+    {
+        uint8_t brightness = inMiddleGroup ? mtConfig.values.padsLightBackDim : 0;
+        if (static_cast<int>(i) == row) brightness = mtConfig.values.padsLightBack;
+        padsBacklight.setBackLayer(brightness != 0, brightness, column + punch::kColumns * i);
+    }
 }
 
 void cPerformanceMode::hideControlsUnderMiniMenu()
@@ -137,5 +166,10 @@ void cPerformanceMode::hideControlsUnderMiniMenu()
     {
         display.setControlHide(handle);
         display.refreshControl(handle);
+    }
+    for (auto divider : groupDividers)
+    {
+        display.setControlHide(divider);
+        display.refreshControl(divider);
     }
 }

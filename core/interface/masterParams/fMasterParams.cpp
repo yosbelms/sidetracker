@@ -467,10 +467,7 @@ static void functMiniMiddle(uint8_t state)
 
 static void changePerformanceMix(int delta)
 {
-    auto& mix = mtConfig.common.performanceMix;
-    mix = clamp<int>(mix + delta, 0, 100);
-    engine.getAudioOutput()->getPunchFx().setMix(mix);
-    saveConfig();
+    setPerformanceMix(clamp<int>(getPerformanceMix() + delta, 0, 100));
     MP->showPerformanceMix();
 }
 

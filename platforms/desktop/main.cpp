@@ -8,6 +8,7 @@
 #include "fileManager.h"
 #include "sampleEditor/SampleEditorChain.h"
 #include "mtAudioEngine.h"
+#include "mtConfig.h"
 #include "core/interface.h"
 
 #include <algorithm>
@@ -121,9 +122,10 @@ void drawPanel(SoftwareDisplay& driver, DesktopPlatform& platform, bool padMode)
     };
     box({800, 0, panelWidth - 800, panelHeight}, 0x181b20);
     box({0, 480, 800, panelHeight - 480}, 0x181b20);
-    const auto button = [&](SDL_Rect r, uint32_t face, const char* label, const char* hint, bool active)
+    const auto button = [&](SDL_Rect r, uint32_t face, const char* label, const char* hint,
+                            bool active, uint32_t glow = 0)
     {
-        box(r, active ? 0x62847c : face);
+        box(r, (active ? 0x62847c : face) + glow);
         API_COLOR(0xf0f3f6);
         API_CMD_TEXT(r.x + r.w / 2, r.y + r.h / 2 - 9, 5, OPT_CENTERX, label);
         API_COLOR(0xb7c0cc);
@@ -142,8 +144,10 @@ void drawPanel(SoftwareDisplay& driver, DesktopPlatform& platform, bool padMode)
     for (int i = 0; i < padCount; ++i)
     {
         const char label[] = {i < int(sizeof(padKeys)) - 1 ? padKeys[i] : ' ', 0};
-        const uint32_t glow = 0x010101 * (platform.leds.levels[i] / 2);
-        button(padKey(i), 0x343841 + glow, padMode ? label : "", "", platform.pads.isButtonPressed(i));
+        const int level = std::min<int>(platform.leds.levels[i], 31);
+        // Give dim hardware LED levels enough contrast against the on-screen pad face.
+        const uint32_t glow = level > 0 ? 0x010101 * (24 + 3 * level) : 0;
+        button(padKey(i), 0x343841, padMode ? label : "", "", platform.pads.isButtonPressed(i), glow);
     }
     API_COLOR(0x303640);
     API_POINT_SIZE(wheelRadius * 16);
@@ -416,12 +420,14 @@ int run(const Options& options)
                     if (!(fields >> column >> level) || column >= punch::kColumns ||
                         engine.getAudioOutput()->getPunchFx().rack().soundingLevel(column) != level)
                         throw std::runtime_error("Unexpected sounding PunchFX level: " + line);
-                    if (mtInterface.isPerformanceModeScreenActive() && mtConfig.values.padsLightBack)
+                    if (mtInterface.isPerformanceModeScreenActive())
                     {
+                        const bool inMiddleGroup = column >= 4 && column < 8;
                         for (unsigned row = 0; row < punch::kLevels; ++row)
                         {
-                            const bool lit = platform.leds.levels[column + row * punch::kColumns] != 0;
-                            if (lit != (static_cast<int>(row) == level))
+                            int brightness = inMiddleGroup ? mtConfig.values.padsLightBackDim : 0;
+                            if (static_cast<int>(row) == level) brightness = mtConfig.values.padsLightBack;
+                            if (platform.leds.levels[column + row * punch::kColumns] != brightness)
                                 throw std::runtime_error("Unexpected PunchFX pad light: " + line);
                         }
                     }
@@ -437,7 +443,7 @@ int run(const Options& options)
                 else if (command == "assert-perf-mix")
                 {
                     unsigned percent = 0;
-                    if (!(fields >> percent) || mtConfig.common.performanceMix != percent)
+                    if (!(fields >> percent) || getPerformanceMix() != percent)
                         throw std::runtime_error("Unexpected Performance Mix: " + line);
                 }
                 else if (command == "assert-sample")

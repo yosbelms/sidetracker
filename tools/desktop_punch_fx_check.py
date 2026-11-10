@@ -19,22 +19,60 @@ def run(binary, card, commands):
         raise RuntimeError(result.stdout + result.stderr)
 
 
-def make_old_config(path):
-    # The last sized group is common. Version 10 stored two uint8_t values
-    # there, after its uint16_t size. Remove the v11 mix field and padding.
-    data = bytearray(path.read_bytes())
-    total, = struct.unpack_from("<H", data, 8)
+def config_groups(data):
+    groups = []
     offset = 12
-    for _ in range(8):
+    for _ in range(9):
         size, = struct.unpack_from("<H", data, offset)
+        groups.append((offset, size))
         offset += size
-    size, = struct.unpack_from("<H", data, offset)
-    assert size == 6
-    data[7] = 10
-    struct.pack_into("<H", data, 8, total - 2)
-    struct.pack_into("<H", data, offset, 4)
-    del data[offset + 4:offset + 6]
-    path.write_bytes(data)
+    assert offset == len(data)
+    return groups
+
+
+def check_config_round_trip(binary, card):
+    config = card / ".desktop-config"
+    mix_file = card / ".tracker-ce-perf-mix"
+    data = bytearray(config.read_bytes())
+    groups = config_groups(data)
+    firmware, _ = groups[1]
+    values, size = groups[3]
+    general, _ = groups[4]
+    common, common_size = groups[-1]
+    assert data[7] == data[firmware + 6] == 10 and common_size == 4
+    assert mix_file.read_bytes() == b"\x40"
+
+    # Populate the legacy Performance fields as an older firmware would.
+    # The brightness bytes preceding the payload belong to the current UI.
+    struct.pack_into("<8H", data, values + 6, 31, 127, 255, 1, 5, 16, 42, 2)
+    data[values + 22:values + 34] = bytes(reversed(range(1, 13)))
+    struct.pack_into("<48h", data, values + 34, *([0, -90, 127, 200] * 12))
+    data[values + 130:values + 142] = bytes([0, 1, 2, 3] * 3)
+    data[values + 142:values + 150] = bytes([1, 0] * 4)
+    data[general + 7] = 1
+    # Changing the previous firmware patch triggers a normal shared config save.
+    data[firmware + 4] ^= 1
+    config.write_bytes(data)
+    mix_file.unlink()
+    run(binary, card, "assert-perf-mix 100\n")
+    saved = bytearray(config.read_bytes())
+    assert config_groups(saved) == groups
+    assert saved[values + 6:values + size] == data[values + 6:values + size]
+    assert saved[general + 7] == data[general + 7]
+
+    # Reproduce the interim v11 image, then verify migration restores v10 bytes.
+    inline = bytearray(saved)
+    inline[7] = inline[firmware + 6] = 11
+    struct.pack_into("<H", inline, common, 6)
+    inline.extend((37, 0))
+    config.write_bytes(inline)
+    run(binary, card, "assert-perf-mix 37\n")
+    assert config.read_bytes() == saved
+    assert mix_file.read_bytes() == bytes([37])
+
+    # Older firmware can replace the shared config without losing the CE mix.
+    config.write_bytes(saved)
+    run(binary, card, "assert-perf-mix 37\n")
 
 
 def check(binary):
@@ -45,6 +83,13 @@ def check(binary):
 button Perform
 assert-view Perform
 assert-perf-mix 100
+assert-punch 3 -1
+assert-punch 4 -1
+assert-punch 5 -1
+assert-punch 6 -1
+assert-punch 7 -1
+assert-punch 8 -1
+assert-punch 11 -1
 press pad 0
 assert-punch 0 0
 press pad 36
@@ -138,16 +183,28 @@ wait 5100
             ("1x", "1.1x", "1.2x", "1.3x"),
         ]
         for column, expected in enumerate(values):
-            x = str(42 + column * 65)
-            rows = {text for px, y, text in text_draws if px == x and 270 <= int(y) < 423}
-            assert set(expected) <= rows, (column, rows)
+            center = 42 + column * 65
+            draws = [(int(x), int(y), text) for x, y, text in text_draws
+                     if abs(int(x) - center) < 32 and 270 <= int(y) < 423]
+            rows = {text for x, _, text in draws if x == center}
+            for value in expected:
+                if value in rows:
+                    continue
+                whole, point, fraction = value.partition(".")
+                assert point and any(
+                    left == whole + point and right == fraction and ly == ry and lx < rx
+                    for (lx, ly, left), (rx, ry, right) in zip(draws, draws[1:])
+                ), (column, value, rows)
         assert any(x == "350" and text == "Line In" for x, _, text in text_draws)
         assert any(x == "450" and text == "Perf Mix" for x, _, text in text_draws)
         assert any(x == "450" and text == "64%" for x, _, text in text_draws)
         run(binary, card, "assert-perf-mix 64\n")
-        make_old_config(card / ".desktop-config")
-        run(binary, card, "assert-perf-mix 100\n")
-    print("PunchFX grid, pad behavior, mute banks, Master Mix, and configuration migration passed.")
+        check_config_round_trip(binary, card)
+        config_audit = card / "config-frames.tsv"
+        run(binary, card, f"audit-frames {config_audit}\nbutton Config\nwait 100\n")
+        config_frames = config_audit.read_text()
+        assert "Config" in config_frames and "Project Settings" in config_frames
+    print("PunchFX grid, pad behavior, mute banks, Master Mix, Config screen, and configuration migration passed.")
 
 
 if __name__ == "__main__":

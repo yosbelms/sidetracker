@@ -403,13 +403,6 @@ uint8_t cProjectEditor::loadProjectValues()
 
     for (uint8_t i = 0; i < kSampleTracks; i++)
     {
-        // paterny na trakach w performance mode
-        if (mtProject.values.perfTracksPatterns[i] < 1 ||
-            mtProject.values.perfTracksPatterns[i] > 255)
-        {
-            mtProject.values.perfTracksPatterns[i] = 1;
-        }
-
         // globalne mute trackow
         if (mtProject.values.trackMute[i] >= trackMasterModeCount)
             mtProject.values.trackMute[i] = 0;

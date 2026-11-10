@@ -10,6 +10,8 @@ unsigned factor(const Node& n) {
     unsigned a=algorithm(n);
     return a==3 || a==5 || a==8 || a==9 || a==18 || a==19 || a==23 ? 1 : 1u<<processingQuality(n);
 }
+unsigned profileLatency(unsigned factor) { return factor==4?42:factor==2?14:0; }
+unsigned tailLength(const Node& n) { return hasTail(n) ? uint32_t(n.params[Tail]*44100+.5f) : 0; }
 unsigned history(const Node& n, unsigned rate) {
     unsigned a=algorithm(n);
     if(a==23) return 6144;
@@ -21,17 +23,27 @@ unsigned history(const Node& n, unsigned rate) {
     if(a>=12 && a<=15) return rate*2+8;
     return 0;
 }
-// 15-tap half-band FIR: symmetric coefficients and zero-valued alternate taps.
-// Four cascaded paths provide stateful 2:1 or 4:1 conversion and a known delay.
+// Duplicate the ring to keep the 15-tap window contiguous across wrap.
 struct FIR {
-    float z[15]={}; unsigned at=0;
-    float tap(unsigned distance) const { int p=int(at)-int(distance);return z[p<0?p+15:p]; }
-    float push(float x) {
-        z[at]=x;
-        // Fold symmetric pairs and omit the half-band filter's zero taps.
-        float sum=-.00365145f*(tap(0)+tap(14))+.01617925f*(tap(2)+tap(12))
-                 -.06841178f*(tap(4)+tap(10))+.3058840f*(tap(6)+tap(8))+.5f*tap(7);
-        at=at==14?0:at+1; return sum;
+    float z[30]={}; unsigned at=0;
+    const float* push(float x) {
+        float* window = z + at;
+        window[0] = window[15] = x;
+        at = at == 14 ? 0 : at + 1;
+        return window + 1;
+    }
+    static float filter(const float* w) {
+        return -.00365145f*(w[14]+w[0])+.01617925f*(w[12]+w[2])
+             -.06841178f*(w[10]+w[4])+.3058840f*(w[8]+w[6])+.5f*w[7];
+    }
+    float decimate(float x, bool emit) {
+        const float* w = push(x);
+        return emit ? filter(w) : 0.f;
+    }
+    float interpolate(float x, bool zeroPhase) {
+        const float* w = push(zeroPhase ? 0.f : x*2);
+        // The zero-stuffed phase has a contribution only from the center tap.
+        return zeroPhase ? .5f*w[7] : filter(w);
     }
 };
 }
@@ -48,7 +60,7 @@ struct Processor::State {
     float lastGain=1;
     float powerStep=0, gateRelease=0, gateEnvelope=0;
 };
-unsigned latencyFrames(const Node& n) { if(!valid(n))return 0;unsigned d=factor(n);return d==4?42:d==2?14:0; }
+unsigned latencyFrames(const Node& n) { return valid(n) ? profileLatency(factor(n)) : 0; }
 size_t requiredMemory(const Node& n,unsigned channels) {
     if(!valid(n) || channels<1 || channels>2) return 0;
     return sizeof(Processor) + 4096 + history(n,44100/factor(n))*channels*2 +
@@ -95,34 +107,50 @@ bool Processor::parameters(const Node& n,float tempo) {
     state->dsp.sync_rate=beats>0?clampf(tempo,10.f,800.f)/(60*beats):0;
     return true;
 }
-uint32_t Processor::tail() const { return state ? (hasTail(state->node) ? uint32_t(state->node.params[Tail]*44100+.5f) : 0)+latencyFrames(state->node) : 0; }
-bool Processor::process(int16_t* const* input,int16_t* const* output,unsigned frames) {
+uint32_t Processor::tail() const { return state ? tailLength(state->node)+profileLatency(state->factor) : 0; }
+PALETTE_HOT_CODE bool Processor::process(int16_t* const* input,int16_t* const* output,unsigned frames) {
     if(!state || frames>128 || !output || !output[0] || (state->channels==2 && !output[1])) return false;
     State& s=*state;
-    const unsigned latency=s.factor==4?42:s.factor==2?14:0;
+    const unsigned latency=profileLatency(s.factor);
     const unsigned phaseMask=s.factor-1;
-    const unsigned end=s.inputFrames+tail();
-    const bool fadeTail=hasTail(s.node) && s.node.params[Tail]>0;
+    const unsigned tailStart=s.inputFrames+latency;
+    const unsigned tailSamples=tailLength(s.node);
+    const unsigned end=tailStart+tailSamples;
+    const unsigned fadeStart=end-std::min(tailSamples,441u);
+    const bool character=s.node.effect==32 && unsigned(s.node.params[Type])<5;
+    const bool levelMatch=character || (s.node.effect==35 && s.node.params[Type]==1);
     for(unsigned off=0;off<frames;off+=16) {
-        unsigned n=std::min(16u,frames-off), low=0;
-        for(unsigned i=0;i<n;++i) {
-            unsigned at=s.position+off+i;
-            for(unsigned c=0;c<s.channels;++c) {
-                float x=at<s.inputFrames && input && input[c] ? input[c][off+i]*(1.f/32768) : 0;
-                s.delay[c][at&63]=x;
-                if(s.factor>1) x=s.down[c][0].push(x);
-                if(s.factor==4 && !(at&1)) x=s.down[c][1].push(x);
-                if((at&phaseMask)==0) s.lo[c][low]=s.original[c][low]=x;
+        const unsigned n=std::min(16u,frames-off);
+        const unsigned start=s.position+off;
+        const unsigned available=start<s.inputFrames ? std::min(n,s.inputFrames-start) : 0;
+        unsigned low=n;
+        if (!latency) {
+            for (unsigned c=0;c<s.channels;++c) {
+                const unsigned count=input && input[c] ? available : 0;
+                for (unsigned i=0;i<count;++i) s.lo[c][i]=s.original[c][i]=input[c][off+i]*(1.f/32768);
+                for (unsigned i=count;i<n;++i) s.lo[c][i]=s.original[c][i]=0;
             }
-            if((at&phaseMask)==0) ++low;
+        } else {
+            low=0;
+            for(unsigned i=0;i<n;++i) {
+                unsigned at=start+i;
+                const bool firstPhase=!(at&1), emit=!(at&phaseMask);
+                for(unsigned c=0;c<s.channels;++c) {
+                    float x=i<available && input && input[c] ? input[c][off+i]*(1.f/32768) : 0;
+                    s.delay[c][at&63]=x;
+                    x=s.down[c][0].decimate(x,firstPhase);
+                    if(s.factor==4 && firstPhase) x=s.down[c][1].decimate(x,emit);
+                    if(emit) s.lo[c][low]=s.original[c][low]=x;
+                }
+                if(emit) ++low;
+            }
         }
-        if(s.channels==1) { std::memcpy(s.lo[1],s.lo[0],low*4); std::memcpy(s.original[1],s.original[0],low*4); }
+        if(s.channels==1) std::memcpy(s.lo[1],s.lo[0],low*sizeof(float));
         s.amount+=s.smooth*(s.node.params[Amount]*.01f-s.amount);
         s.macro+=s.smooth*(s.node.params[Macro]*.01f-s.macro);
         s.drift+=s.smooth*(s.node.params[Drift]*.01f-s.drift);
         if(low) s.kernel(&s.dsp,s.lo[0],s.lo[1],low,s.amount,s.macro,s.drift);
-        bool character=s.node.effect==32 && unsigned(s.node.params[Type])<5;
-        if(low && (character || (s.node.effect==35 && s.node.params[Type]==1))) {
+        if(low && levelMatch) {
             float dryPower=0,wetPower=0,peak=0;
             for(unsigned c=0;c<s.channels;++c) for(unsigned i=0;i<low;++i) {
                 float x=s.original[c][i],y=s.lo[c][i];
@@ -151,20 +179,25 @@ bool Processor::process(int16_t* const* input,int16_t* const* output,unsigned fr
         }
         unsigned read=0;
         for(unsigned i=0;i<n;++i) {
-            unsigned at=s.position+off+i;
+            unsigned at=start+i;
+            const bool emit=!(at&phaseMask);
             for(unsigned c=0;c<s.channels;++c) {
                 float y=0;
-                if((at&phaseMask)==0) y=s.lo[c][read]-s.original[c][read];
-                if(s.factor==4 && !(at&1)) y=s.up[c][1].push(y*2);
-                if(s.factor>1) y=s.up[c][0].push((at&1)?0:y*2);
-                y+=at>=latency?s.delay[c][(at-latency)&63]:0;
+                if(emit) y=s.lo[c][read]-s.original[c][read];
+                if (!latency) {
+                    y+=s.original[c][i];
+                } else {
+                    if(s.factor==4 && !(at&1)) y=s.up[c][1].interpolate(y,at&2);
+                    y=s.up[c][0].interpolate(y,at&1);
+                    y+=at>=latency?s.delay[c][(at-latency)&63]:0;
+                }
                 if(!std::isfinite(y) || std::fabs(y)>32) return false;
                 // Bounded tail, including regenerative/self-oscillating processors.
-                if(fadeTail && at>=s.inputFrames+latency && end>at && end-at<=441)
+                if(at>=fadeStart && at<end)
                     y*=float(end-at-1)/441;
                 output[c][off+i]=int16_t(clampf(y*32768,-32768.f,32767.f));
             }
-            if((at&phaseMask)==0) ++read;
+            if(emit) ++read;
         }
     }
     s.position+=frames;

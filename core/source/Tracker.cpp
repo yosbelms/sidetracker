@@ -187,7 +187,8 @@ void TrackerImpl::updateAudioBuffers(void* left, void* right, int length)
     {
         midiSetAudioBlockStartUs(platform->getTimer()->micros());
     }
-    Profiler::getInstance()->startMeasuringAudio();
+    auto* profiler = Profiler::getInstance();
+    profiler->startMeasuringAudio();
     midiUpdate();
 
     // Exact hardware I2S sample rate:
@@ -205,7 +206,10 @@ void TrackerImpl::updateAudioBuffers(void* left, void* right, int length)
     engine.update();
 
     engine.updateAudioBuffers(left, right, length);
-    Profiler::getInstance()->stopMeasuringAudio();
+    profiler->stopMeasuringAudio();
+#ifndef TRACKER_DESKTOP
+    engine.getSampleFxPreview()->finishAudioBlock(profiler->lastAudioUpdateUs());
+#endif
 }
 
 void TrackerImpl::updateInputAudioBuffers(void* dataI2s, void* dataUsb, int length)

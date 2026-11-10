@@ -23,16 +23,16 @@ bool ConfigManagerImpl::readData(int address, void* data, int size)
 
     if (isOpen)
     {
-        fileSystem->seekFile(address, file);
-        fileSystem->readFile(data, size, file);
+        const bool read = fileSystem->seekFile(address, file) &&
+                          fileSystem->readFile(data, size, file) == size;
         fileSystem->closeFile(file);
-        return true;
+        return read;
     }
 
     return false;
 }
 
-void ConfigManagerImpl::writeData(int address, void* data, int size)
+bool ConfigManagerImpl::writeConfig(void* data, int size)
 {
     assert(fileSystem);
 
@@ -40,10 +40,9 @@ void ConfigManagerImpl::writeData(int address, void* data, int size)
     auto isOpen = std::get<0>(openFileInfo);
     auto file = std::get<1>(openFileInfo);
 
-    if (isOpen)
-    {
-        fileSystem->seekFile(address, file);
-        fileSystem->writeFile(data, size, file);
-        fileSystem->closeFile(file);
-    }
+    if (!isOpen) return false;
+    const bool written = fileSystem->writeFile(data, size, file) == size;
+    if (written) fileSystem->endFile(file);
+    fileSystem->closeFile(file);
+    return written;
 }

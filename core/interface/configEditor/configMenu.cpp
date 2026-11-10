@@ -19,15 +19,15 @@
 
 #ifdef TRACKER_MINI
 constexpr uint8_t baseMenuGroupCount = 8;
-constexpr uint8_t projectMenuGroupCount = 10;
+constexpr uint8_t projectMenuGroupCount = 9;
 constexpr uint8_t generalMenuGroupCount = 9;
 #elif defined(PLATFORM_IMX)
 constexpr uint8_t baseMenuGroupCount = 7;
-constexpr uint8_t projectMenuGroupCount = 10;
+constexpr uint8_t projectMenuGroupCount = 9;
 constexpr uint8_t generalMenuGroupCount = 12;
 #else
 constexpr uint8_t baseMenuGroupCount = 6;
-constexpr uint8_t projectMenuGroupCount = 10;
+constexpr uint8_t projectMenuGroupCount = 9;
 constexpr uint8_t generalMenuGroupCount = 12;
 #endif
 
@@ -854,7 +854,7 @@ void cMenuGroup::reloadValues()
 {
     for (uint8_t i = 0; i < childsCount; i++)
     {
-        if (childs[i]->type == menuTypeItem)
+        if (childs[i] != nullptr && childs[i]->type == menuTypeItem)
         {
             char* valueText = ((cMenuItem*)childs[i])->getValue();
 

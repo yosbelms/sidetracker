@@ -87,12 +87,42 @@ void cMultiLabel::setData(void* data)
 //--------------------------------------------------------------------------------
 void cMultiLabel::update()
 {
+    const auto drawLine = [this](int16_t y, const char* line)
+    {
+        int16_t x = posX + data->xOffset;
+        const char* point = strchr(line, '.');
+        if (point && point != line && point[-1] >= '0' && point[-1] <= '9' &&
+            point[1] >= '0' && point[1] <= '9')
+        {
+            // Tighten the period's advance in monospaced fonts. Proportional fonts
+            // may already give it a narrower advance.
+            const int trim = font->data['.'] - 2 * font->data[uint8_t(point[1])] / 3;
+            if (trim > 0)
+            {
+                const auto prefixLength = point - line + 1;
+                const int width = getTextWidth(font, line, strlen(line)) - trim;
+                if (textStyle & OPT_CENTERX) x -= width / 2;
+                else if (textStyle & OPT_RIGHTX) x -= width;
+                const uint16_t options = textStyle & ~(OPT_CENTERX | OPT_RIGHTX);
+                API_CMD_TEXT(x, y, font->handle, options, line, prefixLength);
+                x += getTextWidth(font, line, prefixLength) - trim;
+                API_CMD_TEXT(x, y, font->handle, options, point + 1);
+                return;
+            }
+        }
+        API_CMD_TEXT(x, y, font->handle, textStyle, line);
+    };
+
     int16_t border_x = posX; //, border_y = posY-2;
     int16_t border_y = posY;
     int16_t lines_space = font->height;
 
     int16_t text_y = posY + data->yOffset / 2;
     int16_t text_h = height - data->yOffset - data->yForFxTextHole;
+    const uint8_t headerIndex = data->textLinesCount - 1;
+    const char* header = data->text[headerIndex];
+    const bool hasHeader = header && *header;
+    const uint16_t headerHeight = (height - data->yForFxTextHole) / 5;
 
     if (data->textLinesCount > 0 && data->textLinesCount < 6 && height > font->height)
     {
@@ -123,16 +153,16 @@ void cMultiLabel::update()
         else
             API_LINE_WIDTH(16);
 
-        uint16_t ccRectHeight = ((height - data->yForFxTextHole) * 1) / 5;
-        uint16_t ccRectY = border_y;
-
         uint16_t performanceRectHeight = ((height - data->yForFxTextHole) * 4) / 5;
-        uint16_t performanceRectY = border_y + ccRectHeight + data->yForFxTextHole;
+        uint16_t performanceRectY = border_y + headerHeight + data->yForFxTextHole;
 
-        API_BEGIN(RECTS);
-        API_VERTEX2F(border_x, ccRectY);
-        API_VERTEX2F(border_x + width, ccRectY + ccRectHeight);
-        API_END();
+        if (hasHeader)
+        {
+            API_BEGIN(RECTS);
+            API_VERTEX2F(border_x, border_y);
+            API_VERTEX2F(border_x + width, border_y + headerHeight);
+            API_END();
+        }
 
         API_BEGIN(RECTS);
         API_VERTEX2F(border_x, performanceRectY);
@@ -183,21 +213,17 @@ void cMultiLabel::update()
         API_END();
     }
 
-    uint8_t ccIdx = data->textLinesCount - 1;
-
-    if (data->text[ccIdx] != nullptr && *data->text[ccIdx] != 0)
+    if (hasHeader)
     {
-
-        if (data->selected > 0 && data->selected - 1 == ccIdx)
+        if (data->selected > 0 && data->selected - 1 == headerIndex)
             API_COLOR(colors[2]);
         else
             API_COLOR(colors[0]);
 
-        API_CMD_TEXT(posX + data->xOffset, text_y, font->handle, textStyle, data->text[ccIdx]);
+        drawLine(text_y, header);
     }
 
-    uint16_t ccRectHeight = ((height - data->yForFxTextHole) * 1) / 5;
-    text_y = border_y + ccRectHeight + data->yForFxTextHole + data->yOffset / 2;
+    text_y = border_y + headerHeight + data->yForFxTextHole + data->yOffset / 2;
 
     for (uint8_t i = 0; i < (data->textLinesCount - 1); i++)
     {
@@ -209,7 +235,7 @@ void cMultiLabel::update()
             else
                 API_COLOR(colors[0]);
 
-            API_CMD_TEXT(posX + data->xOffset, text_y, font->handle, textStyle, data->text[i]);
+            drawLine(text_y, data->text[i]);
         }
 
         text_y = text_y + (lines_space + font->height);

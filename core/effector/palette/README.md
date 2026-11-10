@@ -52,8 +52,8 @@ profiling choices, not certified MK66 timings. The table will need recalibration
 from physical-device reports.
 
 Automatic admission targets 1 ms per chain with 25% estimate headroom. The device
-watchdog checks consecutive chain blocks against 1 ms and the preceding complete
-audio callback against 70% of the block period. Downgrades fade and rebuild on
+watchdog checks consecutive chain blocks against 1 ms and their complete
+audio callbacks against 70% of the block period. Downgrades fade and rebuild on
 the main loop, never allocate from an interrupt, and do not upgrade during
 playback. If no supported lower profile fits, preview stops and Render remains
 available. These safeguards do not constitute timing certification.

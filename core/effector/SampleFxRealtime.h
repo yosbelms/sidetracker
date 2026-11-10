@@ -4,6 +4,7 @@
 #include "tracker_plugin.h"
 #include "palette/Palette.h"
 #include "SampleFxMix.h"
+#include <atomic>
 #include <memory>
 
 class mtEffect;
@@ -69,6 +70,15 @@ class RealtimeChain
 {
   public:
     static constexpr unsigned kBlock = 128;
+    static constexpr unsigned kChainBudgetUs = 1000;
+    static constexpr unsigned kCallbackBudgetUs = 2031;
+    struct BudgetOverrun
+    {
+        unsigned chainUs;
+        unsigned callbackUs;
+        explicit operator bool() const { return chainUs || callbackUs; }
+    };
+
     bool prepare(const ChainDefinition&, const Audio&, void* memory, size_t bytes,
                  RealtimePluginLoader&, uint32_t capacity, float tempo = 120);
     // Same topology only. Caller publishes settings while audio interrupts are disabled.
@@ -81,9 +91,8 @@ class RealtimeChain
     uint32_t played() const { return position; }
     uint8_t channels() const { return outputChannels; }
     void release();
-    void reportDuration(unsigned us, unsigned totalAudioUs=0) { lastBlockUs=us; if(us>1000 || totalAudioUs>2031) ++slowBlocks; else slowBlocks=0; }
-    bool needsDowngrade() const { return slowBlocks >= 2; }
-    unsigned lastDurationUs() const { return lastBlockUs; }
+    void reportDuration(unsigned chainUs, unsigned callbackUs = 0);
+    BudgetOverrun budgetOverrun() const;
     bool usesNative() const { return nativeUsed; }
     void setTempo(float value) { tempo=value; parametersDirty=true; }
   private:
@@ -105,7 +114,9 @@ class RealtimeChain
     uint32_t position = 0, totalFrames = 0, capacity = 0;
     uint8_t outputChannels = 1;
     bool parametersDirty = false, failed = false;
-    unsigned lastBlockUs=0, slowBlocks=0;
+    unsigned slowBlocks = 0;
+    // Both measurements come from one audio-thread update.
+    std::atomic<uint32_t> overrun{0};
     float tempo=120;
     bool nativeUsed=false;
     const char* message = "";

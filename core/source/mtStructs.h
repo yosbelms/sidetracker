@@ -44,7 +44,7 @@ const uint8_t PROJECT_FILE_VERSION = 17;   // wersja struktury pliku projektu
 const uint8_t INSTRUMENT_FILE_VERSION = 9; // wersja struktury pliku instrumentu
 const uint8_t PATTERN_FILE_VERSION = 6;
 
-const uint8_t CONFIG_STRUCT_VER = 11;
+const uint8_t CONFIG_STRUCT_VER = 10;
 
 static constexpr float DEFAULT_TEMPO = 130.0f;
 static constexpr float kMinExternalBPM = 10.0f;
@@ -1122,7 +1122,7 @@ struct strMtConfig
         uint8_t mtpState;
 
         uint8_t recOptions;
-        uint8_t performanceSource;
+        uint8_t performanceSource; // Preserved for firmware with the legacy Performance menu.
 
         uint8_t numberingMode;
         uint8_t padPreviewInPatternEdit;
@@ -1176,7 +1176,6 @@ struct strMtConfig
         uint8_t equalSliceNumber = 8;
 
         uint8_t usbAudioMode = 0;
-        uint8_t performanceMix = 100;
 
     } common;
 

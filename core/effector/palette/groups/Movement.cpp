@@ -70,7 +70,7 @@ static void fx_vibrato(slot_dsp_t *s, float *l, float *r, int n,
  * a=(g-1)/(g+1), g=tan(π·fc/SR) — so notches sit at musical frequencies (Surge-style)
  * instead of a raw 0–1 coefficient. amount=intensity/stages, macro=rate,
  * drift=sweep randomness. */
-static void fx_phaser(slot_dsp_t *s, float *l, float *r, int n,
+PALETTE_HOT_CODE static void fx_phaser(slot_dsp_t *s, float *l, float *r, int n,
                       float amount, float macro, float drift){
     /* 2..12 stages, CONTINUOUS: all 12 allpasses always run (their state stays live)
      * and the output blends between stage n and n+1. An integer stage count jumped
@@ -114,7 +114,7 @@ static void fx_phaser(slot_dsp_t *s, float *l, float *r, int n,
  * waveshaping. amount=depth, macro=rate. DRIFT = AutoPan: morphs L/R from in-phase
  * (mono tremolo) to anti-phase (the channels duck oppositely → the modulation pans
  * across the stereo field). State: sm1/sm2=chased speed/depth, f4/f5=last targets. */
-static void fx_tremolo(slot_dsp_t *s, float *l, float *r, int n,
+PALETTE_HOT_CODE static void fx_tremolo(slot_dsp_t *s, float *l, float *r, int n,
                        float amount, float macro, float drift){
     float speedChase=macro*macro*macro*macro;          /* A^4 (Airwindows) */
     float depthChase=clampf(amount,0.0f,1.0f);
@@ -147,7 +147,7 @@ static void fx_tremolo(slot_dsp_t *s, float *l, float *r, int n,
 
 /* PITCH — delay-line pitch shifter ±1 oct + lo-fi grit. amount=wet mix,
  * macro=pitch, drift=resolution drop. Dual-tap crossfade window. */
-static void fx_pitch(slot_dsp_t *s, float *l, float *r, int n,
+PALETTE_HOT_CODE static void fx_pitch(slot_dsp_t *s, float *l, float *r, int n,
                      float amount, float macro, float drift){
     float ratio=powf(2.0f,(macro-0.5f)*2.0f);        /* 0.5 .. 2.0 */
     float win=SR*0.040f;                              /* 40 ms window */

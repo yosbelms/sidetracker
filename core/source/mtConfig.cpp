@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stddef.h>
+#include <algorithm>
 
 #include "ConfigManager.h"
 #include "Platform.h"
@@ -22,6 +23,70 @@ void eepromStructureChange();
 extern void checkFuncitonKey(int key);
 
 static ConfigManager* configManager;
+static FileSystem* configFileSystem;
+
+static constexpr char kPerformanceMixPath[] = "/.tracker-ce-perf-mix";
+static constexpr uint8_t kDefaultPerformanceMix = 100;
+static constexpr uint8_t kInlinePerformanceMixVersion = 11;
+static uint8_t performanceMix = kDefaultPerformanceMix;
+static bool performanceMixLoaded = false;
+static bool performanceMixDirty = false;
+static bool legacyMixPending = false;
+
+uint8_t getPerformanceMix()
+{
+    return performanceMix;
+}
+
+void setPerformanceMix(uint8_t mix)
+{
+    if (mix == performanceMix) return;
+    performanceMix = mix;
+    performanceMixDirty = true;
+    engine.getAudioOutput()->getPunchFx().setMix(mix);
+}
+
+static bool readPerformanceMix(uint8_t& mix)
+{
+    auto [opened, file] = configFileSystem->openFile(kPerformanceMixPath);
+    if (!opened) return false;
+    const bool valid = configFileSystem->readFile(&mix, sizeof(mix), file) == sizeof(mix) &&
+                       mix <= kDefaultPerformanceMix;
+    configFileSystem->closeFile(file);
+    return valid;
+}
+
+void loadPerformanceMix()
+{
+    if (performanceMixLoaded || !configFileSystem->isSdCardInserted()) return;
+    performanceMixLoaded = true;
+
+    uint8_t mix;
+    if (readPerformanceMix(mix))
+    {
+        performanceMix = mix;
+        performanceMixDirty = false;
+        legacyMixPending = false;
+    }
+    engine.getAudioOutput()->getPunchFx().setMix(performanceMix);
+}
+
+static void writePerformanceMix()
+{
+    if (!performanceMixDirty || !configFileSystem->isSdCardInserted()) return;
+    auto [opened, file] = configFileSystem->openFile(kPerformanceMixPath, FileSystem::kWriteOpen);
+    if (!opened) return;
+
+    const bool written = configFileSystem->writeFile(&performanceMix, sizeof(performanceMix), file) ==
+                         sizeof(performanceMix);
+    configFileSystem->closeFile(file);
+    if (!written) return;
+
+    uint8_t saved;
+    if (legacyMixPending && (!readPerformanceMix(saved) || saved != performanceMix)) return;
+    performanceMixDirty = false;
+    legacyMixPending = false;
+}
 
 elapsedMillis save_delay;
 
@@ -50,15 +115,16 @@ static uint16_t eepromStructsSizes[]{
 void initConfig(Platform* platform)
 {
     configManager = platform->getConfigManager();
+    configFileSystem = platform->getFileSystem();
 }
 
 void updateConfig(bool force)
 {
-    if (saveFlag && (save_delay > 5000 || force || saveAsapFlag))
+    if ((saveFlag || performanceMixDirty) && (save_delay > 5000 || force || saveAsapFlag))
     {
         saveAsapFlag = 0;
-        saveFlag = 0;
-        forceSaveConfig();
+        if (saveFlag) forceSaveConfig();
+        else writePerformanceMix();
     }
 
     if (save_delay > 5000)
@@ -79,6 +145,14 @@ void saveConfigAsap()
 
 void forceSaveConfig()
 {
+    writePerformanceMix();
+    // Keep the v11 copy until its mix has been saved separately.
+    if (legacyMixPending)
+    {
+        saveFlag = 1;
+        return;
+    }
+
     strcpy(mtConfig.header.id, "EEPROM");
     mtConfig.header.id[6] = 0;
     mtConfig.header.version = CONFIG_STRUCT_VER;
@@ -86,6 +160,7 @@ void forceSaveConfig()
 
     mtConfig.audioCodecConfig.size = sizeof(mtConfig.audioCodecConfig);
     mtConfig.firmware.size = sizeof(mtConfig.firmware);
+    mtConfig.firmware.eepromStructVer = CONFIG_STRUCT_VER;
     mtConfig.midi.size = sizeof(mtConfig.midi);
     mtConfig.values.size = sizeof(mtConfig.values);
     mtConfig.general.size = sizeof(mtConfig.general);
@@ -94,46 +169,9 @@ void forceSaveConfig()
     mtConfig.debug.size = sizeof(mtConfig.debug);
     mtConfig.common.size = sizeof(mtConfig.common);
 
-    //	uint16_t writedSize = 0;
-    //
-    //	for(uint8_t i = 0; writedSize < mtConfig.header.totalSize-1; i++)
-    //	{
-    //
-    //
-    //		// nadanie aktulanej wielkosci podstruktury
-    //		memcpy(eepromStructsPtr[i], &eepromStructsSizes[i], 2);
-    //
-    //		writedSize += eepromStructsSizes[i];
-    //	}
-
-    configManager->writeData(offsetof(strMtConfig, header),
-                             &mtConfig.header,
-                             sizeof(mtConfig.header));
-    configManager->writeData(offsetof(strMtConfig, audioCodecConfig),
-                             &mtConfig.audioCodecConfig,
-                             sizeof(mtConfig.audioCodecConfig));
-    configManager->writeData(offsetof(strMtConfig, firmware),
-                             &mtConfig.firmware,
-                             sizeof(mtConfig.firmware));
-    configManager->writeData(
-      offsetof(strMtConfig, midi), &mtConfig.midi, sizeof(mtConfig.midi));
-    configManager->writeData(offsetof(strMtConfig, values),
-                             &mtConfig.values,
-                             sizeof(mtConfig.values));
-    configManager->writeData(offsetof(strMtConfig, general),
-                             &mtConfig.general,
-                             sizeof(mtConfig.general));
-    configManager->writeData(offsetof(strMtConfig, interface),
-                             &mtConfig.interface,
-                             sizeof(mtConfig.interface));
-    configManager->writeData(offsetof(strMtConfig, metronome),
-                             &mtConfig.metronome,
-                             sizeof(mtConfig.metronome));
-    configManager->writeData(
-      offsetof(strMtConfig, debug), &mtConfig.debug, sizeof(mtConfig.debug));
-    configManager->writeData(offsetof(strMtConfig, common),
-                             &mtConfig.common,
-                             sizeof(mtConfig.common));
+    // Older writers stop after the last sized group, before struct tail padding.
+    constexpr int bytes = offsetof(strMtConfig, common) + sizeof(mtConfig.common);
+    if (configManager->writeConfig(&mtConfig, bytes)) saveFlag = 0;
 }
 
 //###############################################################
@@ -141,20 +179,21 @@ void forceSaveConfig()
 //###############################################################
 void readConfig()
 {
-    mtConfig.common.performanceMix = 100;
+    uint8_t inlineMix = kDefaultPerformanceMix;
     bool isCorrect = configManager->readData(0, &mtConfig.header, sizeof(mtConfig.header));
 
     if (!isCorrect)
     {
         resetConfig();
         checkConfig();
+        loadPerformanceMix();
         forceSaveConfig();
         return;
     }
 
     bool saveConfigAtEnd = false;
 
-    if (strcmp(mtConfig.header.id, "EEPROM") != 0) // nie rozpoznana zawartosc eepromu
+    if (memcmp(mtConfig.header.id, "EEPROM", sizeof(mtConfig.header.id)) != 0) // nie rozpoznana zawartosc eepromu
     {
         // mozliwe ze w eepromie jest stary config wiec dokonaj konwersji
         recoverConfigFromOldVerison();
@@ -166,37 +205,30 @@ void readConfig()
     }
     else // normalny odczyt configu w nowej wersji
     {
-        uint16_t offsetToRead, sizeToRead, sizeFromEeprom;
-
-        uint16_t configMinSize = mtConfig.header.totalSize < sizeof(mtConfig)
-                                   ? mtConfig.header.totalSize
-                                   : sizeof(mtConfig);
-
-        // pierwsza pozycja do odczytu podstruktury
-        offsetToRead = (eepromStructsPtr[0] - reinterpret_cast<uint8_t*>(&mtConfig)); // start+header
-
-        for (uint8_t i = 0; i < eepromStructsCount; i++)
+        const size_t limit = std::min<size_t>(mtConfig.header.totalSize, sizeof(mtConfig));
+        size_t offset = offsetof(strMtConfig, audioCodecConfig);
+        for (uint8_t i = 0; i < eepromStructsCount && offset + sizeof(uint16_t) <= limit; ++i)
         {
-            // odczyt zapisanej wielksoci podstruktury
-            configManager->readData(offsetToRead, &sizeFromEeprom, 2);
-
-            // ustalenie ilosci danych do odczytania
-            sizeToRead =
-              sizeFromEeprom < eepromStructsSizes[i] ? sizeFromEeprom : eepromStructsSizes[i];
-
-            // odczyt
-            configManager->readData(offsetToRead, eepromStructsPtr[i], sizeToRead);
-
-            // nadanie aktulanej wielkosci podstruktury - to jest przy zapisie
-            // memcpy(eepromStructsPtr[i], &eepromStructsSizes[i], 2);
-
-            // kolejna pozycja do odczytu podstruktury
-            offsetToRead += sizeFromEeprom;
-
-            if (offsetToRead >= configMinSize - 1)
-            {
+            uint16_t size = 0;
+            if (!configManager->readData(offset, &size, sizeof(size)) ||
+                size < sizeof(size) || size > limit - offset)
                 break;
+
+            const auto bytes = std::min(size, eepromStructsSizes[i]);
+            if (!configManager->readData(offset, eepromStructsPtr[i], bytes))
+                break;
+
+            if (i == eepromStructsCount - 1 &&
+                mtConfig.header.version == kInlinePerformanceMixVersion &&
+                mtConfig.firmware.eepromStructVer == kInlinePerformanceMixVersion &&
+                size == sizeof(mtConfig.common) + 2)
+            {
+                uint8_t savedMix;
+                if (configManager->readData(offset + sizeof(mtConfig.common), &savedMix, sizeof(savedMix)) &&
+                    savedMix <= kDefaultPerformanceMix)
+                    inlineMix = savedMix;
             }
+            offset += size;
         }
 
         // napraw zawartosc
@@ -230,7 +262,15 @@ void readConfig()
         saveConfigAtEnd = true;
     }
 
-    if (saveConfigAtEnd)
+    if (inlineMix != kDefaultPerformanceMix)
+    {
+        performanceMix = inlineMix;
+        performanceMixDirty = true;
+        legacyMixPending = true;
+    }
+    loadPerformanceMix();
+
+    if (saveConfigAtEnd || mtConfig.header.version == kInlinePerformanceMixVersion)
     {
         forceSaveConfig();
     }
@@ -238,8 +278,6 @@ void readConfig()
 
 void checkConfig()
 {
-    if (mtConfig.common.performanceMix > 100) mtConfig.common.performanceMix = 100;
-
     if (mtConfig.audioCodecConfig.headphoneVolume < MASTER_VOLUME_MIN)
         mtConfig.audioCodecConfig.headphoneVolume = MASTER_VOLUME_MIN;
     else if (mtConfig.audioCodecConfig.headphoneVolume > MASTER_VOLUME_MAX)
@@ -347,17 +385,6 @@ void checkConfig()
     if (mtConfig.values.padsLightBackDim > 31)
         mtConfig.values.padsLightBackDim = PADS_LIGHT_BACK_DEFAULT / 2;
 
-    // performance mode i inne
-    for (uint8_t i = 0; i < 8; i++)
-    {
-        // paterny na trakach w performance mode
-        if (mtConfig.values.perfTracksPatterns[i] < 1 ||
-            mtConfig.values.perfTracksPatterns[i] > 255)
-        {
-            mtConfig.values.perfTracksPatterns[i] = 1;
-        }
-    }
-
     // general ----------------------------------------
     if (mtConfig.general.dispBrightness > 2)
     {
@@ -383,8 +410,6 @@ void checkConfig()
         mtConfig.general.recOptions = 0;
     if (mtConfig.general.recThreshold > recThreshold_max)
         mtConfig.general.recThreshold = recThreshold_default;
-    if (mtConfig.general.performanceSource > 1)
-        mtConfig.general.performanceSource = 0;
 
     if (mtConfig.general.numberingMode >= NumberingMode::kNumberingModeCount)
         mtConfig.general.numberingMode = NumberingMode::kNumberingModeDefault;
@@ -464,8 +489,7 @@ void checkConfig()
 
 void resetConfig()
 {
-    mtConfig.common.performanceMix = 100;
-    engine.getAudioOutput()->getPunchFx().setMix(100);
+    setPerformanceMix(kDefaultPerformanceMix);
     // header ----------------------------------------
     strcpy(mtConfig.header.id, "EEPROM");
     mtConfig.header.id[6] = 0;
@@ -512,22 +536,6 @@ void resetConfig()
     mtConfig.values.padsLightFront = PADS_LIGHT_FRONT_DEFAULT;
     mtConfig.values.padsLightBackDim = PADS_LIGHT_BACK_DEFAULT / 2;
 
-    for (uint32_t i = 0; i < 8; i++)
-    {
-        mtConfig.values.perfTracksPatterns[i] = 1;
-        mtConfig.values.perfTracksState[i] = 0;
-    }
-
-    for (uint32_t i = 0; i < 12; i++)
-    {
-        mtConfig.values.perfSelectedValues[i] = 0;
-        mtConfig.values.perfFxPlaces[i] = (i + 1);
-        mtConfig.values.perfFxValues[i][0] = 0;
-        mtConfig.values.perfFxValues[i][1] = 0;
-        mtConfig.values.perfFxValues[i][2] = 0;
-        mtConfig.values.perfFxValues[i][3] = 0;
-    }
-
     // general ----------------------------------------
     mtConfig.general.dispBrightness = 2;
     mtConfig.general.padsBrightness = 2;
@@ -535,7 +543,6 @@ void resetConfig()
     mtConfig.general.mtpState = 0;
 
     mtConfig.general.recOptions = 0;
-    mtConfig.general.performanceSource = 0;
     mtConfig.general.numberingMode = NumberingMode::kNumberingModeDefault;
     mtConfig.general.padPreviewInPatternEdit = padPreviewModePattern;
     mtConfig.general.patternArrangement = 0;

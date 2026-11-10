@@ -65,7 +65,7 @@ class DesktopConfig final : public ConfigManager
 public:
     explicit DesktopConfig(std::filesystem::path path) : path(std::move(path)) {}
     bool readData(int address, void* data, int size) override;
-    void writeData(int address, void* data, int size) override;
+    bool writeConfig(void* data, int size) override;
 
 private:
     std::filesystem::path path;

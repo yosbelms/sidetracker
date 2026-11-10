@@ -63,16 +63,18 @@ bool DesktopConfig::readData(int address, void* data, int size)
     return ok;
 }
 
-void DesktopConfig::writeData(int address, void* data, int size)
+bool DesktopConfig::writeConfig(void* data, int size)
 {
     auto* file = fopen(path.c_str(), "r+b");
     if (!file)
         file = fopen(path.c_str(), "w+b");
     if (!file)
-        return;
-    if (fseek(file, address, SEEK_SET) == 0)
-        fwrite(data, 1, size, file);
-    fclose(file);
+        return false;
+    const bool written = fwrite(data, 1, size, file) == size_t(size);
+    if (fclose(file) != 0 || !written) return false;
+    std::error_code error;
+    std::filesystem::resize_file(path, size, error);
+    return !error;
 }
 
 uint32_t DesktopCrc::calculate32bitCrc(const uint8_t* data, uint16_t size)

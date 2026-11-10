@@ -13,7 +13,8 @@ bool ConfigManagerImpl::readData(int address, void* data, int size)
     return true;
 }
 
-void ConfigManagerImpl::writeData(int address, void* data, int size)
+bool ConfigManagerImpl::writeConfig(void* data, int size)
 {
-    EEPROM.writeData(address + CONFIG_EEPROM_ADRESS, data, size);
+    EEPROM.writeData(CONFIG_EEPROM_ADRESS, data, size);
+    return true;
 }

@@ -108,10 +108,15 @@ TEST(Palette, EconomyAdmissionIsDeterministicAndRespectsMinimumAndBypass) {
 }
 TEST(Palette, PreviewBudgetRequiresConsecutiveSlowBlocks) {
     RealtimeChain chain;
-    chain.reportDuration(1200);EXPECT_FALSE(chain.needsDowngrade());
-    chain.reportDuration(900);EXPECT_FALSE(chain.needsDowngrade());
-    chain.reportDuration(1100);chain.reportDuration(1200);EXPECT_TRUE(chain.needsDowngrade());
-    chain.reportDuration(900);chain.reportDuration(900,2200);chain.reportDuration(900,2200);EXPECT_TRUE(chain.needsDowngrade());
+    chain.reportDuration(1200);EXPECT_FALSE(chain.budgetOverrun());
+    chain.reportDuration(900);EXPECT_FALSE(chain.budgetOverrun());
+    chain.reportDuration(1100);chain.reportDuration(1200);
+    EXPECT_EQ(chain.budgetOverrun().chainUs,1200u);
+    EXPECT_EQ(chain.budgetOverrun().callbackUs,0u);
+    chain.reportDuration(900);EXPECT_FALSE(chain.budgetOverrun());
+    chain.reportDuration(900,2200);chain.reportDuration(910,2250);
+    EXPECT_EQ(chain.budgetOverrun().chainUs,910u);
+    EXPECT_EQ(chain.budgetOverrun().callbackUs,2250u);
 }
 
 TEST(Palette, AntialiasedSaturatorMatchesHighPrecisionReferenceAndHandlesSmallDifferences) {

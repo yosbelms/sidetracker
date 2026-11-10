@@ -26,6 +26,9 @@ class cPerformanceMode : public ModuleBase
     void showTracks();
     void showColumn(unsigned column, int row);
 
+    static constexpr unsigned kFxColumnsPerGroup = 4;
+    strLabelData groupDividerData{};
+    hControl groupDividers[punch::kColumns / kFxColumnsPerGroup - 1];
     uint8_t tracksPage = 0;
     hControl bgLabel;
     hControl label[8];

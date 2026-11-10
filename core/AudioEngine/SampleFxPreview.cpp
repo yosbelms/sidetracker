@@ -1,7 +1,6 @@
 #include "SampleFxPreview.h"
 #include "interruptsControl.h"
 #include "Platform.h"
-#include "Profiler.h"
 
 void SampleFxPreview::start(samplefx::RealtimeChain* value)
 {
@@ -23,7 +22,18 @@ void SampleFxPreview::requestFadeOut()
     if(chain && !fadeRemaining) fadeRemaining=512;
     ENABLE_AUDIO_INTERRUPTS();
 }
-void SampleFxPreview::update()
+#ifndef TRACKER_DESKTOP
+void SampleFxPreview::finishAudioBlock(unsigned callbackUs)
+{
+    if (measuredChain)
+    {
+        measuredChain->reportDuration(chainUs, callbackUs);
+        measuredChain = nullptr;
+    }
+}
+#endif
+
+AUDIO_CORE_RAM void SampleFxPreview::update()
 {
     auto* current = chain;
     if (!current) return;
@@ -31,11 +41,17 @@ void SampleFxPreview::update()
     if (!left) return;
     audio_block_t* right = allocate();
     if (!right) { release(left); return; }
-    uint32_t before=timer?timer->clockCycles():0;
+#ifndef TRACKER_DESKTOP
+    const unsigned cyclesPerUs = current->usesNative() && timer ? timer->clockCyclesPerUs() : 0;
+    const uint32_t before = cyclesPerUs ? timer->clockCycles() : 0;
+#endif
     const unsigned count = current->process(left->data, right->data, AUDIO_BLOCK_SAMPLES);
 #ifndef TRACKER_DESKTOP
-    if(current->usesNative() && timer && timer->clockCyclesPerUs()) current->reportDuration(
-        uint32_t(timer->clockCycles()-before)/timer->clockCyclesPerUs(),Profiler::getInstance()->lastAudioUpdateUs());
+    if (cyclesPerUs)
+    {
+        chainUs = uint32_t(timer->clockCycles() - before) / cyclesPerUs;
+        measuredChain = current;
+    }
 #endif
     bool faded=false;
     if(fadeRemaining) for(unsigned i=0;i<count;++i) {

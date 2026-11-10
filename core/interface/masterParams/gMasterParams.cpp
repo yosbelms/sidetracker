@@ -1,6 +1,7 @@
 #include "ampLogarythmicValues.h"
 #include "mtMasterEnhancer.h"
 #include "mtAudioEngine.h"
+#include "mtConfig.h"
 #ifdef FEATURE_SYNTH
 #include "Synth.h"
 #endif
@@ -1395,7 +1396,7 @@ void cMasterParams::showMixerScreen()
 void cMasterParams::showPerformanceMix()
 {
     const auto i = performanceMixScreenPosition;
-    const auto mix = mtConfig.common.performanceMix;
+    const auto mix = getPerformanceMix();
     snprintf(mixerLabel[i], sizeof(mixerLabel[i]), "%u%%", unsigned(mix));
     display.setControlText(label[i], "");
     display.setControlText2(label[i], mixerLabel[i]);

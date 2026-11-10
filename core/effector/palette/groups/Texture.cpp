@@ -110,7 +110,7 @@ static void fx_squash(slot_dsp_t *s, float *l, float *r, int n,
  * Minimal hiss. amount=degrade intensity, macro=tone, drift=warble depth.
  * State: lfo=wow phase; f2=flutter rate, f3=flutter sweep, f4=flutter target;
  * z1=tone LP; env=compressor follower; base delay. */
-static void fx_cassette(slot_dsp_t *s, float *l, float *r, int n,
+PALETTE_HOT_CODE static void fx_cassette(slot_dsp_t *s, float *l, float *r, int n,
                         float amount, float macro, float drift){
     float wow_depth =(0.4f+amount*1.2f)*(1.0f+drift*1.2f); /* samples of wow */
     float flut_depth=(0.3f+amount*0.9f)*(1.0f+drift*1.6f); /* samples of flutter */
@@ -149,7 +149,7 @@ static void fx_cassette(slot_dsp_t *s, float *l, float *r, int n,
 
 /* BROKEN — motor-failure pitch drops + AM/FM wobble + dropouts. amount=breakdown,
  * macro=rate of failures, drift=dropout randomness. */
-static void fx_broken(slot_dsp_t *s, float *l, float *r, int n,
+PALETTE_HOT_CODE static void fx_broken(slot_dsp_t *s, float *l, float *r, int n,
                       float amount, float macro, float drift){
     float rate=0.1f+macro*macro*3.0f;                /* motor failure LFO Hz */
     for(int i=0;i<n;i++){

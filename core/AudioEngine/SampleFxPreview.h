@@ -15,8 +15,15 @@ class SampleFxPreview : public AudioStream
     void update() override;
     void setBudgetTimer(Timer* value) { timer=value; }
     void requestFadeOut();
+#ifndef TRACKER_DESKTOP
+    void finishAudioBlock(unsigned callbackUs);
+#endif
   private:
     samplefx::RealtimeChain* volatile chain = nullptr;
     Timer* timer=nullptr;
     volatile unsigned fadeRemaining=0;
+#ifndef TRACKER_DESKTOP
+    samplefx::RealtimeChain* measuredChain = nullptr;
+    unsigned chainUs = 0;
+#endif
 };

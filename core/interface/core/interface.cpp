@@ -160,6 +160,7 @@ void Interface::processOperatingMode()
         {
             if (fileSystem->isSdCardInserted())
             {
+                loadPerformanceMix();
                 hideDisplayNoSdCard();
                 openStartupProject();
                 operatingMode = mtOperatingModeShowStartScreen;
@@ -197,7 +198,7 @@ void Interface::processOperatingMode()
 void Interface::doStartTasks()
 {
     readConfig();
-    engine.getAudioOutput()->getPunchFx().setMix(mtConfig.common.performanceMix);
+    engine.getAudioOutput()->getPunchFx().setMix(getPerformanceMix());
 
     sequencer.initAfterReadConfig();
     initConfigValuesAfterReadConfig();

@@ -16,7 +16,7 @@ namespace samplefx { namespace palette {
  * macro = pre-emphasis tilt (brightens INTO the shaper, never high-passes the
  * output), drift = slow bias wander. State: z1=bass one-pole, z2/z3=DC-block x/y,
  * sm1/sm2=ADAA history L/R, f2=per-sample drive glide. */
-static void fx_drive(slot_dsp_t *s, float *l, float *r, int n,
+PALETTE_HOT_CODE static void fx_drive(slot_dsp_t *s, float *l, float *r, int n,
                      float amount, float macro, float drift){
     float drv  = 1.0f + amount*6.0f + amount*amount*30.0f;
     float tilt = (macro-0.5f)*2.0f;                  /* −1..+1 brightness tilt */
@@ -47,7 +47,7 @@ static void fx_drive(slot_dsp_t *s, float *l, float *r, int n,
 /* SWEETEN — console preamp. Gentle comp + the Airwindows Density sin-fold
  * saturator (Chris Johnson, MIT) for body, + an Air-style HF tilt shelf.
  * amount=comp/sat, macro=tone (dark↔air), drift=subtle level drift. */
-static void fx_sweeten(slot_dsp_t *s, float *l, float *r, int n,
+PALETTE_HOT_CODE static void fx_sweeten(slot_dsp_t *s, float *l, float *r, int n,
                        float amount, float macro, float drift){
     float tilt=(macro-0.5f)*2.0f;
     float thr=0.5f, ratio=0.35f+amount*0.4f;         /* gentle comp */
@@ -84,7 +84,7 @@ static void fx_sweeten(slot_dsp_t *s, float *l, float *r, int n,
  * input band-limited ~1.2 kHz → starved bias → two soft clips in series →
  * DC-block → post tone. amount=sustain/gain, macro=tone/bias, drift=bias drift.
  * State: z3=input LP, z4/bp=DC-block x/y, z2=tone LP. */
-static void fx_fuzz(slot_dsp_t *s, float *l, float *r, int n,
+PALETTE_HOT_CODE static void fx_fuzz(slot_dsp_t *s, float *l, float *r, int n,
                     float amount, float macro, float drift){
     float sustain=0.5f+amount*amount*2.6f;           /* pre-gain into the cascade */
     float bias=(macro-0.5f)*0.4f;                    /* starved bias → asymmetry */
@@ -180,7 +180,7 @@ static void fx_swell(slot_dsp_t *s, float *l, float *r, int n,
 /* The fold curve as a continuous function of the LUT index (linear interpolation,
  * clamped flat outside [1,4095] exactly as the original lookup did) and its running
  * integral, so FOLD can use ADAA. fold_cum[] is built once in create_instance. */
-static void fx_fold(slot_dsp_t* s,float* l,float* r,int n,float amount,float macro,float drift) {
+PALETTE_HOT_CODE static void fx_fold(slot_dsp_t* s,float* l,float* r,int n,float amount,float macro,float drift) {
     const float drive=.5f+amount*amount*4, offset=(macro-.5f)*1.6f;
     for(int i=0;i<n;++i) {
         float w=drift>0 ? wander(&s->f1,&s->seed,.0009f)*drift*.25f : 0;

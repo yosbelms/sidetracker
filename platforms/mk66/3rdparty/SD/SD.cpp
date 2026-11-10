@@ -318,9 +318,12 @@ bool SdCard::removeOnlyDirFiles(const char* path)
 {
     char buff[256];
     FILINFO fno;
-    strcpy(buff, path);
+    const size_t length = strlen(path);
+    if (length >= sizeof(buff) - 1)
+        return false;
+    memcpy(buff, path, length + 1);
 
-    FRESULT error = delete_node((char*)path, 255, &fno, false);
+    FRESULT error = delete_node(buff, sizeof(buff), &fno, false);
 
     if (error)
     {
@@ -335,7 +338,7 @@ FRESULT SdCard::delete_node(TCHAR* path,  /* Path name buffer with the sub-direc
                             FILINFO* fno, /* Name read buffer */
                             bool removeDir)
 {
-    UINT i, j;
+    UINT i;
     FRESULT fr;
     DIR dir;
 
@@ -352,16 +355,13 @@ FRESULT SdCard::delete_node(TCHAR* path,  /* Path name buffer with the sub-direc
         fr = f_readdir(&dir, fno); /* Get a directory item */
         if (fr != FR_OK || !fno->fname[0])
             break; /* End of directory? */
-        j = 0;
-        do
-        { /* Make a path name */
-            if (i + j >= sz_buff)
-            { /* Buffer over flow? */
-                fr = (FRESULT)100;
-                break; /* Fails with 100 when buffer overflow */
-            }
-            path[i + j] = fno->fname[j];
-        } while (fno->fname[j++]);
+        const size_t nameLength = strlen(fno->fname);
+        if (i + nameLength >= sz_buff)
+        {
+            fr = FR_INVALID_NAME;
+            break;
+        }
+        memcpy(path + i, fno->fname, nameLength + 1);
         if (fno->fattrib & AM_DIR)
         { /* Item is a directory */
             fr = delete_node(path, sz_buff, fno, true);

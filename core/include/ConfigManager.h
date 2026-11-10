@@ -5,7 +5,7 @@ class ConfigManager
 {
   public:
     virtual bool readData(int address, void* data, int size) = 0;
-    virtual void writeData(int address, void* data, int size) = 0;
+    virtual bool writeConfig(void* data, int size) = 0;
 };
 
 #endif /* INCLUDE_CONFIGMANAGER_H_ */
