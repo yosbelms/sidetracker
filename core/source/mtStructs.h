@@ -68,8 +68,8 @@ const uint32_t SAMPLE_MEMORY_SIZE = (45 * 256 * 1024);     // 11,25 MB = 133.746
 const uint32_t EXTERAL_MEMORY_ADDRESS = 0x80000000;
 const uint32_t TOTAL_EXTERNAL_MEMORY = (64 * 1024 * 1024); // 64 MB
 // Reserve dedicated history and processor memory beside the sample bank.
-const uint32_t PUNCH_FX_RESERVE_BYTES = 752 * 1024;
-const uint32_t SAMPLE_MEMORY_SIZE = ((60 * 1024 - 64) * 1024) - PUNCH_FX_RESERVE_BYTES;
+const uint32_t PERF_FX_RESERVE_BYTES = 752 * 1024;
+const uint32_t SAMPLE_MEMORY_SIZE = ((60 * 1024 - 64) * 1024) - PERF_FX_RESERVE_BYTES;
 #endif
 
 const uint32_t DELAY_MEMORY_SIZE = (3 * 512 * 1024);               // 1,5 MB

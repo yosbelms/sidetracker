@@ -103,7 +103,7 @@ size_t Profiler::maxStackBytes()
 void Profiler::resetMeasuringAudio()
 {
 #ifdef AUDIO_PERFORMANCE_INFO_ENABLED
-    engine.getAudioOutput()->getPunchFx().resetPeak();
+    engine.getAudioOutput()->getPerfFx().resetPeak();
 #endif
     lastSampleUs = 0;
     sumOfSamples = 0;

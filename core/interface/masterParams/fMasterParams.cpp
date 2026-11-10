@@ -154,9 +154,9 @@ void cMasterParams::update()
         calcReverbLevel();
         calcLineInLevel();
         calcDryMixLevel();
-        const float rms = engine.getAudioOutput()->getPunchFx().readOutputRms();
+        const float rms = engine.getAudioOutput()->getPerfFx().readOutputRms();
         if (rms >= 0.0f)
-            calcLevel(&performanceMixLevel, rms);
+            calcLevel(&perfFxMixLevel, rms);
 #ifdef FEATURE_SYNTH
         calcSynthLevels();
 #endif
@@ -231,10 +231,10 @@ void cMasterParams::update()
             dryMixLevel[i].lastValue = dryMixLevel[i].value;
         }
 
-        if (performanceMixLevel.value != performanceMixLevel.lastValue)
+        if (perfFxMixLevel.value != perfFxMixLevel.lastValue)
         {
-            showLevelBar(performanceMixMeterIndex, &performanceMixLevel);
-            performanceMixLevel.lastValue = performanceMixLevel.value;
+            showLevelBar(perfFxMixMeterIndex, &perfFxMixLevel);
+            perfFxMixLevel.lastValue = perfFxMixLevel.value;
         }
 
 #ifdef FEATURE_SYNTH
@@ -351,7 +351,7 @@ void cMasterParams::start(uint32_t options)
 
 void cMasterParams::stop()
 {
-    engine.getAudioOutput()->getPunchFx().setMeterEnabled(false);
+    engine.getAudioOutput()->getPerfFx().setMeterEnabled(false);
     sequencer.stopManualNotes();
     moduleRefresh = 0;
 }
@@ -465,20 +465,20 @@ static void functMiniMiddle(uint8_t state)
 // ##############################################################################################
 //==============================================================================================================
 
-static void changePerformanceMix(int delta)
+static void changePerfFxMix(int delta)
 {
-    const auto current = getPerformanceMix();
+    const auto current = getPerfFxMix();
     const auto next = clamp<int>(current + delta, 0, 100);
     if (next == current) return;
-    setPerformanceMix(next);
-    MP->showPerformanceMix();
+    setPerfFxMix(next);
+    MP->showPerfFxMix();
     display.synchronizeRefresh();
 }
 
-static bool editPerformanceMix(int delta)
+static bool editPerfFxMix(int delta)
 {
     if (!MP->buttons->isButtonPressed(interfaceButton4)) return false;
-    changePerformanceMix(delta);
+    changePerfFxMix(delta);
     return true;
 }
 
@@ -507,7 +507,7 @@ static void functEncoder(int16_t value)
 
     if (MP->displayType == cMasterParams::displayMode::mixerDelayReverb)
     {
-        if (editPerformanceMix(value)) return;
+        if (editPerfFxMix(value)) return;
         if (MP->delayIsEdited)
         {
             MP->changeDelayVolume(value);
@@ -609,7 +609,7 @@ static void functLeft()
     }
     if (MP->displayType == cMasterParams::displayMode::mixerDelayReverb)
     {
-        if (editPerformanceMix(-1)) return;
+        if (editPerfFxMix(-1)) return;
         return;
     }
 
@@ -674,7 +674,7 @@ static void functRight()
     }
     if (MP->displayType == cMasterParams::displayMode::mixerDelayReverb)
     {
-        if (editPerformanceMix(1)) return;
+        if (editPerfFxMix(1)) return;
         return;
     }
 
@@ -749,7 +749,7 @@ static void functUp()
 
     if (MP->displayType == cMasterParams::displayMode::mixerDelayReverb)
     {
-        if (editPerformanceMix(1)) return;
+        if (editPerfFxMix(1)) return;
         if (MP->delayIsEdited)
         {
             MP->changeDelayVolume(1);
@@ -855,7 +855,7 @@ static void functDown()
 
     if (MP->displayType == cMasterParams::displayMode::mixerDelayReverb)
     {
-        if (editPerformanceMix(-1)) return;
+        if (editPerfFxMix(-1)) return;
         if (MP->delayIsEdited)
         {
             MP->changeDelayVolume(-1);
@@ -959,7 +959,7 @@ static void functDelete()
 
     if (MP->displayType == cMasterParams::displayMode::mixerDelayReverb)
     {
-        if (editPerformanceMix(100)) return;
+        if (editPerfFxMix(100)) return;
         if (MP->delayIsEdited)
         {
             MP->setDefaultDelayVolume();
@@ -1749,8 +1749,8 @@ void cMasterParams::resetMixerLevels()
 
 void cMasterParams::resetMixerDelayReverbLevels()
 {
-    resetLevel(&performanceMixLevel);
-    engine.getAudioOutput()->getPunchFx().readOutputRms();
+    resetLevel(&perfFxMixLevel);
+    engine.getAudioOutput()->getPerfFx().readOutputRms();
 
     for (uint8_t channel = 0; channel < 2; channel++)
     {

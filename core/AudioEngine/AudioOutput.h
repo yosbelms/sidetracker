@@ -3,7 +3,7 @@
 
 #include "Audio.h"
 #include "SampleFxPreview.h"
-#include "PerformanceFx/PunchFxStream.h"
+#include "PerfFx/PerfFxStream.h"
 
 class AudioOutput
 {
@@ -36,7 +36,7 @@ class AudioOutput
     AudioEffectLimiter* getLimiter(OutputChannels channel);
     AudioMixer<FinalMixInputs::kFinalMixerSize>* getFinalMixer(OutputChannels channel);
     AudioOutputStream* getStream();
-    punch::Stream& getPunchFx() { return punchFx; }
+    perffx::Stream& getPerfFx() { return perfFx; }
     SampleFxPreview* getSampleFxPreview() { return &sampleFxPreview; }
 
   private:
@@ -47,7 +47,7 @@ class AudioOutput
     UsbOutputStream usbOutput;
 #endif
     SampleFxPreview sampleFxPreview;
-    punch::Stream punchFx;
+    perffx::Stream perfFx;
     AudioEffectLimiter limiter[OutputChannels::kChannelsCount];
     AudioOutputStream outputStream;
     AudioMixer<FinalMixInputs::kFinalMixerSize> finalMixer[OutputChannels::kChannelsCount];

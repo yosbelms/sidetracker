@@ -54,7 +54,7 @@ def check_config_round_trip(binary, card):
     data[firmware + 4] ^= 1
     config.write_bytes(data)
     mix_file.unlink()
-    run(binary, card, "assert-perf-mix 100\n")
+    run(binary, card, "assert-perf-fx-mix 100\n")
     saved = bytearray(config.read_bytes())
     assert config_groups(saved) == groups
     assert saved[values + 6:values + size] == data[values + 6:values + size]
@@ -66,13 +66,13 @@ def check_config_round_trip(binary, card):
     struct.pack_into("<H", inline, common, 6)
     inline.extend((37, 0))
     config.write_bytes(inline)
-    run(binary, card, "assert-perf-mix 37\n")
+    run(binary, card, "assert-perf-fx-mix 37\n")
     assert config.read_bytes() == saved
     assert mix_file.read_bytes() == bytes([37])
 
     # Older firmware can replace the shared config without losing the CE mix.
     config.write_bytes(saved)
-    run(binary, card, "assert-perf-mix 37\n")
+    run(binary, card, "assert-perf-fx-mix 37\n")
 
 
 def check_mix_save_during_playback(binary, card):
@@ -85,7 +85,7 @@ assert-sequencer playing
 press 4
 encoder 12
 release 4
-assert-perf-mix 49
+assert-perf-fx-mix 49
 wait 5100
 assert-sequencer playing
 """
@@ -100,7 +100,7 @@ wait 100
 
 
 def check(binary):
-    with tempfile.TemporaryDirectory(prefix="ce-punch-fx-") as directory:
+    with tempfile.TemporaryDirectory(prefix="ce-perf-fx-") as directory:
         card = Path(directory)
         audit = card / "frames.tsv"
         grid = card / "performance-grid.bmp"
@@ -108,45 +108,45 @@ def check(binary):
 button Perform
 assert-view Perform
 snapshot {grid}
-assert-perf-mix 100
-assert-punch 3 -1
-assert-punch 4 -1
-assert-punch 5 -1
-assert-punch 6 -1
-assert-punch 7 -1
-assert-punch 8 -1
-assert-punch 11 -1
+assert-perf-fx-mix 100
+assert-perf-fx 3 -1
+assert-perf-fx 4 -1
+assert-perf-fx 5 -1
+assert-perf-fx 6 -1
+assert-perf-fx 7 -1
+assert-perf-fx 8 -1
+assert-perf-fx 11 -1
 press pad 0
-assert-punch 0 0
+assert-perf-fx 0 0
 press pad 36
-assert-punch 0 3
+assert-perf-fx 0 3
 release pad 36
-assert-punch 0 0
+assert-perf-fx 0 0
 press pad 1
 press pad 2
 press pad 3
-assert-punch 0 0
-assert-punch 1 0
-assert-punch 2 0
-assert-punch 3 -1
+assert-perf-fx 0 0
+assert-perf-fx 1 0
+assert-perf-fx 2 0
+assert-perf-fx 3 -1
 release pad 1
-assert-punch 1 -1
-assert-punch 3 0
+assert-perf-fx 1 -1
+assert-perf-fx 3 0
 button Delete
-assert-punch 0 -1
-assert-punch 2 -1
-assert-punch 3 -1
+assert-perf-fx 0 -1
+assert-perf-fx 2 -1
+assert-perf-fx 3 -1
 release pad 0
 release pad 2
 release pad 3
 press pad 7
-assert-punch 7 0
+assert-perf-fx 7 0
 press pad 43
-assert-punch 7 3
+assert-perf-fx 7 3
 release pad 43
-assert-punch 7 0
+assert-perf-fx 7 0
 release pad 7
-assert-punch 7 -1
+assert-perf-fx 7 -1
 button 0
 assert-muted 0 1
 button Perform
@@ -160,38 +160,38 @@ assert-muted 0 0
 button Play
 assert-sequencer playing
 press pad 6
-assert-punch 6 0
+assert-perf-fx 6 0
 button Play
 assert-sequencer stopped
-assert-punch 6 -1
+assert-perf-fx 6 -1
 release pad 6
 press pad 11
-assert-punch 11 0
+assert-perf-fx 11 0
 button Master
 assert-view Master
-assert-punch 11 -1
+assert-perf-fx 11 -1
 release pad 11
 button Master
 button Master
 encoder -12
-assert-perf-mix 100
+assert-perf-fx-mix 100
 press 4
 encoder -36
-assert-perf-mix 64
+assert-perf-fx-mix 64
 button Right
 button Down
-assert-perf-mix 64
+assert-perf-fx-mix 64
 button Delete
-assert-perf-mix 100
+assert-perf-fx-mix 100
 encoder -36
 release 4
-assert-perf-mix 64
+assert-perf-fx-mix 64
 wait 5100
 """)
         # Effect names use rotated glyphs, which are absent from the text
         # audit. Check the four visible value labels in all twelve columns.
         frames = audit.read_text()
-        assert "Performance FX" in frames
+        assert "Perf FX" in frames
         assert "Global Mixer 3/3" in frames
         text_draws = [line.split("\t", 2) for line in frames.splitlines() if "\t" in line]
         for group, heading in enumerate(("Rhythm", "Turntable", "Tone")):
@@ -237,16 +237,16 @@ wait 5100
                       for i in range(x - 1, x + 3)]
             assert pixels[1] == pixels[2] and pixels[1] not in (pixels[0], pixels[3]), (x, pixels)
         assert any(x == "350" and text == "Line In" for x, _, text in text_draws)
-        assert any(x == "450" and text == "Perf Mix" for x, _, text in text_draws)
+        assert any(x == "450" and text == "Perf FX Mix" for x, _, text in text_draws)
         assert any(x == "450" and text == "64%" for x, _, text in text_draws)
-        run(binary, card, "assert-perf-mix 64\n")
+        run(binary, card, "assert-perf-fx-mix 64\n")
         check_config_round_trip(binary, card)
         check_mix_save_during_playback(binary, card)
         config_audit = card / "config-frames.tsv"
         run(binary, card, f"audit-frames {config_audit}\nbutton Config\nwait 100\n")
         config_frames = config_audit.read_text()
         assert "Config" in config_frames and "Project Settings" in config_frames
-    print("PunchFX grid, pad behavior, mute banks, Master Mix, deferred saving, Config screen, and configuration migration passed.")
+    print("Perf FX grid, pad behavior, mute banks, Perf FX Mix, deferred saving, Config screen, and configuration migration passed.")
 
 
 if __name__ == "__main__":

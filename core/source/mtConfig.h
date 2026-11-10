@@ -13,10 +13,10 @@ void saveConfig();
 void saveConfigAsap();
 void readConfig();
 
-uint8_t getPerformanceMix();
-void setPerformanceMix(uint8_t mix);
-void loadPerformanceMix();
-void flushPerformanceMix();
+uint8_t getPerfFxMix();
+void setPerfFxMix(uint8_t mix);
+void loadPerfFxMix();
+void flushPerfFxMix();
 
 void resetConfig();
 void checkConfig();

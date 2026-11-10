@@ -160,7 +160,7 @@ void Interface::processOperatingMode()
         {
             if (fileSystem->isSdCardInserted())
             {
-                loadPerformanceMix();
+                loadPerfFxMix();
                 hideDisplayNoSdCard();
                 openStartupProject();
                 operatingMode = mtOperatingModeShowStartScreen;
@@ -198,7 +198,7 @@ void Interface::processOperatingMode()
 void Interface::doStartTasks()
 {
     readConfig();
-    engine.getAudioOutput()->getPunchFx().setMix(getPerformanceMix());
+    engine.getAudioOutput()->getPerfFx().setMix(getPerfFxMix());
 
     sequencer.initAfterReadConfig();
     initConfigValuesAfterReadConfig();
@@ -302,7 +302,7 @@ void Interface::processPowerOffSequence()
 
         if (lowPower.getTimeLeft() == 0 && newFileManager.getStatus() == fmIdle)
         {
-            flushPerformanceMix();
+            flushPerfFxMix();
             operatingMode = mtOperatingModeSleep;
             lowPower.goLowPower();
         }

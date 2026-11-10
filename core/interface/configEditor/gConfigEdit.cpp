@@ -249,7 +249,7 @@ void cConfigEditor::initDisplayControls()
     prop2.w = 175;
     prop2.h = 35;
     prop2.value = 0;
-    punchFxPerformanceLabelControl = display.createControl<cLabel>(&prop2);
+    perfFxTimingLabelControl = display.createControl<cLabel>(&prop2);
 #endif
 #ifdef MEMORY_USAGE_INFO_ENABLED
     prop2.x = 615;
@@ -943,11 +943,11 @@ void cConfigEditor::showDiagnosticInfo()
     display.setControlShow(audioPerformanceLabelControl);
     display.refreshControl(audioPerformanceLabelControl);
 
-    snprintf(punchFxPerformanceText, sizeof(punchFxPerformanceText), "PunchFX: %lu us",
-             static_cast<unsigned long>(engine.getAudioOutput()->getPunchFx().peakMicros()));
-    display.setControlText(punchFxPerformanceLabelControl, punchFxPerformanceText);
-    display.setControlShow(punchFxPerformanceLabelControl);
-    display.refreshControl(punchFxPerformanceLabelControl);
+    snprintf(perfFxTimingText, sizeof(perfFxTimingText), "Perf FX: %lu us",
+             static_cast<unsigned long>(engine.getAudioOutput()->getPerfFx().peakMicros()));
+    display.setControlText(perfFxTimingLabelControl, perfFxTimingText);
+    display.setControlShow(perfFxTimingLabelControl);
+    display.refreshControl(perfFxTimingLabelControl);
 #endif
 
 #ifdef MEMORY_USAGE_INFO_ENABLED

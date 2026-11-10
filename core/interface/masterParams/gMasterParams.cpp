@@ -10,6 +10,9 @@
 #include <cstring>
 #include <masterParams/masterParams.h>
 
+static constexpr uint32_t kMixerHeadingStyle = controlStyleShow | controlStyleBackground |
+                                                controlStyleCenterY | controlStyleCenterX;
+
 static const uint16_t framesPlaces[8][4] = {
     { 0 + 1, 31, 800 / 8 - 3, 391 },
     { (800 / 8) * 1 + 1, 31, 800 / 8 - 3, 391 },
@@ -69,8 +72,7 @@ void cMasterParams::initDisplayControls()
     {
         prop2.value = 0;
         prop2.colors = display.getTheme().topBarLabelColors;
-        prop2.style = (controlStyleShow | controlStyleBackground | controlStyleCenterY |
-                       controlStyleCenterX | controlStyleFont4);
+        prop2.style = kMixerHeadingStyle | controlStyleFont4;
         prop2.x = (800 / 8) * i + (800 / 16);
         prop2.w = 800 / 8 - 4;
         prop2.y = 32;
@@ -103,7 +105,7 @@ void cMasterParams::initDisplayControls()
         barControl[i] = display.createControl<cBar>(&prop2);
     }
 
-    for (uint8_t barIdx = performanceMixMeterIndex; barIdx < mixerBarCount; barIdx++)
+    for (uint8_t barIdx = perfFxMixMeterIndex; barIdx < mixerBarCount; barIdx++)
     {
         barData[barIdx].changingColor = 1;
         prop2.data = &barData[barIdx];
@@ -999,10 +1001,10 @@ void cMasterParams::resizeBarControl(displayMode val)
         barData[i].meterText = val == displayMode::mixer ? trackDbText[i] : nullptr;
 
     const bool showGlobalMeters = val == displayMode::mixerDelayReverb;
-    engine.getAudioOutput()->getPunchFx().setMeterEnabled(showGlobalMeters);
+    engine.getAudioOutput()->getPerfFx().setMeterEnabled(showGlobalMeters);
     if (!showGlobalMeters)
     {
-        for (uint8_t i = performanceMixMeterIndex; i < mixerBarCount; i++)
+        for (uint8_t i = perfFxMixMeterIndex; i < mixerBarCount; i++)
         {
             display.setControlHide(barControl[i]);
             display.refreshControl(barControl[i]);
@@ -1027,6 +1029,7 @@ void cMasterParams::resizeBarControl(displayMode val)
     }
     else if (val == displayMode::mixer)
     {
+        display.setControlStyle(trackNameLabel[perfFxMixScreenPosition], kMixerHeadingStyle | controlStyleFont4);
         display.setControlStyle(
           barControl[3], controlStyleValue_0_100 | controlStyleBackground | shadow | gradient);
         display.setControlShow(barControl[3]);
@@ -1047,12 +1050,13 @@ void cMasterParams::resizeBarControl(displayMode val)
     }
     else if (val == displayMode::mixerDelayReverb)
     {
+        display.setControlStyle(trackNameLabel[perfFxMixScreenPosition], kMixerHeadingStyle | controlStyleFont3);
         display.setControlStyle(
           barControl[3], controlStyleValue_0_100 | controlStyleBackground | shadow | gradient);
         display.setControlShow(barControl[3]);
         display.refreshControl(barControl[3]);
 
-        for (uint8_t i = 0; i < performanceMixScreenPosition; ++i)
+        for (uint8_t i = 0; i < perfFxMixScreenPosition; ++i)
         {
             const int x = (800 / 8) * i + 2;
             display.setControlPosition(trackVolumeBar[i], x, 64);
@@ -1068,14 +1072,14 @@ void cMasterParams::resizeBarControl(displayMode val)
             display.refreshControl(barControl[i + 4]);
         }
 
-        for (int i = performanceMixScreenPosition; i < screenPositionCount; ++i)
+        for (int i = perfFxMixScreenPosition; i < screenPositionCount; ++i)
         {
             const int x = (800 / 8) * i + 2;
             display.setControlPosition(trackVolumeBar[i], x, 64);
             display.setControlSize(trackVolumeBar[i], 800 / 16 - 3, 359);
             display.refreshControl(trackVolumeBar[i]);
 
-            const auto meter = barControl[performanceMixMeterIndex + i - performanceMixScreenPosition];
+            const auto meter = barControl[perfFxMixMeterIndex + i - perfFxMixScreenPosition];
             display.setControlPosition(meter, x + 800 / 16, 64);
             display.setControlSize(meter, 800 / 16 - 3, 359);
             display.refreshControl(meter);
@@ -1393,10 +1397,10 @@ void cMasterParams::showMixerScreen()
     lightUpPadBoard();
 }
 
-void cMasterParams::showPerformanceMix()
+void cMasterParams::showPerfFxMix()
 {
-    const auto i = performanceMixScreenPosition;
-    const auto mix = getPerformanceMix();
+    const auto i = perfFxMixScreenPosition;
+    const auto mix = getPerfFxMix();
     snprintf(mixerLabel[i], sizeof(mixerLabel[i]), "%u%%", unsigned(mix));
     display.setControlText(label[i], "");
     display.setControlText2(label[i], mixerLabel[i]);
@@ -1532,9 +1536,9 @@ void cMasterParams::showMixerDelayReverbScreen()
         display.setControlText(trackNameLabel[reverbVolumeScreenPosition], "Reverb");
         display.setControlText(trackNameLabel[dryMixVolumeScreenPosition], "Dry Mix");
         display.setControlText(trackNameLabel[lineInVolumeScreenPosition], "Line In");
-        display.setControlText(trackNameLabel[performanceMixScreenPosition], "Perf Mix");
-        showPerformanceMix();
-        showLevelBar(performanceMixMeterIndex, &performanceMixLevel);
+        display.setControlText(trackNameLabel[perfFxMixScreenPosition], "Perf FX Mix");
+        showPerfFxMix();
+        showLevelBar(perfFxMixMeterIndex, &perfFxMixLevel);
 #ifdef FEATURE_SYNTH
         for (int labelIdx = synthVolumeScreenPositionStart;
              labelIdx <= synthVolumeScreenPositionEnd;

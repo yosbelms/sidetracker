@@ -413,22 +413,22 @@ int run(const Options& options)
                     if (command != "release") { send(platform, {id, pad}, true); advance(60); }
                     if (command != "press") { send(platform, {id, pad}, false); advance(80); }
                 }
-                else if (command == "assert-punch")
+                else if (command == "assert-perf-fx")
                 {
                     unsigned column = 0;
                     int level = -1;
-                    if (!(fields >> column >> level) || column >= punch::kColumns ||
-                        engine.getAudioOutput()->getPunchFx().rack().soundingLevel(column) != level)
-                        throw std::runtime_error("Unexpected sounding PunchFX level: " + line);
+                    if (!(fields >> column >> level) || column >= perffx::kColumns ||
+                        engine.getAudioOutput()->getPerfFx().rack().soundingLevel(column) != level)
+                        throw std::runtime_error("Unexpected sounding Perf FX level: " + line);
                     if (mtInterface.isPerformanceModeScreenActive())
                     {
                         const bool inMiddleGroup = column >= 4 && column < 8;
-                        for (unsigned row = 0; row < punch::kLevels; ++row)
+                        for (unsigned row = 0; row < perffx::kLevels; ++row)
                         {
                             int brightness = inMiddleGroup ? mtConfig.values.padsLightBackDim : 0;
                             if (static_cast<int>(row) == level) brightness = mtConfig.values.padsLightBack;
-                            if (platform.leds.levels[column + row * punch::kColumns] != brightness)
-                                throw std::runtime_error("Unexpected PunchFX pad light: " + line);
+                            if (platform.leds.levels[column + row * perffx::kColumns] != brightness)
+                                throw std::runtime_error("Unexpected Perf FX pad light: " + line);
                         }
                     }
                 }
@@ -440,11 +440,11 @@ int run(const Options& options)
                                               : mtProject.values.midiTrackMute[track - kSampleTracks]) != muted)
                         throw std::runtime_error("Unexpected track mute: " + line);
                 }
-                else if (command == "assert-perf-mix")
+                else if (command == "assert-perf-fx-mix")
                 {
                     unsigned percent = 0;
-                    if (!(fields >> percent) || getPerformanceMix() != percent)
-                        throw std::runtime_error("Unexpected Performance Mix: " + line);
+                    if (!(fields >> percent) || getPerfFxMix() != percent)
+                        throw std::runtime_error("Unexpected Perf FX Mix: " + line);
                 }
                 else if (command == "assert-sample")
                 {

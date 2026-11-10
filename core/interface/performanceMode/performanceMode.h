@@ -2,7 +2,7 @@
 #define INTERFACE_PERFORMANCEMODE_H_
 
 #include "core/modulesBase.h"
-#include "PerformanceFx/PunchFx.h"
+#include "PerfFx/PerfFx.h"
 #include "mtStructs.h"
 
 constexpr uint8_t trackMasterModeCount = 2;
@@ -20,24 +20,24 @@ class cPerformanceMode : public ModuleBase
 
     void switchTracksPage();
     void toggleMute(uint8_t button);
-    void showPerformanceFxes();
+    void showPerfFx();
 
   private:
     void showTracks();
     void showColumn(unsigned column, int row);
 
     static constexpr unsigned kFxColumnsPerGroup = 4;
-    static constexpr unsigned kFxGroupCount = punch::kColumns / kFxColumnsPerGroup;
+    static constexpr unsigned kFxGroupCount = perffx::kColumns / kFxColumnsPerGroup;
     strLabelData groupDividerData{};
     hControl groupHeaders[kFxGroupCount];
     hControl groupDividers[kFxGroupCount - 1];
     uint8_t tracksPage = 0;
     hControl bgLabel;
     hControl label[8];
-    hControl textLabel[punch::kColumns];
-    hControl valueLabel[punch::kColumns];
-    strMultiLabelData values[punch::kColumns];
-    int8_t displayedRow[punch::kColumns];
+    hControl textLabel[perffx::kColumns];
+    hControl valueLabel[perffx::kColumns];
+    strMultiLabelData values[perffx::kColumns];
+    int8_t displayedRow[perffx::kColumns];
 };
 
 extern cPerformanceMode performanceMode;

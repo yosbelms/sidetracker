@@ -1,10 +1,10 @@
-#include "PunchFxStream.h"
+#include "PerfFxStream.h"
 #include "Platform.h"
 #include "analyze_rms.h"
 #include "mtSequencer.h"
 #include <cmath>
 
-namespace punch
+namespace perffx
 {
 #ifdef AUDIO_PERFORMANCE_INFO_ENABLED
 uint32_t Stream::peakMicros() const

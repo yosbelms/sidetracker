@@ -1,12 +1,12 @@
 // DSP adapted from Punch-In FX by Vincent Fillion. See LICENSE.
-#include "PunchFx.h"
+#include "PerfFx.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
 
 extern "C" const int16_t AudioWaveformSine[257];
 
-namespace punch
+namespace perffx
 {
 constexpr Column columns[kColumns] = {
     {Effect::BeatRepeat, "Beat Repeat", {"1/8", "1/8T", "1/16", "1/32"}},

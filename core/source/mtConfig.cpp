@@ -26,69 +26,69 @@ extern void checkFuncitonKey(int key);
 static ConfigManager* configManager;
 static FileSystem* configFileSystem;
 
-static constexpr char kPerformanceMixPath[] = "/.tracker-ce-perf-mix";
-static constexpr uint8_t kDefaultPerformanceMix = 100;
-static constexpr uint8_t kInlinePerformanceMixVersion = 11;
-static uint8_t performanceMix = kDefaultPerformanceMix;
-static bool performanceMixLoaded = false;
-static bool performanceMixDirty = false;
+static constexpr char kPerfFxMixPath[] = "/.tracker-ce-perf-mix";
+static constexpr uint8_t kDefaultPerfFxMix = 100;
+static constexpr uint8_t kInlinePerfFxMixVersion = 11;
+static uint8_t perfFxMix = kDefaultPerfFxMix;
+static bool perfFxMixLoaded = false;
+static bool perfFxMixDirty = false;
 static bool legacyMixPending = false;
-static elapsedMillis performanceMixSaveDelay;
+static elapsedMillis perfFxMixSaveDelay;
 static constexpr unsigned kConfigSaveIntervalMs = 5000;
 
-uint8_t getPerformanceMix()
+uint8_t getPerfFxMix()
 {
-    return performanceMix;
+    return perfFxMix;
 }
 
-void setPerformanceMix(uint8_t mix)
+void setPerfFxMix(uint8_t mix)
 {
-    if (mix == performanceMix) return;
-    performanceMix = mix;
-    performanceMixDirty = true;
-    performanceMixSaveDelay = 0;
-    engine.getAudioOutput()->getPunchFx().setMix(mix);
+    if (mix == perfFxMix) return;
+    perfFxMix = mix;
+    perfFxMixDirty = true;
+    perfFxMixSaveDelay = 0;
+    engine.getAudioOutput()->getPerfFx().setMix(mix);
 }
 
-static bool readPerformanceMix(uint8_t& mix)
+static bool readPerfFxMix(uint8_t& mix)
 {
-    auto [opened, file] = configFileSystem->openFile(kPerformanceMixPath);
+    auto [opened, file] = configFileSystem->openFile(kPerfFxMixPath);
     if (!opened) return false;
     const bool valid = configFileSystem->readFile(&mix, sizeof(mix), file) == sizeof(mix) &&
-                       mix <= kDefaultPerformanceMix;
+                       mix <= kDefaultPerfFxMix;
     configFileSystem->closeFile(file);
     return valid;
 }
 
-void loadPerformanceMix()
+void loadPerfFxMix()
 {
-    if (performanceMixLoaded || !configFileSystem->isSdCardInserted()) return;
-    performanceMixLoaded = true;
+    if (perfFxMixLoaded || !configFileSystem->isSdCardInserted()) return;
+    perfFxMixLoaded = true;
 
     uint8_t mix;
-    if (readPerformanceMix(mix))
+    if (readPerfFxMix(mix))
     {
-        performanceMix = mix;
-        performanceMixDirty = false;
+        perfFxMix = mix;
+        perfFxMixDirty = false;
         legacyMixPending = false;
     }
-    engine.getAudioOutput()->getPunchFx().setMix(performanceMix);
+    engine.getAudioOutput()->getPerfFx().setMix(perfFxMix);
 }
 
-void flushPerformanceMix()
+void flushPerfFxMix()
 {
-    if (!performanceMixDirty || !configFileSystem->isSdCardInserted()) return;
-    auto [opened, file] = configFileSystem->openFile(kPerformanceMixPath, FileSystem::kWriteOpen);
+    if (!perfFxMixDirty || !configFileSystem->isSdCardInserted()) return;
+    auto [opened, file] = configFileSystem->openFile(kPerfFxMixPath, FileSystem::kWriteOpen);
     if (!opened) return;
 
-    const bool written = configFileSystem->writeFile(&performanceMix, sizeof(performanceMix), file) ==
-                         sizeof(performanceMix);
+    const bool written = configFileSystem->writeFile(&perfFxMix, sizeof(perfFxMix), file) ==
+                         sizeof(perfFxMix);
     configFileSystem->closeFile(file);
     if (!written) return;
 
     uint8_t saved;
-    if (legacyMixPending && (!readPerformanceMix(saved) || saved != performanceMix)) return;
-    performanceMixDirty = false;
+    if (legacyMixPending && (!readPerfFxMix(saved) || saved != perfFxMix)) return;
+    perfFxMixDirty = false;
     legacyMixPending = false;
 }
 
@@ -128,11 +128,11 @@ void updateConfig(bool force)
 {
     // The sidecar shares the SD card with streamed samples. Save after
     // playback and coalesce rapid changes into one write.
-    if (performanceMixDirty && !sequencer.isPlay() &&
-        (force || performanceMixSaveDelay > kConfigSaveIntervalMs))
+    if (perfFxMixDirty && !sequencer.isPlay() &&
+        (force || perfFxMixSaveDelay > kConfigSaveIntervalMs))
     {
-        flushPerformanceMix();
-        performanceMixSaveDelay = 0;
+        flushPerfFxMix();
+        perfFxMixSaveDelay = 0;
     }
 
     if (saveFlag && (save_delay > kConfigSaveIntervalMs || force || saveAsapFlag))
@@ -159,7 +159,7 @@ void saveConfigAsap()
 
 void forceSaveConfig()
 {
-    flushPerformanceMix();
+    flushPerfFxMix();
     writeSharedConfig();
 }
 
@@ -198,14 +198,14 @@ static void writeSharedConfig()
 //###############################################################
 void readConfig()
 {
-    uint8_t inlineMix = kDefaultPerformanceMix;
+    uint8_t inlineMix = kDefaultPerfFxMix;
     bool isCorrect = configManager->readData(0, &mtConfig.header, sizeof(mtConfig.header));
 
     if (!isCorrect)
     {
         resetConfig();
         checkConfig();
-        loadPerformanceMix();
+        loadPerfFxMix();
         forceSaveConfig();
         return;
     }
@@ -238,13 +238,13 @@ void readConfig()
                 break;
 
             if (i == eepromStructsCount - 1 &&
-                mtConfig.header.version == kInlinePerformanceMixVersion &&
-                mtConfig.firmware.eepromStructVer == kInlinePerformanceMixVersion &&
+                mtConfig.header.version == kInlinePerfFxMixVersion &&
+                mtConfig.firmware.eepromStructVer == kInlinePerfFxMixVersion &&
                 size == sizeof(mtConfig.common) + 2)
             {
                 uint8_t savedMix;
                 if (configManager->readData(offset + sizeof(mtConfig.common), &savedMix, sizeof(savedMix)) &&
-                    savedMix <= kDefaultPerformanceMix)
+                    savedMix <= kDefaultPerfFxMix)
                     inlineMix = savedMix;
             }
             offset += size;
@@ -281,15 +281,15 @@ void readConfig()
         saveConfigAtEnd = true;
     }
 
-    if (inlineMix != kDefaultPerformanceMix)
+    if (inlineMix != kDefaultPerfFxMix)
     {
-        performanceMix = inlineMix;
-        performanceMixDirty = true;
+        perfFxMix = inlineMix;
+        perfFxMixDirty = true;
         legacyMixPending = true;
     }
-    loadPerformanceMix();
+    loadPerfFxMix();
 
-    if (saveConfigAtEnd || mtConfig.header.version == kInlinePerformanceMixVersion)
+    if (saveConfigAtEnd || mtConfig.header.version == kInlinePerfFxMixVersion)
     {
         forceSaveConfig();
     }
@@ -508,7 +508,7 @@ void checkConfig()
 
 void resetConfig()
 {
-    setPerformanceMix(kDefaultPerformanceMix);
+    setPerfFxMix(kDefaultPerfFxMix);
     // header ----------------------------------------
     strcpy(mtConfig.header.id, "EEPROM");
     mtConfig.header.id[6] = 0;

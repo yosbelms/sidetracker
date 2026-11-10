@@ -3,7 +3,7 @@
 #include <atomic>
 #include <cstdint>
 
-namespace punch
+namespace perffx
 {
 constexpr unsigned kColumns = 12;
 constexpr unsigned kLevels = 4;

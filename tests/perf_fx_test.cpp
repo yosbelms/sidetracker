@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "PerformanceFx/PunchFx.h"
+#include "PerfFx/PerfFx.h"
 
 #include <algorithm>
 #include <array>
@@ -10,13 +10,13 @@
 namespace
 {
 constexpr unsigned kBlock = 128;
-constexpr auto pad(unsigned key) { return punch::owner(punch::Source::Pads, key); }
+constexpr auto pad(unsigned key) { return perffx::owner(perffx::Source::Pads, key); }
 
-class PunchFxTest : public testing::Test
+class PerfFxTest : public testing::Test
 {
   protected:
-    std::unique_ptr<punch::Storage> storage = std::make_unique<punch::Storage>();
-    punch::Rack rack{*storage};
+    std::unique_ptr<perffx::Storage> storage = std::make_unique<perffx::Storage>();
+    perffx::Rack rack{*storage};
     std::array<int16_t, kBlock> left{}, right{}, outL{}, outR{};
     unsigned cursor = 0;
 
@@ -44,19 +44,19 @@ class PunchFxTest : public testing::Test
     }
 };
 
-TEST_F(PunchFxTest, EachPresetProcessesStereoAndHasADistinctResult)
+TEST_F(PerfFxTest, EachPresetProcessesStereoAndHasADistinctResult)
 {
-    for (unsigned col = 0; col < punch::kColumns; ++col)
+    for (unsigned col = 0; col < perffx::kColumns; ++col)
     {
-        SCOPED_TRACE(punch::columns[col].name);
+        SCOPED_TRACE(perffx::columns[col].name);
         std::set<uint32_t> signatures;
-        for (uint8_t row = 0; row < punch::kLevels; ++row)
+        for (uint8_t row = 0; row < perffx::kLevels; ++row)
         {
             rack.reset();
             cursor = 0;
             // Fill enough history for the longest Dub Echo division at 120 BPM.
             advance(320);
-            rack.press(pad(0), punch::columns[col].effect, row);
+            rack.press(pad(0), perffx::columns[col].effect, row);
             uint32_t checksum = 2166136261u;
             bool changedL = false, changedR = false;
             for (unsigned i = 0; i < 144; ++i)
@@ -74,20 +74,20 @@ TEST_F(PunchFxTest, EachPresetProcessesStereoAndHasADistinctResult)
     }
 }
 
-TEST_F(PunchFxTest, LatestRowFallsBackAndFourthColumnWaitsForRelease)
+TEST_F(PerfFxTest, LatestRowFallsBackAndFourthColumnWaitsForRelease)
 {
     advance(8);
-    rack.press(pad(0), punch::Effect::BeatRepeat, 0);
-    rack.press(pad(1), punch::Effect::Stutter, 1);
-    rack.press(pad(2), punch::Effect::Scatter, 2);
-    rack.press(pad(3), punch::Effect::DubEcho, 3);
+    rack.press(pad(0), perffx::Effect::BeatRepeat, 0);
+    rack.press(pad(1), perffx::Effect::Stutter, 1);
+    rack.press(pad(2), perffx::Effect::Scatter, 2);
+    rack.press(pad(3), perffx::Effect::DubEcho, 3);
     advance(8);
     EXPECT_EQ(rack.soundingLevel(0), 0);
     EXPECT_EQ(rack.soundingLevel(1), 1);
     EXPECT_EQ(rack.soundingLevel(2), 2);
     EXPECT_EQ(rack.soundingLevel(3), -1);
 
-    rack.press(pad(12), punch::Effect::BeatRepeat, 1);
+    rack.press(pad(12), perffx::Effect::BeatRepeat, 1);
     advance(18);
     EXPECT_EQ(rack.soundingLevel(0), 1);
     EXPECT_EQ(rack.soundingLevel(3), -1);
@@ -103,12 +103,12 @@ TEST_F(PunchFxTest, LatestRowFallsBackAndFourthColumnWaitsForRelease)
     EXPECT_EQ(rack.soundingLevel(3), 3);
 }
 
-TEST_F(PunchFxTest, ZeroMixAndIdlePreservePcmAndResetClearsHistory)
+TEST_F(PerfFxTest, ZeroMixAndIdlePreservePcmAndResetClearsHistory)
 {
     advance(8);
     EXPECT_EQ(outL, left);
     EXPECT_EQ(outR, right);
-    rack.press(pad(0), punch::Effect::Reverse, 3);
+    rack.press(pad(0), perffx::Effect::Reverse, 3);
     advance(8);
     EXPECT_NE(outL, left);
     block(120, 0);
@@ -123,7 +123,7 @@ TEST_F(PunchFxTest, ZeroMixAndIdlePreservePcmAndResetClearsHistory)
     rack.beginBlock(120, 44100, 100, true);
     EXPECT_EQ(rack.soundingLevel(5), -1);
     EXPECT_FALSE(rack.wet());
-    rack.press(pad(0), punch::Effect::Reverse, 3);
+    rack.press(pad(0), perffx::Effect::Reverse, 3);
     rack.beginBlock(120, 44100, 100, true);
     EXPECT_EQ(rack.soundingLevel(5), -1);
     rack.process(left.data(), right.data(), nullptr, nullptr, 64);
@@ -131,23 +131,23 @@ TEST_F(PunchFxTest, ZeroMixAndIdlePreservePcmAndResetClearsHistory)
     EXPECT_EQ(rack.soundingLevel(5), 3);
 }
 
-TEST_F(PunchFxTest, OwnerGroupsAndOverflowFailDry)
+TEST_F(PerfFxTest, OwnerGroupsAndOverflowFailDry)
 {
-    rack.press(pad(1), punch::Effect::Stutter, 0);
-    rack.press(punch::owner(punch::Source::Sequencer, 1), punch::Effect::PitchUp, 3);
+    rack.press(pad(1), perffx::Effect::Stutter, 0);
+    rack.press(perffx::owner(perffx::Source::Sequencer, 1), perffx::Effect::PitchUp, 3);
     advance(8);
-    rack.releaseSource(punch::Source::Pads);
+    rack.releaseSource(perffx::Source::Pads);
     advance(16);
     EXPECT_EQ(rack.soundingLevel(1), -1);
     EXPECT_EQ(rack.soundingLevel(4), 3);
-    for (unsigned i = 0; i < 128; ++i) rack.press(pad(0), punch::Effect::Loop, 0);
+    for (unsigned i = 0; i < 128; ++i) rack.press(pad(0), perffx::Effect::Loop, 0);
     block();
     EXPECT_FALSE(rack.wet());
     EXPECT_EQ(rack.soundingLevel(4), -1);
     EXPECT_EQ(outL, left);
 }
 
-TEST_F(PunchFxTest, MixChangesWithNoPunchesKeepThePlaybackDry)
+TEST_F(PerfFxTest, MixChangesWithNoPunchesKeepThePlaybackDry)
 {
     advance(8);
     for (uint8_t percent : {99, 62, 8, 0, 11, 68, 100})
@@ -159,25 +159,25 @@ TEST_F(PunchFxTest, MixChangesWithNoPunchesKeepThePlaybackDry)
     }
 }
 
-TEST_F(PunchFxTest, HistoryWrapAndExtremeTempoRemainBounded)
+TEST_F(PerfFxTest, HistoryWrapAndExtremeTempoRemainBounded)
 {
-    advance(punch::kHistoryFrames / kBlock + 2, 5);
-    rack.press(pad(0), punch::Effect::Scratch, 3);
-    rack.press(pad(1), punch::Effect::Scatter, 3);
-    rack.press(pad(2), punch::Effect::DubEcho, 3);
-    advance(punch::kHistoryFrames / kBlock + 2, 800);
+    advance(perffx::kHistoryFrames / kBlock + 2, 5);
+    rack.press(pad(0), perffx::Effect::Scratch, 3);
+    rack.press(pad(1), perffx::Effect::Scatter, 3);
+    rack.press(pad(2), perffx::Effect::DubEcho, 3);
+    advance(perffx::kHistoryFrames / kBlock + 2, 800);
     EXPECT_EQ(rack.soundingLevel(6), 3);
     EXPECT_EQ(rack.soundingLevel(2), 3);
     EXPECT_EQ(rack.soundingLevel(3), 3);
-    rack.releaseSource(punch::Source::Pads);
+    rack.releaseSource(perffx::Source::Pads);
     advance(16, 5);
     EXPECT_FALSE(rack.wet());
 }
 
-TEST_F(PunchFxTest, TapeStopSlowsAcrossHistoryWrapThenStaysSilentUntilRelease)
+TEST_F(PerfFxTest, TapeStopSlowsAcrossHistoryWrapThenStaysSilentUntilRelease)
 {
-    advance(punch::kHistoryFrames / kBlock);
-    rack.press(pad(0), punch::Effect::TapeStop, 0);
+    advance(perffx::kHistoryFrames / kBlock);
+    rack.press(pad(0), perffx::Effect::TapeStop, 0);
     advance(8);
     const auto crossings = [&] {
         unsigned count = 0;
@@ -205,9 +205,9 @@ TEST_F(PunchFxTest, TapeStopSlowsAcrossHistoryWrapThenStaysSilentUntilRelease)
     EXPECT_EQ(outR, right);
 }
 
-TEST_F(PunchFxTest, LowPassClosesOverABarToItsLabeledCutoff)
+TEST_F(PerfFxTest, LowPassClosesOverABarToItsLabeledCutoff)
 {
-    rack.press(pad(0), punch::Effect::LowPass, 3);
+    rack.press(pad(0), perffx::Effect::LowPass, 3);
     float cutoffEnergy = 0, highEnergy = 0, dryEnergy = 0;
     for (unsigned b = 0; b < 720; ++b)
     {
@@ -238,16 +238,16 @@ TEST_F(PunchFxTest, LowPassClosesOverABarToItsLabeledCutoff)
     EXPECT_EQ(outR, right);
 }
 
-TEST_F(PunchFxTest, HighPassPresetsReachTheirCutoffsWithoutHighFrequencyBoost)
+TEST_F(PerfFxTest, HighPassPresetsReachTheirCutoffsWithoutHighFrequencyBoost)
 {
     constexpr float cutoffs[] = {160, 400, 900, 1800};
     constexpr float radiansPerSample = 6.28318531f / 44100;
-    for (uint8_t row = 0; row < punch::kLevels; ++row)
+    for (uint8_t row = 0; row < perffx::kLevels; ++row)
     {
         SCOPED_TRACE(cutoffs[row]);
         rack.reset();
         rack.beginBlock(120, 44100, 100, true);
-        rack.press(pad(9), punch::Effect::HighPass, row);
+        rack.press(pad(9), perffx::Effect::HighPass, row);
         float cutoffEnergy = 0, highEnergy = 0, dryCutoffEnergy = 0, dryHighEnergy = 0;
         for (unsigned b = 0; b < 128; ++b)
         {
@@ -273,26 +273,26 @@ TEST_F(PunchFxTest, HighPassPresetsReachTheirCutoffsWithoutHighFrequencyBoost)
         EXPECT_LE(highEnergy / dryHighEnergy, 1.001f);
     }
 
-    rack.press(pad(8), punch::Effect::LowPass, 1);
+    rack.press(pad(8), perffx::Effect::LowPass, 1);
     block();
     EXPECT_EQ(rack.soundingLevel(8), 1);
     EXPECT_EQ(rack.soundingLevel(9), 3);
-    rack.releaseSource(punch::Source::Pads);
+    rack.releaseSource(perffx::Source::Pads);
     advance(16);
     EXPECT_EQ(outL, left);
     EXPECT_EQ(outR, right);
 }
 
-TEST_F(PunchFxTest, CrushPresetsHoldAndQuantizeBothPolaritiesSymmetrically)
+TEST_F(PerfFxTest, CrushPresetsHoldAndQuantizeBothPolaritiesSymmetrically)
 {
     constexpr unsigned periods[] = {4, 8, 16, 32};
     constexpr int steps[] = {64, 256, 1024, 4096};
-    for (uint8_t row = 0; row < punch::kLevels; ++row)
+    for (uint8_t row = 0; row < perffx::kLevels; ++row)
     {
         SCOPED_TRACE(static_cast<unsigned>(row));
         rack.reset();
         block();
-        rack.press(pad(10), punch::Effect::Crush, row);
+        rack.press(pad(10), perffx::Effect::Crush, row);
         advance(16);
         for (unsigned i = 0; i < kBlock; ++i)
         {
@@ -311,13 +311,13 @@ TEST_F(PunchFxTest, CrushPresetsHoldAndQuantizeBothPolaritiesSymmetrically)
     }
 }
 
-TEST_F(PunchFxTest, RetiredEffectIdsDoNotTriggerReplacementColumns)
+TEST_F(PerfFxTest, RetiredEffectIdsDoNotTriggerReplacementColumns)
 {
     advance(8);
-    rack.press(pad(0), static_cast<punch::Effect>(4), 0);
-    rack.press(pad(1), static_cast<punch::Effect>(8), 0);
-    rack.press(pad(2), static_cast<punch::Effect>(10), 0);
-    rack.press(pad(3), static_cast<punch::Effect>(18), 0);
+    rack.press(pad(0), static_cast<perffx::Effect>(4), 0);
+    rack.press(pad(1), static_cast<perffx::Effect>(8), 0);
+    rack.press(pad(2), static_cast<perffx::Effect>(10), 0);
+    rack.press(pad(3), static_cast<perffx::Effect>(18), 0);
     block();
     EXPECT_FALSE(rack.wet());
     EXPECT_EQ(rack.soundingLevel(3), -1);
@@ -325,13 +325,13 @@ TEST_F(PunchFxTest, RetiredEffectIdsDoNotTriggerReplacementColumns)
     EXPECT_EQ(rack.soundingLevel(9), -1);
 }
 
-TEST_F(PunchFxTest, DubEchoReadsThreeDecayingTapsFromTheStereoHistory)
+TEST_F(PerfFxTest, DubEchoReadsThreeDecayingTapsFromTheStereoHistory)
 {
     // At 120 BPM, 1/8 is 11025 frames. Place the input impulse one beat into
     // the recording so the rack has reached full wet before the first tap.
     constexpr unsigned tapSpacing = 11025;
     constexpr unsigned impulse = 2 * tapSpacing;
-    rack.press(pad(3), punch::Effect::DubEcho, 0);
+    rack.press(pad(3), perffx::Effect::DubEcho, 0);
     std::array<int, 4> peaks{};
     while (cursor < impulse + 5 * tapSpacing)
     {

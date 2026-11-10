@@ -40,18 +40,18 @@ void play()
 
 void pad(uint8_t key, uint8_t state, int16_t)
 {
-    if (key >= punch::kColumns * punch::kLevels) return;
-    auto& rack = engine.getAudioOutput()->getPunchFx().rack();
-    const auto token = punch::owner(punch::Source::Pads, key);
+    if (key >= perffx::kColumns * perffx::kLevels) return;
+    auto& rack = engine.getAudioOutput()->getPerfFx().rack();
+    const auto token = perffx::owner(perffx::Source::Pads, key);
     if (state == buttonPress)
-        rack.press(token, punch::columns[key % punch::kColumns].effect, key / punch::kColumns);
+        rack.press(token, perffx::columns[key % perffx::kColumns].effect, key / perffx::kColumns);
     else if (state == buttonRelease)
         rack.release(token);
 }
 
 void releasePads()
 {
-    engine.getAudioOutput()->getPunchFx().rack().releaseSource(punch::Source::Pads);
+    engine.getAudioOutput()->getPerfFx().rack().releaseSource(perffx::Source::Pads);
 }
 }
 
@@ -59,7 +59,7 @@ void cPerformanceMode::start(uint32_t options)
 {
     tracksPage = options == 2;
     moduleRefresh = 1;
-    engine.getAudioOutput()->getPunchFx().setVisible(true);
+    engine.getAudioOutput()->getPerfFx().setVisible(true);
 
     constexpr uint8_t modules[] = {
         interfaceButtonParams, interfaceButtonFile, interfaceButtonConfig, interfaceButtonMaster,
@@ -79,13 +79,13 @@ void cPerformanceMode::start(uint32_t options)
             performanceMode.toggleMute(key - interfaceButton0);
         });
     ip->setPadsGlobal(pad);
-    showPerformanceFxes();
+    showPerfFx();
 }
 
 void cPerformanceMode::stop()
 {
     releasePads();
-    engine.getAudioOutput()->getPunchFx().setVisible(false);
+    engine.getAudioOutput()->getPerfFx().setVisible(false);
     moduleRefresh = 0;
     padsBacklight.clearGlobalPads(1, 1, 1);
 }
@@ -118,9 +118,9 @@ void cPerformanceMode::toggleMute(uint8_t button)
 
 void cPerformanceMode::update()
 {
-    auto& rack = engine.getAudioOutput()->getPunchFx().rack();
+    auto& rack = engine.getAudioOutput()->getPerfFx().rack();
     bool changed = false;
-    for (unsigned i = 0; i < punch::kColumns; ++i)
+    for (unsigned i = 0; i < perffx::kColumns; ++i)
     {
         const auto row = rack.soundingLevel(i);
         if (row != displayedRow[i])

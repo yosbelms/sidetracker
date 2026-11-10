@@ -1,11 +1,11 @@
 #pragma once
 
 #include "AudioStream.h"
-#include "PunchFx.h"
+#include "PerfFx.h"
 
 class Timer;
 
-namespace punch
+namespace perffx
 {
 extern Storage storage;
 

@@ -327,7 +327,7 @@ static void functPlayAction()
 
 uint8_t cProjectEditor::loadProjectValues()
 {
-    engine.getAudioOutput()->getPunchFx().rack().reset();
+    engine.getAudioOutput()->getPerfFx().rack().reset();
 
     if (mtProject.values.isSnapToZeroEnabled > 1)
     {

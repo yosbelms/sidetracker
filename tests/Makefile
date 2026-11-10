@@ -23,7 +23,7 @@ CORE_SOURCES := $(addprefix libs/Audio/,AudioStream.cpp filter_variable.cpp ampl
     monoToStereo.cpp dspApplyGain.cpp mixer.cpp effect_bitDepth.cpp) \
     source/wavHeaderReader.cpp source/SdStream.cpp source/util_string.cpp source/scales.cpp \
     source/mtEnvelopeGenerator.cpp source/mtWavetableEnvelopes.cpp source/util_math.cpp \
-    libs/ElapsedMillis/elapsedMillis.cpp AudioEngine/padToBeatNoteConverter.cpp AudioEngine/SampleFxPreview.cpp AudioEngine/PerformanceFx/PunchFx.cpp \
+    libs/ElapsedMillis/elapsedMillis.cpp AudioEngine/padToBeatNoteConverter.cpp AudioEngine/SampleFxPreview.cpp AudioEngine/PerfFx/PerfFx.cpp \
     FileManager/instrumentFileValidation.cpp effector/SampleFxChain.cpp effector/SampleFxRealtime.cpp effector/ptfx_validation.cpp \
     $(addprefix effector/,mtDataCopyier.cpp mtEffectModular.cpp mtEffectAmplifier.cpp mtEffectNormalizer.cpp \
     mtEffectDelay.cpp mtEffectEQ.cpp mtEffectChorus.cpp mtEffectFlanger.cpp \

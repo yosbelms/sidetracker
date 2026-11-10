@@ -91,7 +91,7 @@ class cMasterParams : public ModuleBase
         reverbVolumeScreenPosition,
         dryMixVolumeScreenPosition,
         lineInVolumeScreenPosition,
-        performanceMixScreenPosition,
+        perfFxMixScreenPosition,
 #ifdef FEATURE_SYNTH
         synthVolumeScreenPositionStart,
         synthVolumeScreenPositionEnd = synthVolumeScreenPositionStart + kSynthParts - 1,
@@ -133,7 +133,7 @@ class cMasterParams : public ModuleBase
     void showReverbVolumeBar();
     void showDryMixVolumeBar();
     void showLineInVolumeBar();
-    void showPerformanceMix();
+    void showPerfFxMix();
 #ifdef FEATURE_SYNTH
     void showSynthGain(int synthIdx);
 #endif
@@ -175,7 +175,7 @@ class cMasterParams : public ModuleBase
         uint8_t lastValue;
         int16_t dbTenths = INT16_MIN;
 
-    } trackLevel[8], reverbLevel[2], delayLevel[2], dryMixLevel[2], lineInLevel[2], performanceMixLevel;
+    } trackLevel[8], reverbLevel[2], delayLevel[2], dryMixLevel[2], lineInLevel[2], perfFxMixLevel;
 #ifdef FEATURE_SYNTH
     strTrackLevel synthLevel[kSynthParts];
 #endif
@@ -309,8 +309,8 @@ class cMasterParams : public ModuleBase
     strList syncRateData;
     strList limiterSidechainData;
 
-    static constexpr uint8_t performanceMixMeterIndex = 8;
-    static constexpr uint8_t synthMeterStart = performanceMixMeterIndex + 1;
+    static constexpr uint8_t perfFxMixMeterIndex = 8;
+    static constexpr uint8_t synthMeterStart = perfFxMixMeterIndex + 1;
     static constexpr uint8_t mixerBarCount = synthMeterStart + kSynthParts;
     strBarData barData[mixerBarCount];
     uint32_t levelBarColors[mixerBarCount][5]{};

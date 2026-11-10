@@ -173,7 +173,7 @@ audioEngine::audioEngine()
 void audioEngine::init(Platform* platform, [[maybe_unused]] Synth* synth)
 {
 #ifdef AUDIO_PERFORMANCE_INFO_ENABLED
-    output.getPunchFx().setTimer(platform->getTimer());
+    output.getPerfFx().setTimer(platform->getTimer());
 #endif
     codec = platform->getCodecAudio();
     radio = platform->getRadio();
@@ -541,9 +541,9 @@ void audioEngine::connectInputToOutput(AudioInput* input, AudioOutput* output)
 void audioEngine::connectMixerToOutput(MixerAndFxs<kVoices>* mixerAndFxs, AudioOutput* output)
 {
     connections.push_back(new AudioConnection(
-      mixerAndFxs->getTracksAndSendsMixer(MixerAndFxChannelType::kLeft), 0, &output->getPunchFx(), 0));
+      mixerAndFxs->getTracksAndSendsMixer(MixerAndFxChannelType::kLeft), 0, &output->getPerfFx(), 0));
     connections.push_back(new AudioConnection(
-      mixerAndFxs->getTracksAndSendsMixer(MixerAndFxChannelType::kRight), 0, &output->getPunchFx(), 1));
+      mixerAndFxs->getTracksAndSendsMixer(MixerAndFxChannelType::kRight), 0, &output->getPerfFx(), 1));
 
 #ifdef PLATFORM_IMX
     static constexpr int kPolyverbLeftUsbStreamIdx = 16;

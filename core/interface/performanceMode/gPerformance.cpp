@@ -66,7 +66,7 @@ void cPerformanceMode::initDisplayControls()
     prop2.h = 54;
     bgLabel = display.createControl<cBgLabel>(&prop2);
 
-    for (unsigned i = 0; i < punch::kColumns; ++i)
+    for (unsigned i = 0; i < perffx::kColumns; ++i)
     {
         prop.data = nullptr;
         prop.style = controlStyleCenterX | controlStyleCenterY | controlStyleFont2 |
@@ -80,8 +80,8 @@ void cPerformanceMode::initDisplayControls()
         values[i].textLinesCount = 5;
         values[i].yOffset = 16;
         values[i].text[4] = const_cast<char*>("");
-        for (unsigned row = 0; row < punch::kLevels; ++row)
-            values[i].text[row] = const_cast<char*>(punch::columns[i].labels[row]);
+        for (unsigned row = 0; row < perffx::kLevels; ++row)
+            values[i].text[row] = const_cast<char*>(perffx::columns[i].labels[row]);
 
         prop.style = (controlStyleCenterX | kTrackNameFont | controlStyleBackground |
                       (display.getTheme().bottomScreenShadow > 0 ? controlStyleBottomShadow : 0));
@@ -121,17 +121,17 @@ void cPerformanceMode::initDisplayControls()
     }
 }
 
-void cPerformanceMode::showPerformanceFxes()
+void cPerformanceMode::showPerfFx()
 {
     titleBar->show();
-    titleBar->setTitle("Performance FX");
+    titleBar->setTitle("Perf FX");
     display.setControlShow(bgLabel);
     display.refreshControl(bgLabel);
     showTracks();
-    auto& rack = engine.getAudioOutput()->getPunchFx().rack();
-    for (unsigned i = 0; i < punch::kColumns; ++i)
+    auto& rack = engine.getAudioOutput()->getPerfFx().rack();
+    for (unsigned i = 0; i < perffx::kColumns; ++i)
     {
-        display.setControlText(textLabel[i], punch::columns[i].name);
+        display.setControlText(textLabel[i], perffx::columns[i].name);
         display.setControlShow(textLabel[i]);
         display.refreshControl(textLabel[i]);
         showColumn(i, rack.soundingLevel(i));
@@ -172,11 +172,11 @@ void cPerformanceMode::showColumn(unsigned column, int row)
     display.setControlShow(valueLabel[column]);
     display.refreshControl(valueLabel[column]);
     const bool inMiddleGroup = column / kFxColumnsPerGroup == 1;
-    for (unsigned i = 0; i < punch::kLevels; ++i)
+    for (unsigned i = 0; i < perffx::kLevels; ++i)
     {
         uint8_t brightness = inMiddleGroup ? mtConfig.values.padsLightBackDim : 0;
         if (static_cast<int>(i) == row) brightness = mtConfig.values.padsLightBack;
-        padsBacklight.setBackLayer(brightness != 0, brightness, column + punch::kColumns * i);
+        padsBacklight.setBackLayer(brightness != 0, brightness, column + perffx::kColumns * i);
     }
 }
 

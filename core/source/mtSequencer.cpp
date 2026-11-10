@@ -1538,7 +1538,7 @@ AUDIO_CORE_RAM void Sequencer::stopManualNotes(void)
 
 void Sequencer::stop(void)
 {
-    engine.getAudioOutput()->getPunchFx().rack().reset();
+    engine.getAudioOutput()->getPerfFx().rack().reset();
     songTimer.stop();
     stopAllOpenNotes();
     cancelFxes();
