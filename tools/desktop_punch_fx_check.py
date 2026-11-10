@@ -75,13 +75,39 @@ def check_config_round_trip(binary, card):
     run(binary, card, "assert-perf-mix 37\n")
 
 
+def check_mix_save_during_playback(binary, card):
+    mix_file = card / ".tracker-ce-perf-mix"
+    edit_while_playing = """button Master
+button Master
+button Master
+button Play
+assert-sequencer playing
+press 4
+encoder 12
+release 4
+assert-perf-mix 49
+wait 5100
+assert-sequencer playing
+"""
+    run(binary, card, edit_while_playing)
+    assert mix_file.read_bytes() == bytes([37])
+
+    run(binary, card, edit_while_playing + """button Play
+assert-sequencer stopped
+wait 100
+""")
+    assert mix_file.read_bytes() == bytes([49])
+
+
 def check(binary):
     with tempfile.TemporaryDirectory(prefix="ce-punch-fx-") as directory:
         card = Path(directory)
         audit = card / "frames.tsv"
+        grid = card / "performance-grid.bmp"
         run(binary, card, f"""audit-frames {audit}
 button Perform
 assert-view Perform
+snapshot {grid}
 assert-perf-mix 100
 assert-punch 3 -1
 assert-punch 4 -1
@@ -168,19 +194,21 @@ wait 5100
         assert "Performance FX" in frames
         assert "Global Mixer 3/3" in frames
         text_draws = [line.split("\t", 2) for line in frames.splitlines() if "\t" in line]
+        for group, heading in enumerate(("Rhythm", "Turntable", "Tone")):
+            assert [str(139 + group * 260), "50", heading] in text_draws
         values = [
-            ("1/8", "1/16", "1/32", "1/64"),
-            ("1/8T", "1/16T", "1/32T", "1/64T"),
-            ("20%", "47%", "73%", "100%"),
-            ("1/4", "1/8", "1/16", "1/32"),
-            ("+3 st", "+5 st", "+7 st", "+12 st"),
-            ("-3 st", "-5 st", "-7 st", "-12 st"),
+            ("1/8", "1/8T", "1/16", "1/32"),
             ("80%", "60%", "40%", "20%"),
-            ("4kHz", "2kHz", "800Hz", "250Hz"),
-            ("1x/2", "2x/4", "3.5x/6", "5x/8"),
-            ("25%", "50%", "75%", "100%"),
-            ("4cuts", "5cuts", "6cuts*", "8cuts*"),
+            ("Skip", "Shuffle", "Flip", "Chop"),
+            ("1/8", "1/8D", "1/4", "1/4D"),
+            ("-5 st", "+5 st", "-12 st", "+12 st"),
             ("1x", "1.1x", "1.2x", "1.3x"),
+            ("1x/2", "2x/4", "3.5x/6", "5x/8"),
+            ("1/4", "1/8", "1/16", "1/32"),
+            ("4kHz", "2kHz", "800Hz", "250Hz"),
+            ("160Hz", "400Hz", "900Hz", "1.8kHz"),
+            ("4x/10b", "8x/8b", "16x/6b", "32x/4b"),
+            ("20%", "47%", "73%", "100%"),
         ]
         for column, expected in enumerate(values):
             center = 42 + column * 65
@@ -195,16 +223,30 @@ wait 5100
                     left == whole + point and right == fraction and ly == ry and lx < rx
                     for (lx, ly, left), (rx, ry, right) in zip(draws, draws[1:])
                 ), (column, value, rows)
+        bmp = grid.read_bytes()
+        offset, = struct.unpack_from("<I", bmp, 10)
+        width, height = struct.unpack_from("<ii", bmp, 18)
+        bits, = struct.unpack_from("<H", bmp, 28)
+        assert width == 800 and abs(height) == 480 and bits in (24, 32)
+        pixel_bytes = bits // 8
+        stride = (width * pixel_bytes + 3) & ~3
+        # Above the preset labels, only the dividers occupy these columns.
+        start = offset + (height - 1 - 150 if height > 0 else 150) * stride
+        for x in (269, 529):
+            pixels = [bmp[start + i * pixel_bytes:start + i * pixel_bytes + 3]
+                      for i in range(x - 1, x + 3)]
+            assert pixels[1] == pixels[2] and pixels[1] not in (pixels[0], pixels[3]), (x, pixels)
         assert any(x == "350" and text == "Line In" for x, _, text in text_draws)
         assert any(x == "450" and text == "Perf Mix" for x, _, text in text_draws)
         assert any(x == "450" and text == "64%" for x, _, text in text_draws)
         run(binary, card, "assert-perf-mix 64\n")
         check_config_round_trip(binary, card)
+        check_mix_save_during_playback(binary, card)
         config_audit = card / "config-frames.tsv"
         run(binary, card, f"audit-frames {config_audit}\nbutton Config\nwait 100\n")
         config_frames = config_audit.read_text()
         assert "Config" in config_frames and "Project Settings" in config_frames
-    print("PunchFX grid, pad behavior, mute banks, Master Mix, Config screen, and configuration migration passed.")
+    print("PunchFX grid, pad behavior, mute banks, Master Mix, deferred saving, Config screen, and configuration migration passed.")
 
 
 if __name__ == "__main__":

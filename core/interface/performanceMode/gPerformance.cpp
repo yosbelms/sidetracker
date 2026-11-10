@@ -10,6 +10,7 @@ constexpr unsigned kFirstFxCenter = 42;
 constexpr unsigned kFxColumnPitch = 65;
 constexpr unsigned kFxGridTop = 34;
 constexpr unsigned kFxGridHeight = 389;
+constexpr auto kTrackNameFont = controlStyleFont3;
 }
 
 static char* getPerfTrackName(uint8_t track)
@@ -45,7 +46,7 @@ void cPerformanceMode::initDisplayControls()
     {
         prop2.text = (char*)"";
         prop2.colors = display.getTheme().activeLabelsColors;
-        prop2.style = (controlStyleCenterX | controlStyleCenterY | controlStyleFont3);
+        prop2.style = (controlStyleCenterX | controlStyleCenterY | kTrackNameFont);
         prop2.x = (800 / 8) * i + (800 / 16);
         prop2.w = 800 / 8 - 6;
         prop2.y = 424;
@@ -82,7 +83,7 @@ void cPerformanceMode::initDisplayControls()
         for (unsigned row = 0; row < punch::kLevels; ++row)
             values[i].text[row] = const_cast<char*>(punch::columns[i].labels[row]);
 
-        prop.style = (controlStyleCenterX | controlStyleFont2 | controlStyleBackground |
+        prop.style = (controlStyleCenterX | kTrackNameFont | controlStyleBackground |
                       (display.getTheme().bottomScreenShadow > 0 ? controlStyleBottomShadow : 0));
         prop.y = kFxGridTop;
         prop.colors = display.getTheme().perfValueNormalMLabelColors;
@@ -92,7 +93,21 @@ void cPerformanceMode::initDisplayControls()
         valueLabel[i] = display.createControl<cMultiLabel>(&prop);
     }
 
-    groupDividerData.line = {0, 0, 0, kFxGridHeight, display.getTheme().inactiveLabelsColors[3]};
+    constexpr const char* groupNames[kFxGroupCount] = {"Rhythm", "Turntable", "Tone"};
+    strControlProperties headerProps;
+    headerProps.style = controlStyleCenterX | controlStyleCenterY | controlStyleFont4;
+    headerProps.colors = display.getTheme().perfFxNameTextLabelColors;
+    headerProps.y = kFxGridTop + 4;
+    headerProps.h = 24;
+    for (unsigned group = 0; group < kFxGroupCount; ++group)
+    {
+        headerProps.x = kFirstFxCenter + kFxColumnPitch * (group * kFxColumnsPerGroup) +
+                        kFxColumnPitch * (kFxColumnsPerGroup - 1) / 2;
+        headerProps.text = groupNames[group];
+        groupHeaders[group] = display.createControl<cLabel>(&headerProps);
+    }
+
+    groupDividerData.line = {0, 0, 0, kFxGridHeight, display.getTheme().inactiveLabelsColors[3], 2};
     strControlProperties dividerProps;
     dividerProps.style = controlStyleSpecialFx;
     dividerProps.y = kFxGridTop;
@@ -100,7 +115,7 @@ void cPerformanceMode::initDisplayControls()
     unsigned boundary = kFxColumnsPerGroup;
     for (auto& divider : groupDividers)
     {
-        dividerProps.x = kFirstFxCenter + kFxColumnPitch * boundary - kFxColumnPitch / 2;
+        dividerProps.x = kFirstFxCenter + kFxColumnPitch * boundary - (kFxColumnPitch + 1) / 2;
         divider = display.createControl<cLabel>(&dividerProps);
         boundary += kFxColumnsPerGroup;
     }
@@ -120,6 +135,11 @@ void cPerformanceMode::showPerformanceFxes()
         display.setControlShow(textLabel[i]);
         display.refreshControl(textLabel[i]);
         showColumn(i, rack.soundingLevel(i));
+    }
+    for (auto header : groupHeaders)
+    {
+        display.setControlShow(header);
+        display.refreshControl(header);
     }
     for (auto divider : groupDividers)
     {
@@ -166,6 +186,11 @@ void cPerformanceMode::hideControlsUnderMiniMenu()
     {
         display.setControlHide(handle);
         display.refreshControl(handle);
+    }
+    for (auto header : groupHeaders)
+    {
+        display.setControlHide(header);
+        display.refreshControl(header);
     }
     for (auto divider : groupDividers)
     {

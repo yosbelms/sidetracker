@@ -27,8 +27,10 @@ class cPerformanceMode : public ModuleBase
     void showColumn(unsigned column, int row);
 
     static constexpr unsigned kFxColumnsPerGroup = 4;
+    static constexpr unsigned kFxGroupCount = punch::kColumns / kFxColumnsPerGroup;
     strLabelData groupDividerData{};
-    hControl groupDividers[punch::kColumns / kFxColumnsPerGroup - 1];
+    hControl groupHeaders[kFxGroupCount];
+    hControl groupDividers[kFxGroupCount - 1];
     uint8_t tracksPage = 0;
     hControl bgLabel;
     hControl label[8];

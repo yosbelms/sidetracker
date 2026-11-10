@@ -31,8 +31,8 @@ class Stream : public AudioStream
     std::atomic<bool> visible{false};
     std::atomic<uint8_t> mix{100};
     std::atomic<bool> meterEnabled{false};
-    int64_t meterSum = 0;
-    uint32_t meterBlocks = 0;
+    static constexpr uint32_t kNoMeterBlock = UINT32_MAX;
+    std::atomic<uint32_t> meterBlockPower{kNoMeterBlock};
 #ifdef AUDIO_PERFORMANCE_INFO_ENABLED
     Timer* timer = nullptr;
     std::atomic<uint32_t> peakCycles{0};

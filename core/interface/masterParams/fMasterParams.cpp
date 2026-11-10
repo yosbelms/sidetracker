@@ -467,8 +467,12 @@ static void functMiniMiddle(uint8_t state)
 
 static void changePerformanceMix(int delta)
 {
-    setPerformanceMix(clamp<int>(getPerformanceMix() + delta, 0, 100));
+    const auto current = getPerformanceMix();
+    const auto next = clamp<int>(current + delta, 0, 100);
+    if (next == current) return;
+    setPerformanceMix(next);
     MP->showPerformanceMix();
+    display.synchronizeRefresh();
 }
 
 static bool editPerformanceMix(int delta)

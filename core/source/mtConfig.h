@@ -16,6 +16,7 @@ void readConfig();
 uint8_t getPerformanceMix();
 void setPerformanceMix(uint8_t mix);
 void loadPerformanceMix();
+void flushPerformanceMix();
 
 void resetConfig();
 void checkConfig();

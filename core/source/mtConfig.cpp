@@ -14,6 +14,7 @@
 #include "convertOldFileVersionVolume.h"
 #include "mtConfig.h"
 #include "mtAudioEngine.h"
+#include "mtSequencer.h"
 
 void firmwareVersionChangeMini();
 void firmwareVersionChange();
@@ -32,6 +33,8 @@ static uint8_t performanceMix = kDefaultPerformanceMix;
 static bool performanceMixLoaded = false;
 static bool performanceMixDirty = false;
 static bool legacyMixPending = false;
+static elapsedMillis performanceMixSaveDelay;
+static constexpr unsigned kConfigSaveIntervalMs = 5000;
 
 uint8_t getPerformanceMix()
 {
@@ -43,6 +46,7 @@ void setPerformanceMix(uint8_t mix)
     if (mix == performanceMix) return;
     performanceMix = mix;
     performanceMixDirty = true;
+    performanceMixSaveDelay = 0;
     engine.getAudioOutput()->getPunchFx().setMix(mix);
 }
 
@@ -71,7 +75,7 @@ void loadPerformanceMix()
     engine.getAudioOutput()->getPunchFx().setMix(performanceMix);
 }
 
-static void writePerformanceMix()
+void flushPerformanceMix()
 {
     if (!performanceMixDirty || !configFileSystem->isSdCardInserted()) return;
     auto [opened, file] = configFileSystem->openFile(kPerformanceMixPath, FileSystem::kWriteOpen);
@@ -92,6 +96,8 @@ elapsedMillis save_delay;
 
 static uint8_t saveFlag = 0;
 static uint8_t saveAsapFlag = 0;
+
+static void writeSharedConfig();
 
 static const uint8_t eepromStructsCount = 9;
 static uint8_t* eepromStructsPtr[eepromStructsCount]{
@@ -120,14 +126,22 @@ void initConfig(Platform* platform)
 
 void updateConfig(bool force)
 {
-    if ((saveFlag || performanceMixDirty) && (save_delay > 5000 || force || saveAsapFlag))
+    // The sidecar shares the SD card with streamed samples. Save after
+    // playback and coalesce rapid changes into one write.
+    if (performanceMixDirty && !sequencer.isPlay() &&
+        (force || performanceMixSaveDelay > kConfigSaveIntervalMs))
     {
-        saveAsapFlag = 0;
-        if (saveFlag) forceSaveConfig();
-        else writePerformanceMix();
+        flushPerformanceMix();
+        performanceMixSaveDelay = 0;
     }
 
-    if (save_delay > 5000)
+    if (saveFlag && (save_delay > kConfigSaveIntervalMs || force || saveAsapFlag))
+    {
+        saveAsapFlag = 0;
+        writeSharedConfig();
+    }
+
+    if (save_delay > kConfigSaveIntervalMs)
     {
         save_delay = 0;
     }
@@ -145,7 +159,12 @@ void saveConfigAsap()
 
 void forceSaveConfig()
 {
-    writePerformanceMix();
+    flushPerformanceMix();
+    writeSharedConfig();
+}
+
+static void writeSharedConfig()
+{
     // Keep the v11 copy until its mix has been saved separately.
     if (legacyMixPending)
     {

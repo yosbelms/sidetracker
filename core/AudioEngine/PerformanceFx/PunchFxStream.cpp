@@ -17,15 +17,9 @@ uint32_t Stream::peakMicros() const
 
 float Stream::readOutputRms()
 {
-    DISABLE_GLOBAL_INTERRUPTS();
-    const int64_t sum = meterSum;
-    const uint32_t blocks = meterBlocks;
-    meterSum = 0;
-    meterBlocks = 0;
-    ENABLE_GLOBAL_INTERRUPTS();
-
-    if (!blocks) return -1.0f;
-    return std::sqrt(float(sum) / (float(blocks) * (2 * AUDIO_BLOCK_SAMPLES))) / 32768.0f;
+    if (meterBlockPower.load(std::memory_order_relaxed) == kNoMeterBlock) return -1.0f;
+    const auto power = meterBlockPower.exchange(kNoMeterBlock, std::memory_order_relaxed);
+    return std::sqrt(float(power)) / 32768.0f;
 }
 
 void Stream::update()
@@ -60,18 +54,22 @@ void Stream::update()
 
     const bool available = wet[0] && wet[1];
     const bool meter = !renderMode && meterEnabled.load(std::memory_order_relaxed);
+    int64_t sum = 0;
     for (unsigned ch = 0; ch < 2; ++ch)
     {
         auto* output = available ? wet[ch] : dry[ch];
         if (output)
         {
-            if (meter) meterSum = AudioAnalyzeRMS::accumulateSquares(*output, meterSum);
+            if (meter) sum = AudioAnalyzeRMS::accumulateSquares(*output, sum);
             transmit(output, ch);
         }
         if (wet[ch] && wet[ch] != dry[ch]) release(wet[ch]);
         if (dry[ch]) release(dry[ch]);
     }
-    if (meter) ++meterBlocks;
+    // The stereo block's mean squared PCM fits in a single lock-free word.
+    if (meter)
+        meterBlockPower.store(static_cast<uint32_t>(sum / (2 * AUDIO_BLOCK_SAMPLES)),
+                              std::memory_order_relaxed);
 #ifdef AUDIO_PERFORMANCE_INFO_ENABLED
     if (timer && !renderMode)
     {

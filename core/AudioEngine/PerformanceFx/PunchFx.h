@@ -14,10 +14,10 @@ constexpr unsigned kMemoryBytes = 752 * 1024;
 
 enum class Effect : uint8_t
 {
-    // IDs 4 and 8 are reserved for the retired Deep Unison and Triplet Stutter.
+    // IDs 4, 8, 10 and 18 are reserved for retired effects.
     None = 0, Loop = 1, TripletLoop = 2, Unison = 3, PitchUp = 5, PitchDown = 6,
-    Stutter = 7, Scratch = 9, Quantize = 10, Retrigger = 11, Reverse = 12,
-    TapeStop = 13, FilterSweep = 14
+    Stutter = 7, Scratch = 9, Scatter = 11, Reverse = 12, TapeStop = 13, LowPass = 14,
+    BeatRepeat = 15, Pitch = 16, DubEcho = 17, Crush = 19, HighPass = 20
 };
 
 struct Column
@@ -87,9 +87,12 @@ class Rack
         float position = 0, headB = 0, phase = 0, step = 0;
         float phaseStep = 0, depth = 0, edgeScale = 0, duty = 0;
         float direction = 1, timer = 0, flipPeriod = 0;
-        float lowpass[2][2] = {};
-        uint8_t chunks[8] = {};
-        unsigned chunkCount = 0, chunkFrames = 0, chunk = 0, chunkOffset = 0;
+        float filterState[2][2] = {};
+        unsigned chunkFrames = 0, chunk = 0, chunkOffset = 0;
+        unsigned echoFrames = 0;
+        unsigned crushPeriod = 0, crushRemaining = 0;
+        uint16_t crushMask = 0;
+        float heldSamples[2] = {};
     };
 
     void enqueue(Command command);
@@ -97,7 +100,6 @@ class Rack
     void admit();
     void activate(Lane& lane, const Held& held, uint32_t order);
     void processLane(Lane& lane, unsigned index, float& left, float& right);
-    void shuffle(Lane& lane);
     float readHistory(const Lane& lane, unsigned channel) const;
     float readDelay(const Lane& lane, unsigned index, float position, unsigned channel) const;
 
@@ -116,7 +118,6 @@ class Rack
     bool hasHeld = false;
     std::atomic<uint8_t> sounding[kColumns]{};
     unsigned historyWrite = 0, historyValid = 0;
-    uint32_t random = 1;
     unsigned beatFrames = 22050;
     float rate = 44100, attackStep = 0, releaseStep = 0;
     float mix = 0, mixTarget = 0, mixStep = 0;

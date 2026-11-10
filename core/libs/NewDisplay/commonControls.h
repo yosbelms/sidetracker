@@ -23,6 +23,7 @@ struct strLabelData
         uint16_t x2;
         uint16_t y2;
         uint32_t color;
+        uint8_t thickness = 1;
     } line;
 
     struct DotIndicator

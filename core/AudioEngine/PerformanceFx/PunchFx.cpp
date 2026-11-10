@@ -9,18 +9,18 @@ extern "C" const int16_t AudioWaveformSine[257];
 namespace punch
 {
 constexpr Column columns[kColumns] = {
-    {Effect::Loop, "Loop", {"1/8", "1/16", "1/32", "1/64"}},
-    {Effect::TripletLoop, "Triplet Loop", {"1/8T", "1/16T", "1/32T", "1/64T"}},
-    {Effect::Unison, "Unison", {"20%", "47%", "73%", "100%"}},
-    {Effect::TapeStop, "Tape Stop", {"1/4", "1/8", "1/16", "1/32"}},
-    {Effect::PitchUp, "Pitch Up", {"+3 st", "+5 st", "+7 st", "+12 st"}},
-    {Effect::PitchDown, "Pitch Down", {"-3 st", "-5 st", "-7 st", "-12 st"}},
-    {Effect::Stutter, "Stutter", {"80%", "60%", "40%", "20%"}},
-    {Effect::FilterSweep, "Filter Sweep", {"4kHz", "2kHz", "800Hz", "250Hz"}},
-    {Effect::Scratch, "Scratch", {"1x/2", "2x/4", "3.5x/6", "5x/8"}},
-    {Effect::Quantize, "6/8 Quantize", {"25%", "50%", "75%", "100%"}},
-    {Effect::Retrigger, "Retrigger", {"4cuts", "5cuts", "6cuts*", "8cuts*"}},
+    {Effect::BeatRepeat, "Beat Repeat", {"1/8", "1/8T", "1/16", "1/32"}},
+    {Effect::Stutter, "Cutter", {"80%", "60%", "40%", "20%"}},
+    {Effect::Scatter, "Scatter", {"Skip", "Shuffle", "Flip", "Chop"}},
+    {Effect::DubEcho, "Dub Echo", {"1/8", "1/8D", "1/4", "1/4D"}},
+    {Effect::Pitch, "Pitch", {"-5 st", "+5 st", "-12 st", "+12 st"}},
     {Effect::Reverse, "Reverse", {"1x", "1.1x", "1.2x", "1.3x"}},
+    {Effect::Scratch, "Scratch", {"1x/2", "2x/4", "3.5x/6", "5x/8"}},
+    {Effect::TapeStop, "Tape Stop", {"1/4", "1/8", "1/16", "1/32"}},
+    {Effect::LowPass, "Low Pass", {"4kHz", "2kHz", "800Hz", "250Hz"}},
+    {Effect::HighPass, "High Pass", {"160Hz", "400Hz", "900Hz", "1.8kHz"}},
+    {Effect::Crush, "Crush", {"4x/10b", "8x/8b", "16x/6b", "32x/4b"}},
+    {Effect::Unison, "Unison", {"20%", "47%", "73%", "100%"}},
 };
 
 namespace
@@ -28,12 +28,30 @@ namespace
 constexpr float kPcm = 1.0f / 32768.0f;
 constexpr unsigned kGrain = 768;
 constexpr unsigned kDelayMask = kDelayFrames - 1;
+constexpr unsigned kScatterSteps = 8;
+struct ScatterStep
+{
+    uint8_t slice;
+    uint8_t openQuarters;
+    bool reverse = false;
+};
+constexpr ScatterStep scatterPatterns[kLevels][kScatterSteps] = {
+    {{0,4}, {1,4}, {2,4}, {2,4}, {4,4}, {5,4}, {6,4}, {6,3}},
+    {{0,4}, {2,4}, {1,4}, {3,3}, {4,4}, {6,4}, {5,4}, {7,2}},
+    {{0,4}, {3,3,true}, {2,4}, {1,2,true}, {4,4}, {7,3,true}, {6,4}, {5,2,true}},
+    {{0,3}, {4,2,true}, {0,2}, {3,0}, {6,3,true}, {2,1}, {6,2,true}, {7,0}},
+};
 
 constexpr auto effectColumns = [] {
-    std::array<uint8_t, static_cast<unsigned>(Effect::FilterSweep) + 1> result{};
+    std::array<uint8_t, static_cast<unsigned>(Effect::HighPass) + 1> result{};
     result.fill(kColumns);
     for (unsigned i = 0; i < kColumns; ++i)
         result[static_cast<unsigned>(columns[i].effect)] = i;
+    // Preserve the command presets for the original split columns.
+    for (auto effect : {Effect::Loop, Effect::TripletLoop})
+        result[static_cast<unsigned>(effect)] = result[static_cast<unsigned>(Effect::BeatRepeat)];
+    for (auto effect : {Effect::PitchUp, Effect::PitchDown})
+        result[static_cast<unsigned>(effect)] = result[static_cast<unsigned>(Effect::Pitch)];
     return result;
 }();
 
@@ -45,8 +63,9 @@ unsigned column(Effect effect)
 
 bool captures(Effect effect)
 {
-    return effect == Effect::Loop || effect == Effect::TripletLoop || effect == Effect::Scratch ||
-           effect == Effect::Retrigger || effect == Effect::Reverse || effect == Effect::TapeStop;
+    return effect == Effect::BeatRepeat || effect == Effect::Loop || effect == Effect::TripletLoop ||
+           effect == Effect::Scratch || effect == Effect::Scatter || effect == Effect::Reverse ||
+           effect == Effect::TapeStop;
 }
 
 float sine(float phase)
@@ -68,9 +87,29 @@ float lowpass(float sample, float coefficient, float (&state)[2])
     return state[1];
 }
 
+float highpass(float sample, float coefficient, float (&state)[2])
+{
+    for (auto& pole : state)
+    {
+        const float step = (sample - pole) * coefficient;
+        const float low = pole + step;
+        pole = low + step;
+        sample -= low;
+    }
+    return sample;
+}
+
 int16_t pcm(float sample)
 {
     return static_cast<int16_t>(std::clamp(sample * 32768.0f, -32768.0f, 32767.0f));
+}
+
+float crush(float sample, uint16_t mask)
+{
+    const int value = pcm(sample);
+    // Quantize toward zero on both sides to avoid a DC bias at low bit depths.
+    const int magnitude = std::abs(value) & mask;
+    return (value < 0 ? -magnitude : magnitude) * kPcm;
 }
 
 void wrap(float& position, unsigned frames)
@@ -137,7 +176,6 @@ void Rack::consume()
         for (auto& lane : lanes) lane = {};
         hasHeld = false;
         serial = historyWrite = historyValid = 0;
-        random = 1;
         return;
     }
 
@@ -200,6 +238,11 @@ void Rack::activate(Lane& lane, const Held& entry, uint32_t order)
     else if (captures(lane.effect))
     {
         unsigned requested = 2 * beatFrames;
+        if (lane.effect == Effect::BeatRepeat)
+        {
+            constexpr unsigned divisors[] = {2, 3, 4, 8};
+            requested = beatFrames / divisors[level];
+        }
         if (lane.effect == Effect::Loop) requested = beatFrames / (2u << level);
         if (lane.effect == Effect::TripletLoop) requested = beatFrames / (3u << level);
         if (lane.effect == Effect::Scratch) requested = beatFrames;
@@ -209,6 +252,13 @@ void Rack::activate(Lane& lane, const Held& entry, uint32_t order)
     }
     switch (lane.effect)
     {
+        case Effect::Pitch:
+        {
+            constexpr float ratios[] = {0.7491535f, 1.3348399f, 0.5f, 2.0f};
+            lane.step = ratios[level];
+            lane.headB = kGrain / 2;
+            break;
+        }
         case Effect::PitchUp:
         {
             constexpr float ratios[] = {1.1892071f, 1.3348399f, 1.4983071f, 2.0f};
@@ -230,20 +280,38 @@ void Rack::activate(Lane& lane, const Held& entry, uint32_t order)
             lane.flipPeriod = std::max(256u, beatFrames / (2 * (level + 1)));
             break;
         }
-        case Effect::Retrigger:
+        case Effect::Scatter:
+            lane.chunkFrames = lane.length / kScatterSteps;
+            break;
+        case Effect::DubEcho:
         {
-            constexpr unsigned counts[] = {4, 5, 6, 8};
-            lane.chunkCount = counts[level];
-            lane.chunkFrames = lane.length / lane.chunkCount;
-            for (unsigned i = 0; i < lane.chunkCount; ++i) lane.chunks[i] = i;
-            shuffle(lane);
+            constexpr unsigned quarterBeats[] = {2, 3, 4, 6};
+            constexpr float amounts[] = {0.25f, 0.38f, 0.5f, 0.65f};
+            lane.echoFrames = std::clamp(beatFrames * quarterBeats[level] / 4, 1u, kHistoryFrames / 2);
+            lane.depth = amounts[level];
+            break;
+        }
+        case Effect::HighPass:
+        {
+            constexpr float cutoffs[] = {160, 400, 900, 1800};
+            const float phase = cutoffs[level] / (2 * rate);
+            // Bilinear one-pole sections. Compensate for cascading two poles
+            // so the combined response is -3 dB at the labeled cutoff.
+            const float warped = 0.64359425f * sine(phase) / sine(phase + 0.25f);
+            lane.depth = warped / (1 + warped);
+            break;
+        }
+        case Effect::Crush:
+        {
+            lane.crushPeriod = 4u << level;
+            lane.crushMask = static_cast<uint16_t>(0xffffu << (6 + 2 * level));
             break;
         }
         case Effect::Reverse:
             lane.position = lane.length - 1;
             lane.step = 1 + 0.1f * level;
             break;
-        case Effect::FilterSweep:
+        case Effect::LowPass:
         {
             constexpr float cutoffs[] = {4000, 2000, 800, 250};
             const float halfAngleSine = sine(cutoffs[level] / (2 * rate));
@@ -272,7 +340,8 @@ void Rack::admit()
         if (lane.effect == Effect::None) continue;
         const auto i = column(lane.effect);
         const auto* entry = latest[i];
-        lane.attack = entry && entry->level == lane.level && lane.order == columnOrder[i];
+        lane.attack = entry && entry->effect == lane.effect && entry->level == lane.level &&
+                      lane.order == columnOrder[i];
         if (!lane.attack && lane.gate <= 0) lane = {};
         else assigned[i] = true;
     }
@@ -344,8 +413,7 @@ void Rack::beginBlock(float tempo, float sampleRate, uint8_t percent, bool recor
                 lane.edgeScale = 1 / std::min(0.002f * rate * lane.phaseStep, lane.duty * 0.5f);
                 break;
             }
-            case Effect::FilterSweep: lane.phaseStep = 0.25f / beatFrames; break;
-            case Effect::Quantize: lane.phaseStep = 0.5f / beatFrames; break;
+            case Effect::LowPass: lane.phaseStep = 0.25f / beatFrames; break;
             default: break;
         }
     }
@@ -353,15 +421,6 @@ void Rack::beginBlock(float tempo, float sampleRate, uint8_t percent, bool recor
 }
 
 bool Rack::wet() const { return laneCount && (mix > 0 || mixTarget > 0); }
-
-void Rack::shuffle(Lane& lane)
-{
-    for (unsigned i = lane.chunkCount - 1; i > 0; --i)
-    {
-        random = random * 1103515245u + 12345u;
-        std::swap(lane.chunks[i], lane.chunks[((random >> 16) & 0x7fff) % (i + 1)]);
-    }
-}
 
 float Rack::readHistory(const Lane& lane, unsigned channel) const
 {
@@ -407,14 +466,35 @@ void Rack::processLane(Lane& lane, unsigned index, float& left, float& right)
         }
         else l = r = 0;
     }
+    else if (lane.effect == Effect::Scatter)
+    {
+        const auto& step = scatterPatterns[lane.level][lane.chunk];
+        const unsigned open = lane.chunkFrames * step.openQuarters / 4;
+        l = r = 0;
+        if (lane.chunkOffset < open)
+        {
+            const unsigned offset = step.reverse ? lane.chunkFrames - 1 - lane.chunkOffset : lane.chunkOffset;
+            unsigned frame = lane.segment + step.slice * lane.chunkFrames + offset;
+            if (frame >= kHistoryFrames) frame -= kHistoryFrames;
+            const unsigned edge = std::min(lane.chunkOffset, open - 1 - lane.chunkOffset);
+            const unsigned fade = std::max(1u, std::min(32u, (open - 1) / 2));
+            const float gain = kPcm * (edge < fade ? float(edge) / fade : 1.0f);
+            l = memory.history[frame][0] * gain;
+            r = memory.history[frame][1] * gain;
+        }
+        if (++lane.chunkOffset == lane.chunkFrames)
+        {
+            lane.chunkOffset = 0;
+            if (++lane.chunk == kScatterSteps) lane.chunk = 0;
+        }
+    }
     else if (captures(lane.effect))
     {
-        if (lane.effect == Effect::Retrigger)
-            lane.position = lane.chunks[lane.chunk] * lane.chunkFrames + lane.chunkOffset;
         l = readHistory(lane, 0);
         r = readHistory(lane, 1);
         switch (lane.effect)
         {
+            case Effect::BeatRepeat:
             case Effect::Loop:
             case Effect::TripletLoop: l *= 1.2f; r *= 1.2f; lane.position += 1; break;
             case Effect::Scratch:
@@ -425,29 +505,18 @@ void Rack::processLane(Lane& lane, unsigned index, float& left, float& right)
                     lane.direction = -lane.direction;
                 }
                 break;
-            case Effect::Retrigger:
-                if (++lane.chunkOffset >= lane.chunkFrames)
-                {
-                    lane.chunkOffset = 0;
-                    if (++lane.chunk >= lane.chunkCount)
-                    {
-                        lane.chunk = 0;
-                        if (lane.level >= 2) shuffle(lane);
-                    }
-                }
-                break;
             case Effect::Reverse: lane.position -= lane.step; break;
             default: break;
         }
         wrap(lane.position, lane.length);
     }
-    else if (lane.effect == Effect::FilterSweep)
+    else if (lane.effect == Effect::LowPass)
     {
         lane.phase = std::min(1.0f, lane.phase + lane.phaseStep);
         const float open = 1 - lane.phase;
         const float coefficient = blend(lane.depth, 1, open * open * open);
-        l = lowpass(l, coefficient, lane.lowpass[0]);
-        r = lowpass(r, coefficient, lane.lowpass[1]);
+        l = lowpass(l, coefficient, lane.filterState[0]);
+        r = lowpass(r, coefficient, lane.filterState[1]);
     }
     else if (lane.effect == Effect::Stutter)
     {
@@ -457,6 +526,40 @@ void Rack::processLane(Lane& lane, unsigned index, float& left, float& right)
         if (gain > 0 && gain < 1) gain = 0.5f * (1 - sine(0.25f + 0.5f * gain));
         l *= gain;
         r *= gain;
+    }
+    else if (lane.effect == Effect::HighPass)
+    {
+        l = highpass(l, lane.depth, lane.filterState[0]);
+        r = highpass(r, lane.depth, lane.filterState[1]);
+    }
+    else if (lane.effect == Effect::Crush)
+    {
+        if (!lane.crushRemaining)
+        {
+            lane.heldSamples[0] = crush(l, lane.crushMask);
+            lane.heldSamples[1] = crush(r, lane.crushMask);
+            lane.crushRemaining = lane.crushPeriod;
+        }
+        --lane.crushRemaining;
+        l = lane.heldSamples[0];
+        r = lane.heldSamples[1];
+    }
+    else if (lane.effect == Effect::DubEcho)
+    {
+        // Read the pre-rack mix so taps are bounded and need no feedback buffer.
+        float echoL = 0, echoR = 0;
+        unsigned distance = lane.echoFrames;
+        float gain = lane.depth * kPcm;
+        for (unsigned tap = 0; tap < 3 && distance <= historyValid; ++tap)
+        {
+            const unsigned frame = (historyWrite >= distance ? historyWrite : historyWrite + kHistoryFrames) - distance;
+            echoL += memory.history[frame][0] * gain;
+            echoR += memory.history[frame][1] * gain;
+            distance += lane.echoFrames;
+            gain *= 0.5f;
+        }
+        l += lowpass(echoL, 0.22f, lane.filterState[0]);
+        r += lowpass(echoR, 0.22f, lane.filterState[1]);
     }
     else
     {
@@ -475,16 +578,6 @@ void Rack::processLane(Lane& lane, unsigned index, float& left, float& right)
                  readDelay(lane, index, center + modulation, 0)) * 0.667f;
             r = (r + readDelay(lane, index, center - modulation, 1) +
                  readDelay(lane, index, center + modulation, 1)) * 0.667f;
-        }
-        else if (lane.effect == Effect::Quantize)
-        {
-            lane.phase += lane.phaseStep;
-            wrap(lane.phase, 1);
-            const float speed = lane.phase < 2.0f / 3 ? 0.75f : 2.0f;
-            lane.position += blend(1, speed, (lane.level + 1) * 0.25f);
-            wrap(lane.position, kDelayFrames);
-            l = readDelay(lane, index, lane.position, 0);
-            r = readDelay(lane, index, lane.position, 1);
         }
         else
         {

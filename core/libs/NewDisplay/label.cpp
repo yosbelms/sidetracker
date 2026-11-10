@@ -359,8 +359,14 @@ void cLabel::update()
         API_LINE_WIDTH(8);
 
         API_BEGIN(LINES);
-        API_VERTEX2F(posX + data->line.x1, posY + data->line.y1);
-        API_VERTEX2F(posX + data->line.x2, posY + data->line.y2);
+        const bool vertical = data->line.x1 == data->line.x2;
+        for (unsigned pixel = 0; pixel < data->line.thickness; ++pixel)
+        {
+            const int x = posX + (vertical ? pixel : 0);
+            const int y = posY + (vertical ? 0 : pixel);
+            API_VERTEX2F(x + data->line.x1, y + data->line.y1);
+            API_VERTEX2F(x + data->line.x2, y + data->line.y2);
+        }
         API_END();
     }
 

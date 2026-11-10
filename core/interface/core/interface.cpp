@@ -302,6 +302,7 @@ void Interface::processPowerOffSequence()
 
         if (lowPower.getTimeLeft() == 0 && newFileManager.getStatus() == fmIdle)
         {
+            flushPerformanceMix();
             operatingMode = mtOperatingModeSleep;
             lowPower.goLowPower();
         }
