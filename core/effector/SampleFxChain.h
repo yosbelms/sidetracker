@@ -15,7 +15,7 @@ struct Node
 {
     uint8_t effect = kSample;
     uint8_t count = 0;
-    uint8_t quality = 0; // Native StPalette: Full/Economy/Minimum.
+    uint8_t quality = 0; // Native STPalette: Full/Economy/Minimum.
     bool bypass = false;
     uint16_t flags = 0;
     uint32_t fingerprint = 0;

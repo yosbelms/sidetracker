@@ -1,10 +1,10 @@
-# StPalette showcase presets
+# STPalette showcase presets
 
-Twenty native StPalette presets for Sample Editor → Effects. Tailored as expressive sonic texturizers for synths and sample material, they use three or four stages each and collectively cover all 24 algorithms. Designed around StPalette’s four categories, the collection ranges from warm analog lo-fi degradation and tape saturation to aggressive wavefolding, formant shaping, rhythmic gating, and crystalline granular clouds.
+Twenty native STPalette presets for Sample Editor → Effects. Tailored as expressive sonic texturizers for synths and sample material, they use three or four stages each and collectively cover all 24 algorithms. Designed around STPalette’s four categories, the collection ranges from warm analog lo-fi degradation and tape saturation to aggressive wavefolding, formant shaping, rhythmic gating, and crystalline granular clouds.
 
 ## Install and load
 
-Generate the pack or unpack `build/StPaletteShowcase.zip`, then copy its `Effects` folder into the root of your Tracker SD card or desktop virtual card. Each preset uses its descriptive filename, such as `Worn Cassette.ptpreset` or `Radio Static.ptpreset`. Preserve any file with the same name before replacing it.
+Generate the pack or unpack `build/STPaletteShowcase.zip`, then copy its `Effects` folder into the root of your Tracker SD card or desktop virtual card. Each preset uses its descriptive filename, such as `Worn Cassette.ptpreset` or `Radio Static.ptpreset`. Preserve any file with the same name before replacing it.
 
 Load a sample, open **Sample Editor → Effects**, focus the **Chain** column, press physical **Insert**, choose **Load Preset**, then select the preset below (e.g. **Worn Cassette**, **Radio Static**). Press **Preview** to audition or **Apply** to update the current sample slot.
 
@@ -332,4 +332,4 @@ From the repository root:
 python3 tools/generate_stpalette_presets.py
 ```
 
-This reads `presets.json`, preserves its names and settings, and writes a `.ptpreset` file under each preset’s actual name in `build/StPaletteShowcase/Effects/Presets/`. It also rebuilds `build/StPaletteShowcase.zip`. Python 3, Make and a C++20 host compiler are required.
+This reads `presets.json`, preserves its names and settings, and writes a `.ptpreset` file under each preset’s actual name in `build/STPaletteShowcase/Effects/Presets/`. It also rebuilds `build/STPaletteShowcase.zip`. Python 3, Make and a C++20 host compiler are required.

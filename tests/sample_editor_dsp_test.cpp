@@ -541,7 +541,7 @@ TEST(SampleFxRealtime, MixChangesRampWithoutRestartingTheChain)
     EXPECT_EQ(chain.played(), 768);
 }
 
-TEST(SampleFxRealtime, MixCompensatesStPaletteResamplingLatency)
+TEST(SampleFxRealtime, MixCompensatesSTPaletteResamplingLatency)
 {
     std::vector<int16_t> input(1025); input[37] = 10000;
     samplefx::ChainDefinition definition;

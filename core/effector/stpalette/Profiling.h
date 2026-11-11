@@ -1,5 +1,5 @@
 #pragma once
-#include "StPalette.h"
+#include "STPaletteEffects.h"
 namespace samplefx { namespace stpalette {
 struct ProfileResult {
     uint32_t maximumTicks=0;

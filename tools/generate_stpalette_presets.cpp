@@ -1,7 +1,7 @@
 // Native encoder for generate_stpalette_presets.py. Uses the firmware's registry
 // and serializer so presets follow the same validation and file format as CE.
 #include "SampleFxPreset.h"
-#include "stpalette/StPalette.h"
+#include "stpalette/STPaletteEffects.h"
 #include <array>
 #include <algorithm>
 #include <cctype>

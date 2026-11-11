@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "stpalette/StPalette.h"
+#include "stpalette/STPaletteEffects.h"
 #include "SampleFxPreset.h"
 #include "SampleFxRealtime.h"
 #include <vector>
@@ -43,7 +43,7 @@ std::vector<int16_t> run(Node node,unsigned channels,unsigned frames=8192) {
     return result;
 }
 }
-TEST(StPalette, AllTypesAndQualitiesProduceDeterministicBoundedMonoAndStereo) {
+TEST(STPalette, AllTypesAndQualitiesProduceDeterministicBoundedMonoAndStereo) {
     for(unsigned id=32;id<36;++id) for(unsigned type=0;type<6;++type)
     for(unsigned quality=0;quality<3;++quality) for(unsigned channels=1;channels<=2;++channels) {
         SCOPED_TRACE(::testing::Message()<<id<<":"<<type<<" quality="<<quality<<" channels="<<channels);
@@ -53,7 +53,7 @@ TEST(StPalette, AllTypesAndQualitiesProduceDeterministicBoundedMonoAndStereo) {
         EXPECT_EQ(first,run(n,channels,4099));
     }
 }
-TEST(StPalette, DefaultsVisibleParametersAndSelectedTypeOnlyMemory) {
+TEST(STPalette, DefaultsVisibleParametersAndSelectedTypeOnlyMemory) {
     EXPECT_EQ(stpalette::defaults(35).params[1],50);
     Arena a,b; stpalette::Processor filter,delay;
     auto n=stpalette::defaults(35);
@@ -68,7 +68,7 @@ TEST(StPalette, DefaultsVisibleParametersAndSelectedTypeOnlyMemory) {
     EXPECT_LE(a.position,stpalette::requiredMemory(n,1));
     EXPECT_LE(b.position,stpalette::requiredMemory(d,1));
 }
-TEST(StPalette, InvalidTypesProfilesParametersAndInsufficientArenaFailSafely) {
+TEST(STPalette, InvalidTypesProfilesParametersAndInsufficientArenaFailSafely) {
     auto n=stpalette::defaults(32); Arena a(128); stpalette::Processor p;
     EXPECT_FALSE(p.prepare(n,1,100,a.memory()));
     n.params[0]=.5f; EXPECT_FALSE(stpalette::valid(n));
@@ -77,14 +77,14 @@ TEST(StPalette, InvalidTypesProfilesParametersAndInsufficientArenaFailSafely) {
     n.quality=0; n.params[4]=1.5; EXPECT_FALSE(stpalette::valid(n));
     n.params[4]=0; n.params[2]=NAN; EXPECT_FALSE(stpalette::valid(n));
 }
-TEST(StPalette, TypeChangesRequirePreparationAndOrdinaryParametersPublish) {
+TEST(STPalette, TypeChangesRequirePreparationAndOrdinaryParametersPublish) {
     Arena a; stpalette::Processor p; auto n=stpalette::defaults(32);
     ASSERT_TRUE(p.prepare(n,1,1024,a.memory()));
     n.params[1]=80; EXPECT_TRUE(p.parameters(n));
     n.params[0]=2; EXPECT_FALSE(p.parameters(n));
     n.params[0]=0; n.quality=1; EXPECT_FALSE(p.parameters(n));
 }
-TEST(StPalette, PresetPreservesCategoryTypeAndResolvedQuality) {
+TEST(STPalette, PresetPreservesCategoryTypeAndResolvedQuality) {
     ChainDefinition r; auto n=stpalette::defaults(32);n.params[0]=2;n.quality=2;
     r.add(n);r.qualityResolved=true;r.mix=35;
     uint8_t bytes[kPresetFileBytes]; ASSERT_TRUE(encodePreset(r,bytes,sizeof(bytes))); EXPECT_EQ(bytes[4],1);
@@ -97,7 +97,7 @@ TEST(StPalette, PresetPreservesCategoryTypeAndResolvedQuality) {
     ASSERT_TRUE(decodePreset(bytes,sizeof(bytes),decoded));
     EXPECT_EQ(decoded.stages[0].effect,3); EXPECT_FALSE(decoded.qualityResolved);
 }
-TEST(StPalette, EconomyAdmissionIsDeterministicAndRespectsMinimumAndBypass) {
+TEST(STPalette, EconomyAdmissionIsDeterministicAndRespectsMinimumAndBypass) {
     ChainDefinition r;auto n=stpalette::defaults(32);n.params[0]=2;
     for(unsigned i=0;i<8;++i)r.add(n);
     auto other=r; ASSERT_TRUE(stpalette::resolve(r,1,4*1024*1024));
@@ -108,7 +108,7 @@ TEST(StPalette, EconomyAdmissionIsDeterministicAndRespectsMinimumAndBypass) {
     for(unsigned i=0;i<8;++i)r.stages[i].bypass=true;
     EXPECT_TRUE(stpalette::resolve(r,1,1));
 }
-TEST(StPalette, PreviewBudgetRequiresConsecutiveSlowBlocks) {
+TEST(STPalette, PreviewBudgetRequiresConsecutiveSlowBlocks) {
     RealtimeChain chain;
     chain.reportDuration(1200);EXPECT_FALSE(chain.budgetOverrun());
     chain.reportDuration(900);EXPECT_FALSE(chain.budgetOverrun());
@@ -121,7 +121,7 @@ TEST(StPalette, PreviewBudgetRequiresConsecutiveSlowBlocks) {
     EXPECT_EQ(chain.budgetOverrun().callbackUs,2250u);
 }
 
-TEST(StPalette, AntialiasedSaturatorMatchesHighPrecisionReferenceAndHandlesSmallDifferences) {
+TEST(STPalette, AntialiasedSaturatorMatchesHighPrecisionReferenceAndHandlesSmallDifferences) {
     for(float a : {-12.f,-3.f,-.01f,0.f,.1f,1.f,7.f,12.f})
     for(float b : {-11.f,-2.f,-.00999f,.000001f,.100001f,.5f,8.f,11.f}) {
         float previous=a;
@@ -131,7 +131,7 @@ TEST(StPalette, AntialiasedSaturatorMatchesHighPrecisionReferenceAndHandlesSmall
     }
 }
 
-TEST(StPalette, AntialiasedWaveshaperReducesFoldedHighHarmonicEnergy) {
+TEST(STPalette, AntialiasedWaveshaperReducesFoldedHighHarmonicEnergy) {
     constexpr unsigned count=1024, fundamental=87;
     std::vector<float> naive(count),antialiased(count);
     float previous=5*std::sin(-6.283185307179586f*fundamental/count);
@@ -155,7 +155,7 @@ TEST(StPalette, AntialiasedWaveshaperReducesFoldedHighHarmonicEnergy) {
     EXPECT_LT(aliasRatio(antialiased),aliasRatio(naive));
 }
 
-TEST(StPalette, RealtimeChainMatchesTheSharedRenderProcessorForEveryAlgorithmAndQuality) {
+TEST(STPalette, RealtimeChainMatchesTheSharedRenderProcessorForEveryAlgorithmAndQuality) {
     struct NoPlugins : RealtimePluginLoader {
         PtfxHostApi api={};
         bool load(const Node&,RealtimePlugin&,RealtimeArena&) override {return false;}
@@ -185,7 +185,7 @@ TEST(StPalette, RealtimeChainMatchesTheSharedRenderProcessorForEveryAlgorithmAnd
     }
 }
 
-TEST(StPalette, ProcessingAllocatesNothingAndNeutralFilterPreservesAudio) {
+TEST(STPalette, ProcessingAllocatesNothingAndNeutralFilterPreservesAudio) {
     Arena a;stpalette::Processor filter;auto n=stpalette::defaults(35);
     ASSERT_TRUE(filter.prepare(n,1,1024,a.memory()));size_t prepared=a.position;
     int16_t input[128],output[128];for(unsigned i=0;i<128;++i)input[i]=int16_t(i*411-25000);

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate the StPalette showcase files and ZIP using SideTracker's native encoder."""
+"""Regenerate the STPalette showcase files and ZIP using SideTracker's native encoder."""
 import json
 import os
 from pathlib import Path
@@ -12,7 +12,7 @@ import zipfile
 def main():
     root = Path(__file__).resolve().parents[1]
     source = root / "presets/stpalette"
-    pack = root / "build/StPaletteShowcase"
+    pack = root / "build/STPaletteShowcase"
     settings = json.loads((source / "presets.json").read_text())
     if settings.get("format") != "PTPR v1" or settings.get("source") != "Current sample":
         raise ValueError("Expected PTPR v1 presets with the current sample as source")
@@ -53,7 +53,7 @@ def main():
     directory = pack / "Effects/Presets"
     subprocess.run([str(binary), str(directory)], input="\n".join(lines) + "\n",
                    text=True, check=True)
-    archive = root / "build/StPaletteShowcase.zip"
+    archive = root / "build/STPaletteShowcase.zip"
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as output:
         for name in ("README.md", "presets.json"):
             shutil.copyfile(source / name, pack / name)

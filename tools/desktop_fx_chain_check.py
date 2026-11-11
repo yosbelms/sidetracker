@@ -372,7 +372,7 @@ assert-chain closed
         saved = (card / "Effects/Presets/Preset01.ptpreset").read_bytes()
         if saved[:5] != b"PTPR\x01" or saved[5] != 2 or saved[116] != 35 or saved[216] != 32:
             raise AssertionError("Native category/Type preset was not saved as PTPR v1")
-        with (card / "Effects/StPaletteCPU.csv").open() as report:
+        with (card / "Effects/STPaletteCPU.csv").open() as report:
             rows = list(csv.DictReader(report))
         if len(rows) != 3 or any(row["category"] != "Character" or int(row["max_ticks"]) <= 0 for row in rows):
             raise AssertionError("Native CPU report did not include all quality profiles")
@@ -380,8 +380,8 @@ assert-chain closed
         if rendered[-len(pcm):] != pcm:
             raise AssertionError("Neutral Filter and bypassed-amount Drive altered rendered PCM")
         frames = audit.read_text()
-        for text in ["St Character", "St Movement", "St Diffusion", "St Texture",
-                     "St Character: Drive", "St Texture: Filter", "Halo", "Filter"]:
+        for text in ["ST Character", "ST Movement", "ST Diffusion", "ST Texture",
+                     "ST Character: Drive", "ST Texture: Filter", "Halo", "Filter"]:
             if text not in frames:
                 raise AssertionError(f"Native category/Type UI did not display {text}")
         values = []
@@ -400,7 +400,7 @@ assert-chain closed
 def check_named_presets(binary: Path, output: Path):
     root = Path(__file__).resolve().parents[1]
     subprocess.run([sys.executable, str(root / "tools/generate_stpalette_presets.py")], check=True)
-    pack = root / "build/StPaletteShowcase"
+    pack = root / "build/STPaletteShowcase"
     settings = json.loads((pack / "presets.json").read_text())
     presets = {preset["name"]: preset for preset in settings["presets"]}
     with tempfile.TemporaryDirectory(prefix="ce-named-presets-") as directory:
@@ -575,7 +575,7 @@ assert-chain closed
             if kind == "latency":
                 expected = bytes(14 * 2) + pcm
                 if rendered[-len(expected):] != expected:
-                    raise AssertionError("Rendered global Mix did not align the dry path to the StPalette economy profile")
+                    raise AssertionError("Rendered global Mix did not align the dry path to the STPalette economy profile")
             else:
                 samples = struct.unpack("<16001h", rendered[-len(pcm):])
                 # The legacy normalizer's 50% target rounds to 16382–16383.

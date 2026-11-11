@@ -1,5 +1,5 @@
 #include "SampleFxChain.h"
-#include "stpalette/StPalette.h"
+#include "stpalette/STPaletteEffects.h"
 
 #include <algorithm>
 #include <cmath>

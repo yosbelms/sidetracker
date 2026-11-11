@@ -2,7 +2,7 @@
 
 #include "SampleFxChain.h"
 #include "tracker_plugin.h"
-#include "stpalette/StPalette.h"
+#include "stpalette/STPaletteEffects.h"
 #include "SampleFxMix.h"
 #include <atomic>
 #include <memory>

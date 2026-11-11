@@ -9,7 +9,7 @@
 #include "mtAudioEngine.h"
 #include "mtPadBoard.h"
 #include "VoiceStreamManager.h"
-#include "stpalette/StPalette.h"
+#include "stpalette/STPaletteEffects.h"
 #include "stpalette/Profiling.h"
 #include "Tracker.h"
 #include "Platform.h"
@@ -439,7 +439,7 @@ class ChainScreen
     const char* name(const Node& n)
     {
         if(stpalette::contains(n.effect)) {
-            snprintf(nativeName,sizeof(nativeName),"St %s: %s",stpalette::category(n.effect),stpalette::typeName(n.effect,unsigned(n.params[stpalette::Type])));
+            snprintf(nativeName,sizeof(nativeName),"ST %s: %s",stpalette::category(n.effect),stpalette::typeName(n.effect,unsigned(n.params[stpalette::Type])));
             return nativeName;
         }
         if (n.effect == kSample) return "Current Sample";
@@ -587,7 +587,7 @@ void ChainScreen::show(Page next)
     for (unsigned i = 0; i < kBuiltInEffectsCount; ++i)
         if (listedInChain(i)) addRow(effectNamesLabels[i], i);
     for(unsigned id=stpalette::kFirst;id<=stpalette::kLast;++id) {
-        snprintf(text,sizeof(text),"St %s",stpalette::category(id));
+        snprintf(text,sizeof(text),"ST %s",stpalette::category(id));
         addRow(text,id);
     }
     for (unsigned i = 0; i < PtfxManager::getPluginCount(); ++i)
@@ -1122,7 +1122,7 @@ void ChainScreen::measureCpu()
     unsigned ticksPerUs=timer->clockCyclesPerUs();
 #endif
     fs->mkdir(0,"/Effects");
-    auto [ok,file]=fs->openFile("/Effects/StPaletteCPU.csv",FileSystem::kWriteCreateNew);
+    auto [ok,file]=fs->openFile("/Effects/STPaletteCPU.csv",FileSystem::kWriteCreateNew);
     if(!ok){error("Cannot save CPU report");return;}
     static const char heading[]="category,type,quality,processing_quality,channels,max_ticks,average_ticks,ticks_per_us,arena_bytes\n";
     bool success=fs->writeFile(heading,sizeof(heading)-1,file)==sizeof(heading)-1;
@@ -1136,7 +1136,7 @@ void ChainScreen::measureCpu()
     }
     fs->closeFile(file);
     schemaReady=false;
-    snprintf(notice,sizeof(notice),success?"Saved Effects/StPaletteCPU.csv":"CPU measurement failed");
+    snprintf(notice,sizeof(notice),success?"Saved Effects/STPaletteCPU.csv":"CPU measurement failed");
     focus=1;show(Chain);
 }
 

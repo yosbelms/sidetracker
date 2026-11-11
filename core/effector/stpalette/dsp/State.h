@@ -1,5 +1,5 @@
 #pragma once
-#include "../StPalette.h"
+#include "../STPaletteEffects.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>

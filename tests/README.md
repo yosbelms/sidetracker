@@ -108,4 +108,4 @@ Desktop PTFX checks add independent stages and a generator without execution, ed
 
 Tools UI checks apply Normalizer with an edited target, Fade In, and Fade Out, then inspect the saved sample audio. Older saved chains retain support for those effects even though they are no longer in the chain browser.
 
-Whole-chain Mix checks cover legacy/default persistence, 0/50/100% endpoints, tails, live ramps, StPalette latency, generator dry history, stereo isolation/downmixing, and prepared-result cache reuse. Desktop checks save/reload Mix, inspect rendered PCM and verify that source audio remains unchanged.
+Whole-chain Mix checks cover legacy/default persistence, 0/50/100% endpoints, tails, live ramps, STPalette latency, generator dry history, stereo isolation/downmixing, and prepared-result cache reuse. Desktop checks save/reload Mix, inspect rendered PCM and verify that source audio remains unchanged.

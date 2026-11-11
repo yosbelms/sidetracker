@@ -1,4 +1,4 @@
-#include "StPalette.h"
+#include "STPaletteEffects.h"
 #include "dsp/Helpers.h"
 #include <new>
 #include <cstring>

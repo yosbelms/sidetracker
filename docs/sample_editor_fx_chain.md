@@ -13,7 +13,7 @@ The Chain view uses the Sample Loader’s browser-and-slots arrangement, followe
 
 Effects occupies 3/8 of the screen, Chain and Parameter each occupy 2/8, and Value occupies the final 1/8 at the right edge.
 
-Four native StPalette entries—Character, Movement, Diffusion, and Texture—each expose six algorithms through Type. Each instance runs only its selected Type. Type lists use the Value column; Sync and Tail appear only where relevant. The chain row displays the category and selected Type. Native preview and Render share their DSP and resolved quality profiles. Economy mode is selected when the budget requires it; original Tracker timing estimates still require hardware calibration. A StPalette stage's Insert menu offers Measure CPU, saving a selected-Type report to `/Effects/StPaletteCPU.csv`. See [Native StPalette](../core/effector/stpalette/README.md).
+Four native STPalette entries—Character, Movement, Diffusion, and Texture—each expose six algorithms through Type. Each instance runs only its selected Type. Type lists use the Value column; Sync and Tail appear only where relevant. The chain row displays the category and selected Type. Native preview and Render share their DSP and resolved quality profiles. Economy mode is selected when the budget requires it; original Tracker timing estimates still require hardware calibration. A STPalette stage's Insert menu offers Measure CPU, saving a selected-Type report to `/Effects/STPaletteCPU.csv`. See [Native STPalette](../core/effector/stpalette/README.md).
 
 Left/Right moves between columns. Up/Down and the encoder select entries; in Value, the encoder changes the value. Browsing Effects never replaces a chain stage or changes its settings. **Add** appends the browsed effect and keeps focus in the browser, so several effects can be added quickly. Repeated Add creates independent instances. Select a stage in Chain and press the physical **Insert** key to open its context menu for bypass, duplicate, replacement, removal, and chain operations. **Delete** removes the selected chain stage; in Value it restores the parameter default.
 
@@ -23,7 +23,7 @@ The chain toolbar is **Preview, Add, Back, Apply, Actions, Mix, empty, Value**. 
 
 **Mix** shows the chain’s global wet/dry percentage in its toolbar button. Hold Mix while turning the jog wheel or pressing arrows: Up/Right increases it, Down/Left decreases it. Releasing Mix restores normal navigation and parameter editing. Tapping Mix does not change focus, and Mix never replaces the selected parameter in the Value bar. The remaining empty toolbar slot keeps its separator lines, matching Sample Loader and Pattern Fill.
 
-0% is the dry source, 100% is the complete processed chain, and intermediate values use a linear blend after all stages. Mix consumes no stage slot. Live changes ramp over 10 ms without restarting the source or clearing effect history; effects continue running at 0%. Known StPalette resampling latency is compensated on the dry path. Musical delays and modulation remain part of the wet sound. Dry becomes silence after its source ends, while wet tails retain the chain’s output length and are scaled by Mix.
+0% is the dry source, 100% is the complete processed chain, and intermediate values use a linear blend after all stages. Mix consumes no stage slot. Live changes ramp over 10 ms without restarting the source or clearing effect history; effects continue running at 0%. Known STPalette resampling latency is compensated on the dry path. Musical delays and modulation remain part of the wet sound. Dry becomes silence after its source ends, while wet tails retain the chain’s output length and are scaled by Mix.
 
 With a generator, dry means that generator’s output before subsequent effects. Live preview retains only a small block/delay history for this path. Prepared preview and Render retain the wet result, read dry audio from the existing source snapshot (or a separate generator snapshot), and blend in bounded foreground steps using shared scratch and the other working buffer. Editing Mix on a prepared result reuses the wet audio; it does not rerun its effects. Declared plugin prepends are aligned during this pass; unreported plugin latency cannot be automatically compensated.
 
@@ -57,7 +57,7 @@ Open **Actions** or press physical **Insert** while focused on Chain. **Save Pre
 
 The browser lists up to 32 `.ptpreset` files in `/Effects/Presets/` and displays their filenames without extensions. The current preset format is PTPR v1. Older `.ptchain` files and PTCH-based `.ptpreset` files are unsupported.
 
-The [StPalette showcase pack](../presets/stpalette/README.md) provides ready-to-load presets covering all 24 native algorithms, with descriptive filenames and a guide to their settings.
+The [STPalette showcase pack](../presets/stpalette/README.md) provides ready-to-load presets covering all 24 native algorithms, with descriptive filenames and a guide to their settings.
 
 To regenerate the pack, run this from the repository root:
 
@@ -65,7 +65,7 @@ To regenerate the pack, run this from the repository root:
 python3 tools/generate_stpalette_presets.py
 ```
 
-The generator reads `presets/stpalette/presets.json`, validates the settings with CE’s native registry, and uses the firmware’s encoder to write files such as `build/StPaletteShowcase/Effects/Presets/Worn Cassette.ptpreset` using each preset’s name. It also creates `build/StPaletteShowcase.zip`. Python 3, Make and a C++20 host compiler are required; the portable core library builds automatically.
+The generator reads `presets/stpalette/presets.json`, validates the settings with CE’s native registry, and uses the firmware’s encoder to write files such as `build/STPaletteShowcase/Effects/Presets/Worn Cassette.ptpreset` using each preset’s name. It also creates `build/STPaletteShowcase.zip`. Python 3, Make and a C++20 host compiler are required; the portable core library builds automatically.
 
 Copy the pack’s `Effects` folder to the SD-card root, preserving any existing files with the same names before replacing them. Open **Load Preset** and select the preset by name.
 

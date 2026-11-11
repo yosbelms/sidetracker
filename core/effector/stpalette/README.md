@@ -1,11 +1,11 @@
-# Native StPalette
+# Native STPalette
 
 Native Sample Editor effects shared by Original, Plus, Mini, and desktop. No
 runtime dependency on `temp/`, Move, PTFX, or downloaded resources.
 
 ## Interface and layout
 
-`StPalette.h` is the SideTracker integration boundary. `Registry.cpp` owns the four stable
+`STPaletteEffects.h` is the SideTracker integration boundary. `Registry.cpp` owns the four stable
 category IDs (32–35), their six Type choices, parameter metadata/capabilities,
 memory admission, and provisional CPU estimates. `Processor.cpp` owns one
 selected algorithm per instance, arena state, smoothing, resampling, level
@@ -13,8 +13,8 @@ matching, and bounded tails. `groups/` contains the 24 kernels; `dsp/` and
 `tables/` contain shared helpers and immutable data. Only the selected Type's
 delay history and reverb tank are allocated. Instances never share mutable DSP.
 
-The browser labels are St Character, St Movement, St Diffusion, and St Texture.
-Chain rows add the selected Type, for example St Movement: Vibrato.
+The browser labels are ST Character, ST Movement, ST Diffusion, and ST Texture.
+Chain rows add the selected Type, for example ST Movement: Vibrato.
 Up/Down move to the preceding/following item in Type and Sync lists, while the
 encoder keeps its normal list direction.
 
@@ -58,20 +58,20 @@ the main loop, never allocate from an interrupt, and do not upgrade during
 playback. If no supported lower profile fits, preview stops and Render remains
 available. These safeguards do not constitute timing certification.
 
-Presets use PTPR v1. They store StPalette category IDs, the six stage parameters,
+Presets use PTPR v1. They store STPalette category IDs, the six stage parameters,
 each node’s quality, a resolved-quality flag, and the chain’s Mix. Render honors
 the last resolved preview quality. The host blends Mix after the chain and
 compensates for known profile latency.
 
-The [StPalette showcase pack](../../../presets/stpalette/README.md) covers all 24
+The [STPalette showcase pack](../../../presets/stpalette/README.md) covers all 24
 algorithms in twenty presets. Its guide documents the settings, installation and
 `python3 tools/generate_stpalette_presets.py` command for rebuilding the files and ZIP.
 
 ## Profiling and verification
 
-Select a StPalette stage in the Chain column, press physical Insert, then **Measure CPU**.
+Select a STPalette stage in the Chain column, press physical Insert, then **Measure CPU**.
 Playback stops and the selected Type is tested with deterministic input and
-parameter sweeps at each requested profile. `/Effects/StPaletteCPU.csv` is replaced
+parameter sweeps at each requested profile. `/Effects/STPaletteCPU.csv` is replaced
 with the report. It contains effective profile, maximum/average timer ticks,
 ticks per microsecond, and actual arena use. Divide ticks by ticks-per-us on
 hardware; desktop reports describe the desktop, not the Tracker. This measures
