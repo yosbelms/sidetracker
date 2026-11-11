@@ -1,8 +1,8 @@
-#include "Palette.h"
+#include "StPalette.h"
 #include <algorithm>
 #include <cmath>
 
-namespace samplefx { namespace palette {
+namespace samplefx { namespace stpalette {
 namespace {
 const char* const categories[] = {"Character", "Movement", "Diffusion", "Texture"};
 const char* const types[4][6] = {

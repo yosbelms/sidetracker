@@ -101,4 +101,4 @@ clean:
 
 .PHONY: build
 
-INCLUDES+=-I./effector/palette/vendor/clouds
+INCLUDES+=-I./effector/stpalette/vendor/clouds

@@ -4,7 +4,7 @@
 #include "../vendor/clouds/clouds/dsp/fx/reverb.h"
 #include <new>
 
-namespace samplefx { namespace palette {
+namespace samplefx { namespace stpalette {
 namespace {
 template<unsigned Division> struct Tank {
     clouds::Reverb<Division> verb;

@@ -1,11 +1,11 @@
-# Native Palette
+# Native StPalette
 
 Native Sample Editor effects shared by Original, Plus, Mini, and desktop. No
 runtime dependency on `temp/`, Move, PTFX, or downloaded resources.
 
 ## Interface and layout
 
-`Palette.h` is the CE integration boundary. `Registry.cpp` owns the four stable
+`StPalette.h` is the SideTracker integration boundary. `Registry.cpp` owns the four stable
 category IDs (32–35), their six Type choices, parameter metadata/capabilities,
 memory admission, and provisional CPU estimates. `Processor.cpp` owns one
 selected algorithm per instance, arena state, smoothing, resampling, level
@@ -13,13 +13,13 @@ matching, and bounded tails. `groups/` contains the 24 kernels; `dsp/` and
 `tables/` contain shared helpers and immutable data. Only the selected Type's
 delay history and reverb tank are allocated. Instances never share mutable DSP.
 
-The browser labels are Palette - Character, Palette - Movement, Palette -
-Diffusion, and Palette - Texture; chain rows retain category and Type names.
+The browser labels are St Character, St Movement, St Diffusion, and St Texture.
+Chain rows add the selected Type, for example St Movement: Vibrato.
 Up/Down move to the preceding/following item in Type and Sync lists, while the
 encoder keeps its normal list direction.
 
 Parameters have stable indices Type, Amount, Macro, Drift, Sync, Tail. Hidden
-Sync/Tail values remain in chains. Type and Sync changes rebuild live processing
+Sync/Tail values remain in the chain and are saved in presets. Type and Sync changes rebuild live processing
 after a short fade, outside the audio callback; ordinary controls are smoothed.
 Changing project tempo updates sync without reallocating. Reverse Delay is an
 audio effect; the destructive Reverse tool remains separate.
@@ -58,21 +58,20 @@ the main loop, never allocate from an interrupt, and do not upgrade during
 playback. If no supported lower profile fits, preview stops and Render remains
 available. These safeguards do not constitute timing certification.
 
-Chains containing Palette use PTCH v2: category IDs plus six stored parameters,
-quality in each node's previously unused last byte, and a resolved-quality flag.
-Legacy-only chains retain v1. Render honors the last resolved preview quality.
-The host’s global Mix blends after the chain, compensates known profile latency,
-and defaults to 100% wet for older files (reserved header byte 7 is zero).
+Presets use PTPR v1. They store StPalette category IDs, the six stage parameters,
+each node’s quality, a resolved-quality flag, and the chain’s Mix. Render honors
+the last resolved preview quality. The host blends Mix after the chain and
+compensates for known profile latency.
 
-The [Palette showcase pack](../../../presets/palette/README.md) covers all 24
-algorithms in eight chains. Its guide documents the settings, installation and
-`python3 tools/generate_palette_chains.py` command for rebuilding the files and ZIP.
+The [StPalette showcase pack](../../../presets/stpalette/README.md) covers all 24
+algorithms in twenty presets. Its guide documents the settings, installation and
+`python3 tools/generate_stpalette_presets.py` command for rebuilding the files and ZIP.
 
 ## Profiling and verification
 
-Select a Palette stage in Chain, press physical Insert, then **Measure CPU**.
+Select a StPalette stage in the Chain column, press physical Insert, then **Measure CPU**.
 Playback stops and the selected Type is tested with deterministic input and
-parameter sweeps at each requested profile. `/Effects/PaletteCPU.csv` is replaced
+parameter sweeps at each requested profile. `/Effects/StPaletteCPU.csv` is replaced
 with the report. It contains effective profile, maximum/average timer ticks,
 ticks per microsecond, and actual arena use. Divide ticks by ticks-per-us on
 hardware; desktop reports describe the desktop, not the Tracker. This measures
@@ -82,9 +81,9 @@ the selected kernel/adapters rather than certifying an entire mixed chain.
 caller-supplied arena and cycle clock. Host and Cortex-M4 build targets are:
 
 ```sh
-make -C tests palette-bench
-make -C tests palette-bench-m4-build
-make -C tests palette-bench-m4  # requires qemu-system-arm
+make -C tests stpalette-bench
+make -C tests stpalette-bench-m4-build
+make -C tests stpalette-bench-m4  # requires qemu-system-arm
 make -C tests test
 make -C tests STEREO=1 test
 make desktop-check
@@ -98,7 +97,7 @@ budget. No hardware measurements have been recorded in this implementation.
 Regenerate immutable curve/integral tables with:
 
 ```sh
-python3 core/effector/palette/tools/generate_tables.py
+python3 core/effector/stpalette/tools/generate_tables.py
 ```
 
 The Python generator uses high precision; generated production tables and DSP

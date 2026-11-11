@@ -42,7 +42,7 @@ The **Modular Effects System (`PTFX`)** introduces dynamically loadable DSP and 
 - **Polyend Tracker+** - NXP i.MX RT1051/RT1064 (`ARM Cortex-M7F` @ 600 MHz, stereo sample engine)
 - **Polyend Tracker Mini** - NXP i.MX RT1051/RT1064 (`ARM Cortex-M7F` @ 600 MHz, stereo sample engine)
 
-External `.ptfx` position-independent binary modules placed on the SD card under `/Effects/*.ptfx` are automatically discovered when entering the **Sample Editor** (up to **128 custom plugins**). In **Chain**, processing plugins and generators appear in the Effects column; generators are marked `[Gen]` and selected as the source with **Use src**. Plugins are loaded on demand into executable RAM, auditioned via **Preview**, and rendered into a new sample slot. See the [sample-editor FX chain guide](sample_editor_fx_chain.md) for the column workflow.
+External `.ptfx` position-independent binary modules placed on the SD card under `/Effects/*.ptfx` are automatically discovered when entering the **Sample Editor** (up to **128 custom plugins**). In the **Effects** view, processing plugins and generators appear in the Effects column; generators are marked `[Gen]` and selected as the source with **Use src**. Plugins are loaded on demand into executable RAM, auditioned via **Preview**, and rendered into a new sample slot. See the [sample-editor FX chain guide](sample_editor_fx_chain.md) for the column workflow.
 
 ### Installing Plugins on Your SD Card
 Place `.ptfx` files in the `/Effects/` directory at the root of your microSD card:

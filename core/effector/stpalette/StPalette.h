@@ -1,7 +1,7 @@
 #pragma once
 #include "../SampleFxChain.h"
 
-namespace samplefx { namespace palette {
+namespace samplefx { namespace stpalette {
 constexpr uint8_t kFirst = 32, kLast = 35;
 enum Parameter { Type, Amount, Macro, Drift, Sync, Tail, ParameterCount };
 enum Quality : uint8_t { Full, Economy, Minimum };

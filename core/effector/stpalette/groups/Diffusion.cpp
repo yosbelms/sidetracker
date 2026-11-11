@@ -1,7 +1,7 @@
 // Adapted from PALETTE, Copyright 2026 Filliformes, MIT (see ../LICENSE).
 // Derived Airwindows/Mutable DSP attribution is recorded in ../README.md.
 #include "../dsp/Helpers.h"
-namespace samplefx { namespace palette {
+namespace samplefx { namespace stpalette {
 #define SR (s->sr)
 #define MAX_DELAY (s->max_delay)
 #define sinf fastSin
@@ -75,7 +75,7 @@ static void fx_reels(slot_dsp_t *s, float *l, float *r, int n,
  * latches the segment length when it wraps, so turning Time never jumps a head.
  * (Was one head whose delay SHRANK by 1/sample: forward at 2x, not reverse.)
  * State: f2=phase, f3/f4=latched segment A/B, f6=smoothed segment. */
-PALETTE_HOT_CODE static void fx_reverse(slot_dsp_t *s, float *l, float *r, int n,
+STPALETTE_HOT_CODE static void fx_reverse(slot_dsp_t *s, float *l, float *r, int n,
                        float amount, float macro, float drift){
     float seg=(s->sync_time>0.0f)? s->sync_time : SR*(0.08f+macro*0.6f); /* 80..680ms / synced */
     if(seg>(float)(MAX_DELAY/2-8)) seg=(float)(MAX_DELAY/2-8);
@@ -109,7 +109,7 @@ PALETTE_HOT_CODE static void fx_reverse(slot_dsp_t *s, float *l, float *r, int n
  * soft-clipped. State: f3/f4=head delay/speed, f1/f2=fading head, i1=samples left
  * in grain, i2=crossfade left, f5=smoothed loop length. */
 #define COL_XF 300
-PALETTE_HOT_CODE static void fx_collage(slot_dsp_t *s, float *l, float *r, int n,
+STPALETTE_HOT_CODE static void fx_collage(slot_dsp_t *s, float *l, float *r, int n,
                        float amount, float macro, float drift){
     const float glide=rateCoeff(.0004f,SR);
     float loop=(s->sync_time>0.0f)? s->sync_time : SR*(0.05f+macro*1.2f);

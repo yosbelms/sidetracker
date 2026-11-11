@@ -1,6 +1,6 @@
 #include "Profiling.h"
 #include <algorithm>
-namespace samplefx { namespace palette {
+namespace samplefx { namespace stpalette {
 ProfileResult profile(Node n,unsigned channels,Memory mem,void* context,uint32_t(*clock)(void*)) {
     ProfileResult result;
     if(!valid(n) || !clock || channels<1 || channels>2)return result;

@@ -1,6 +1,6 @@
 #pragma once
-#include "Palette.h"
-namespace samplefx { namespace palette {
+#include "StPalette.h"
+namespace samplefx { namespace stpalette {
 struct ProfileResult {
     uint32_t maximumTicks=0;
     uint64_t totalTicks=0;

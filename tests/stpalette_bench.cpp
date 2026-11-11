@@ -1,4 +1,4 @@
-#include "palette/Profiling.h"
+#include "stpalette/Profiling.h"
 #include <cstdio>
 #include <cstring>
 #ifndef CE_BENCH_M4
@@ -30,8 +30,8 @@ int main() {
 #endif
     bool ok=true;
     for(unsigned id=32;id<=35;++id)for(unsigned type=0;type<6;++type)for(unsigned quality=0;quality<3;++quality) {
-        used=0;auto n=samplefx::palette::defaults(id);n.params[0]=type;n.quality=quality;
-        auto result=samplefx::palette::profile(n,1,{nullptr,allocate},nullptr,clock);
+        used=0;auto n=samplefx::stpalette::defaults(id);n.params[0]=type;n.quality=quality;
+        auto result=samplefx::stpalette::profile(n,1,{nullptr,allocate},nullptr,clock);
         ok&=result.success;
         printf("{\"category\":%u,\"type\":%u,\"quality\":%u,\"unit\":\"%s\",\"max\":%lu,\"average\":%lu,\"arena\":%lu,\"signature\":%lu,\"ok\":%s}\n",id,type,quality,unit,(unsigned long)result.maximumTicks,(unsigned long)(result.blocks?result.totalTicks/result.blocks:0),(unsigned long)used,(unsigned long)result.signature,result.success?"true":"false");
     }

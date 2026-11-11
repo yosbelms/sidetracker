@@ -38,29 +38,32 @@ def check_chain_frames(path: Path):
             frames[-1].append((int(x), int(y), value))
     headers = {text for frame in frames for x, y, text in frame
                if 300 <= x < 500 and 31 <= y < 60}
-    if not {"Save Chain", "Load Chain"} <= headers:
-        raise AssertionError("Save/Load Chain picker headings were not displayed")
+    if not {"Chain", "Save Preset", "Load Preset"} <= headers:
+        raise AssertionError("Chain or Save/Load Preset heading was missing")
     checked = 0
     values = {"Low": "0.000 dB", "Low freq": "90 Hz", "Low Width": "1.000",
               "Mid": "0.000 dB", "Mid freq": "800 Hz", "Mid Width": "1.000",
               "High": "0.000 dB", "High freq": "12000 Hz", "High Width": "1.000"}
     for frame in frames:
         menu = any(300 <= x < 500 and 31 <= y < 60 and text in
-                   {"Actions", "Save Chain", "Load Chain", "Render to"} for x, y, text in frame)
+                   {"Actions", "Save Preset", "Load Preset", "Render to"} for x, y, text in frame)
         if menu:
             if any(x >= 500 and 31 <= y < 424 and text for x, y, text in frame):
-                raise AssertionError("Parameter/Value columns remained visible over the chain menu")
+                raise AssertionError("Parameter/Value columns remained visible over the preset menu")
             if any(x == 750 and 424 <= y < 480 and text for x, y, text in frame):
-                raise AssertionError("Value footer remained visible over the chain menu")
+                raise AssertionError("Value footer remained visible over the preset menu")
             continue
         if not any(y < 31 and text.startswith("FX Chain") for x, y, text in frame):
             continue
+        if any(300 <= x < 500 and 60 <= y < 424 and text[:2].isdigit() and text[2:3] == " "
+               for x, y, text in frame):
+            raise AssertionError("An effect row displayed a leading stage number")
         toolbar = {}
         for x, y, text in frame:
             if 424 <= y < 480 and text:
                 toolbar.setdefault(x, []).append(text)
         if toolbar.get(150) == ["Select"]:
-            continue  # Context/saved-chain/destination menu.
+            continue  # Context/saved-preset/destination menu.
         for x, choices in [(50, {"Preview", "Stop"}), (150, {"Add", "Use src", "Replace"}),
                            (250, {"Back"}), (350, {"Apply"}), (450, {"Actions"}), (550, {"Mix"})]:
             if not toolbar.get(x) or toolbar[x][0] not in choices:
@@ -164,14 +167,14 @@ assert-chain closed
             capture_output=True, text=True, timeout=90)
         if result.returncode:
             raise RuntimeError(result.stdout + result.stderr)
-        saved = (card / "Effects/Chains/Chain01.ptchain").read_bytes()
+        saved = (card / "Effects/Presets/Preset01.ptpreset").read_bytes()
         if saved[5] != 2:
             raise AssertionError("Desktop could not add repeated PTFX stages")
         for index, expected in [(1, (1.0, 0.0)), (2, (1.5, 1.0))]:
             node = 16 + index * 100
             if saved[node] != 255 or struct.unpack_from("<ff", saved, node + 51) != expected:
                 raise AssertionError("PTFX parameter/list edits were not preserved independently")
-        generated = (card / "Effects/Chains/Chain02.ptchain").read_bytes()
+        generated = (card / "Effects/Presets/Preset02.ptpreset").read_bytes()
         if generated[16] != 255 or generated[19] != 1 or struct.unpack_from("<I", generated, 8)[0] != 48510:
             raise AssertionError("Desktop could not select/configure a PTFX generator")
         frames = audit.read_text()
@@ -306,15 +309,15 @@ assert-sample 1 100 2000
                 raise AssertionError("Undo or failed Apply changed the original workspace PCM")
 
 
-def check_native_palette(binary: Path, output: Path):
-    with tempfile.TemporaryDirectory(prefix="ce-palette-ui-") as directory:
+def check_native_stpalette(binary: Path, output: Path):
+    with tempfile.TemporaryDirectory(prefix="ce-stpalette-ui-") as directory:
         card = Path(directory)
         pcm = struct.pack("<h", 2000) * 44100
         with wave.open(str(card / "input.wav"), "wb") as wav:
             wav.setparams((1, 2, 44100, 44100, "NONE", "not compressed"))
             wav.writeframes(pcm)
         script = card / "native.txt"
-        audit = output / "sample-palette-frames.tsv"
+        audit = output / "sample-stpalette-frames.tsv"
         script.write_text(f"""audit-frames {audit.resolve()}
 import 0 /input.wav
 button S. Editor
@@ -333,7 +336,7 @@ assert-preview live
 encoder -5
 wait 100
 assert-preview live
-snapshot {(output / 'sample-palette-type.bmp').resolve()}
+snapshot {(output / 'sample-stpalette-type.bmp').resolve()}
 button 0
 button Left
 button Left
@@ -362,14 +365,14 @@ wait 2000
 assert-chain closed
 """)
         result = subprocess.run([str(binary.resolve()), "--sd", str(card), "--script", str(script),
-                                 "--screenshot", str((output / "sample-palette-render.bmp").resolve())],
+                                 "--screenshot", str((output / "sample-stpalette-render.bmp").resolve())],
                                 capture_output=True, text=True, timeout=90)
         if result.returncode:
             raise RuntimeError(result.stdout + result.stderr)
-        saved = (card / "Effects/Chains/Chain01.ptchain").read_bytes()
-        if saved[4] != 2 or saved[5] != 2 or saved[116] != 35 or saved[216] != 32:
-            raise AssertionError("Native category/Type chain was not saved as v2")
-        with (card / "Effects/PaletteCPU.csv").open() as report:
+        saved = (card / "Effects/Presets/Preset01.ptpreset").read_bytes()
+        if saved[:5] != b"PTPR\x01" or saved[5] != 2 or saved[116] != 35 or saved[216] != 32:
+            raise AssertionError("Native category/Type preset was not saved as PTPR v1")
+        with (card / "Effects/StPaletteCPU.csv").open() as report:
             rows = list(csv.DictReader(report))
         if len(rows) != 3 or any(row["category"] != "Character" or int(row["max_ticks"]) <= 0 for row in rows):
             raise AssertionError("Native CPU report did not include all quality profiles")
@@ -377,7 +380,8 @@ assert-chain closed
         if rendered[-len(pcm):] != pcm:
             raise AssertionError("Neutral Filter and bypassed-amount Drive altered rendered PCM")
         frames = audit.read_text()
-        for text in ["Palette - Character", "Palette - Movement", "Palette - Diffusion", "Palette - Texture", "Halo", "Filter"]:
+        for text in ["St Character", "St Movement", "St Diffusion", "St Texture",
+                     "St Character: Drive", "St Texture: Filter", "Halo", "Filter"]:
             if text not in frames:
                 raise AssertionError(f"Native category/Type UI did not display {text}")
         values = []
@@ -393,76 +397,83 @@ assert-chain closed
             raise AssertionError(f"Type arrows moved in the wrong direction: {values}")
 
 
-def check_named_chains(binary: Path, output: Path):
+def check_named_presets(binary: Path, output: Path):
     root = Path(__file__).resolve().parents[1]
-    subprocess.run([sys.executable, str(root / "tools/generate_palette_chains.py")], check=True)
-    pack = root / "build/PaletteShowcase"
-    settings = json.loads((pack / "chains.json").read_text())
-    presets = {chain["name"]: chain for chain in settings["chains"]}
-    with tempfile.TemporaryDirectory(prefix="ce-named-chains-") as directory:
+    subprocess.run([sys.executable, str(root / "tools/generate_stpalette_presets.py")], check=True)
+    pack = root / "build/StPaletteShowcase"
+    settings = json.loads((pack / "presets.json").read_text())
+    presets = {preset["name"]: preset for preset in settings["presets"]}
+    with tempfile.TemporaryDirectory(prefix="ce-named-presets-") as directory:
         card = Path(directory)
-        saved = card / "Effects/Chains"
+        saved = card / "Effects/Presets"
         saved.mkdir(parents=True)
         for name in presets:
-            (saved / f"{name}.ptchain").write_bytes((pack / f"Effects/Chains/{name}.ptchain").read_bytes())
-        # Numbered legacy chains remain alongside named files. Directories and
-        # other file types must not appear as loadable chains.
-        legacy = (saved / f"{next(iter(presets))}.ptchain").read_bytes()
-        (saved / "Chain01.ptchain").write_bytes(legacy)
-        (saved / "Ignored.ptchain").mkdir()
-        (saved / "notes.txt").write_text("not a chain")
+            (saved / f"{name}.ptpreset").write_bytes((pack / f"Effects/Presets/{name}.ptpreset").read_bytes())
+        legacy_dir = card / "Effects/Chains"
+        legacy_dir.mkdir()
+        names = sorted(presets)
+        edited = names[-1]
+        original = (saved / f"{edited}.ptpreset").read_bytes()
+        (legacy_dir / "Old Folder.ptchain").write_bytes(original)
+        (saved / "Old Extension.ptchain").write_bytes(original)
+        (saved / "Ignored.ptpreset").mkdir()
+        (saved / "notes.txt").write_text("not a preset")
         with wave.open(str(card / "input.wav"), "wb") as wav:
             wav.setparams((1, 2, 44100, 44100 * 4, "NONE", "not compressed"))
             wav.writeframes(struct.pack("<h", 2000) * (44100 * 4))
-        names = sorted([*presets, "Chain01"])
-        audit = output / "sample-named-chains.tsv"
+        audit = output / "sample-named-presets.tsv"
         commands = [f"audit-frames {audit.resolve()}", "import 0 /input.wav",
                     "button S. Editor", "button 5", "button Right"]
         for index, name in enumerate(names):
-            stages = presets[name]["stages"] if name in presets else next(iter(presets.values()))["stages"]
+            stages = presets[name]["stages"]
             commands += ["button Insert", f"encoder {1 if index == 0 else 6}", "button Insert",
                          f"encoder {index}", "button Insert", f"assert-chain-size {len(stages)}",
                          "button 0", "wait 100", "assert-preview live", "button 0", "wait 50"]
-        # Edit and save the final named chain. Save must retain its actual
-        # filename rather than creating a numbered duplicate or replacing another preset.
-        final_name = names[-1]
-        amount = presets[final_name]["stages"][0]["amount"]
+        # Edit the last loaded chain and replace its named preset.
+        amount = presets[edited]["stages"][0]["amount"]
         delta = -1 if amount == 100 else 1
         commands += ["button Right", "button Down", "button Right", f"encoder {delta}",
                      "button Left", "button Left", "button Insert", "encoder 7", "button Insert",
-                     "button Insert", "button Master", "assert-chain closed", "assert-view Master"]
+                     "button Insert"]
+        # The installed pack still leaves room to save the chain as a new preset.
+        commands += ["button Insert", "encoder 7", "button Insert", "encoder 1", "button Insert",
+                     "button Master", "assert-chain closed", "assert-view Master"]
         script = card / "named.txt"
         script.write_text("\n".join(commands) + "\n")
         result = subprocess.run([str(binary.resolve()), "--sd", str(card), "--script", str(script),
-                                 "--screenshot", str((output / "sample-named-chains.bmp").resolve())],
+                                 "--screenshot", str((output / "sample-named-presets.bmp").resolve())],
                                 capture_output=True, text=True, timeout=120)
         if result.returncode:
             raise RuntimeError(result.stdout + result.stderr)
         frames = audit.read_text()
         for name in names:
             if f"\t{name}\n" not in frames:
-                raise AssertionError(f"Saved chain name was not displayed: {name}")
-        if "\tIgnored\n" in frames or "\tnotes\n" in frames:
-            raise AssertionError("Saved-chain browser included a directory or unrelated file")
-        actual = (saved / f"{final_name}.ptchain").read_bytes()
+                raise AssertionError(f"Saved preset name was not displayed: {name}")
+        for ignored in ("Ignored", "notes", "Old Folder", "Old Extension"):
+            if f"\t{ignored}\n" in frames:
+                raise AssertionError(f"Saved-preset browser included {ignored}")
+        actual = (saved / f"{edited}.ptpreset").read_bytes()
         if struct.unpack_from("<f", actual, 16 + 100 + 51 + 4)[0] != amount + delta:
-            raise AssertionError("Named chain parameter edit was not saved")
-        if {path.name for path in saved.glob("*.ptchain") if path.is_file()} != {f"{name}.ptchain" for name in names}:
-            raise AssertionError("Saving a named chain created a numbered duplicate")
+            raise AssertionError("Named preset parameter edit was not saved")
+        expected_files = {f"{name}.ptpreset" for name in [*names, "Preset01"]}
+        if {path.name for path in saved.glob("*.ptpreset") if path.is_file()} != expected_files:
+            raise AssertionError("Save Preset did not add exactly one numbered destination")
+        if (saved / "Preset01.ptpreset").read_bytes() != actual:
+            raise AssertionError("The numbered preset did not store the edited chain")
         for name in presets:
-            if name != final_name and (saved / f"{name}.ptchain").read_bytes() != (pack / f"Effects/Chains/{name}.ptchain").read_bytes():
-                raise AssertionError("Saving a named chain replaced a different preset")
+            if name != edited and (saved / f"{name}.ptpreset").read_bytes() != (pack / f"Effects/Presets/{name}.ptpreset").read_bytes():
+                raise AssertionError("Saving a named preset replaced a different preset")
 
 
 def check_chain_mix(binary: Path, output: Path):
     for percent in (0, 50, 100):
-        with tempfile.TemporaryDirectory(prefix="ce-chain-mix-") as directory:
+        with tempfile.TemporaryDirectory(prefix="ce-preset-mix-") as directory:
             card = Path(directory)
             pcm = struct.pack("<h", 2000) * (44100 * 4)
             with wave.open(str(card / "input.wav"), "wb") as wav:
                 wav.setparams((1, 2, 44100, 44100 * 4, "NONE", "not compressed"))
                 wav.writeframes(pcm)
-            audit = output / f"sample-chain-mix-{percent}.tsv"
+            audit = output / f"sample-preset-mix-{percent}.tsv"
             delta = -1 if percent == 100 else 1
             arrows = ["Down", "Up", "Left", "Right"] if percent == 100 else ["Up", "Down", "Right", "Left"]
             commands = [f"audit-frames {audit.resolve()}", "import 0 /input.wav", "button S. Editor", "button 5",
@@ -475,10 +486,10 @@ def check_chain_mix(binary: Path, output: Path):
                 commands += ["button Left", "button Left", "button 4", "encoder 7", "button Insert",
                              "button Insert", "press 5", "encoder -50", "release 5", "button 4", "encoder 6",
                              "button Insert", "button Insert", "button 5"]
-            commands += [f"snapshot {(output / f'sample-chain-mix-{percent}-control.bmp').resolve()}", "button 4", "encoder 100", "button Insert", "wait 20000", "button Insert", "wait 20000", "assert-chain closed"]
+            commands += [f"snapshot {(output / f'sample-preset-mix-{percent}-control.bmp').resolve()}", "button 4", "encoder 100", "button Insert", "wait 20000", "button Insert", "wait 20000", "assert-chain closed"]
             script = card / "mix.txt"; script.write_text("\n".join(commands) + "\n")
             result = subprocess.run([str(binary.resolve()), "--sd", str(card), "--script", str(script),
-                                     "--screenshot", str((output / f"sample-chain-mix-{percent}.bmp").resolve())],
+                                     "--screenshot", str((output / f"sample-preset-mix-{percent}.bmp").resolve())],
                                     capture_output=True, text=True, timeout=120)
             if result.returncode: raise RuntimeError(result.stdout + result.stderr)
             rendered = (card / "Workspace/instruments/instrument_02.pti").read_bytes()
@@ -487,8 +498,8 @@ def check_chain_mix(binary: Path, output: Path):
                 raise AssertionError(f"Global {percent}% Mix did not blend the entire two-stage chain")
             if (card / "Workspace/instruments/instrument_01.pti").read_bytes()[-len(pcm):] != pcm:
                 raise AssertionError("Chain Mix changed the source sample")
-            if percent == 50 and (card / "Effects/Chains/Chain01.ptchain").read_bytes()[7] != 50:
-                raise AssertionError("Chain Mix was not saved")
+            if percent == 50 and (card / "Effects/Presets/Preset01.ptpreset").read_bytes()[7] != 50:
+                raise AssertionError("Preset Mix was not saved")
             frames = audit.read_text()
             if f"\t{percent}%\n" not in frames:
                 raise AssertionError("Chain Mix percentage was not displayed")
@@ -500,7 +511,7 @@ def check_chain_mix(binary: Path, output: Path):
                     if len(fields) == 3 and (fields[2] == "Mix" or fields[2].endswith("%")) and fields[0] != "550":
                         raise AssertionError("Mix appeared outside its toolbar button")
             if percent == 50:
-                saved = (card / "Effects/Chains/Chain01.ptchain").read_bytes()
+                saved = (card / "Effects/Presets/Preset01.ptpreset").read_bytes()
                 for index in (1, 2):
                     if struct.unpack_from("<f", saved, 16 + index * 100 + 51)[0] != 2:
                         raise AssertionError("Holding Mix changed an effect parameter")
@@ -508,12 +519,12 @@ def check_chain_mix(binary: Path, output: Path):
     # the cached wet audio and original snapshot, without blending twice.
     for kind in ("normalize", "latency"):
         with tempfile.TemporaryDirectory(prefix="ce-prepared-mix-") as directory:
-            card = Path(directory); saved = card / "Effects/Chains"; saved.mkdir(parents=True)
-            blob = bytearray(916); blob[:4] = b"PTCH"; blob[4] = 1; blob[5] = 1
+            card = Path(directory); saved = card / "Effects/Presets"; saved.mkdir(parents=True)
+            blob = bytearray(916); blob[:5] = b"PTPR\x01"; blob[5] = 1; blob[7] = 100
             struct.pack_into("<I", blob, 8, 44100)
             for index in range(9): blob[16 + index * 100] = 254
             if kind == "latency":
-                blob[4] = 2; blob[6] = 1
+                blob[6] = 1
                 blob[116] = 32; blob[117] = 6; blob[116 + 99] = 1  # Economy Drive, neutral Amount.
                 struct.pack_into("<6f", blob, 116 + 51, 0, 0, 50, 0, 0, 0)
             else:
@@ -522,7 +533,7 @@ def check_chain_mix(binary: Path, output: Path):
             checksum = 2166136261
             for byte in blob[:12] + blob[16:]: checksum = ((checksum ^ byte) * 16777619) & 0xffffffff
             struct.pack_into("<I", blob, 12, checksum)
-            (saved / f"{kind}.ptchain").write_bytes(blob)
+            (saved / f"{kind}.ptpreset").write_bytes(blob)
             pcm = struct.pack("<h", 2000) * 16001
             with wave.open(str(card / "input.wav"), "wb") as wav:
                 wav.setparams((1, 2, 44100, 16001, "NONE", "not compressed")); wav.writeframes(pcm)
@@ -564,7 +575,7 @@ assert-chain closed
             if kind == "latency":
                 expected = bytes(14 * 2) + pcm
                 if rendered[-len(expected):] != expected:
-                    raise AssertionError("Rendered global Mix did not align the dry path to the Palette economy profile")
+                    raise AssertionError("Rendered global Mix did not align the dry path to the StPalette economy profile")
             else:
                 samples = struct.unpack("<16001h", rendered[-len(pcm):])
                 # The legacy normalizer's 50% target rounds to 16382–16383.
@@ -574,8 +585,8 @@ assert-chain closed
 
 def check(binary: Path, output: Path):
     output.mkdir(parents=True, exist_ok=True)
-    check_native_palette(binary, output)
-    check_named_chains(binary, output)
+    check_native_stpalette(binary, output)
+    check_named_presets(binary, output)
     check_chain_mix(binary, output)
     with tempfile.TemporaryDirectory(prefix="ce-fx-chain-") as directory:
         card = Path(directory)
@@ -596,7 +607,7 @@ def check(binary: Path, output: Path):
         # Reverse twice through Tools, append two effects from the independent
         # browser, and edit only the second. Browsing the generator must not
         # replace either stage or the source. Then save/load, bypass, and render.
-        script = card / "chain.txt"
+        script = card / "preset.txt"
         script.write_text("""audit-frames FRAME_AUDIT
 import 0 /input.wav
 button S. Editor
@@ -741,9 +752,9 @@ assert-chain closed
             actual = (instruments / f"instrument_{index:02d}.pti").read_bytes()
             if actual[-len(expected):] != expected:
                 raise AssertionError(f"Instrument {index} audio differs")
-        definition = card / "Effects/Chains/Chain01.ptchain"
+        definition = card / "Effects/Presets/Preset01.ptpreset"
         if not definition.is_file():
-            raise AssertionError("Chain was not saved")
+            raise AssertionError("Preset was not saved")
         saved = definition.read_bytes()
         if saved[5] != 2:
             raise AssertionError("Repeated Add did not append two stages")
@@ -888,7 +899,7 @@ assert-chain closed
                 raise AssertionError("Snapshot failure changed the source")
             if (failing / "Workspace/instruments/instrument_02.pti").exists():
                 raise AssertionError("Snapshot failure created an instrument")
-        print("Sample FX chain: independent browser, repeated Add, exact render, chains, Actions toolbar/menu, whole-chain Mix, bypass, persistent main-view preview, physical view switching, live parameter editing, startup while playing, and failure recovery passed")
+        print("Sample FX chain: independent browser, repeated Add, exact render, presets, Actions toolbar/menu, whole-chain Mix, bypass, persistent main-view preview, physical view switching, live parameter editing, startup while playing, and failure recovery passed")
 
 
 if __name__ == "__main__":

@@ -1,8 +1,6 @@
-# Polyend Tracker Community Edition (CE)
+# SideTracker
 
-Welcome to the **Polyend Tracker Community Edition** repository!
-
-Built directly from the original Polyend firmware source code, Tracker CE opens up the Polyend Tracker platform to musicians, sound designers, and developers around the world. Whether you are here to flash the latest Community Edition firmware, want to build your own idea on the Tracker, design custom themes and fonts, write Sample Editor plugins, or build new synthesizer engines, we are excited to have you here.
+An experimental, rolling-release firmware fork of Polyend Tracker Community Edition.
 
 This unified codebase powers all three hardware instruments in the Tracker family:
 * **Original Polyend Tracker** (`NXP Kinetis MK66FX1M0`, Cortex-M4F @ 180 MHz)
@@ -86,9 +84,9 @@ From the repository root:
 make all
 
 # Or build a single target:
-make original   # -> build/PolyendTracker_CE_1.0.0.ptf
-make plus       # -> build/TrackerPlus_CE_1.0.0.ptf
-make mini       # -> build/TrackerMini_CE_1.0.0.ptf
+make original   # -> build/PolyendTracker_SideTracker_1.0.0.ptf
+make plus       # -> build/TrackerPlus_SideTracker_1.0.0.ptf
+make mini       # -> build/TrackerMini_SideTracker_1.0.0.ptf
 
 # Build reference .ptfx Sample Editor effects into editor-fx-sdk/build/Effects/:
 make ptfx

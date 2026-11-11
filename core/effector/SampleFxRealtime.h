@@ -2,7 +2,7 @@
 
 #include "SampleFxChain.h"
 #include "tracker_plugin.h"
-#include "palette/Palette.h"
+#include "stpalette/StPalette.h"
 #include "SampleFxMix.h"
 #include <atomic>
 #include <memory>
@@ -37,7 +37,7 @@ class RealtimeBuiltin
     static bool supports(uint8_t effect);
   private:
     std::unique_ptr<mtEffect> fx;
-    palette::Processor native;
+    stpalette::Processor native;
     bool nativeParametersValid = true;
     Node settings;
     uint8_t channels = 1;

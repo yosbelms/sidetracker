@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate the Palette showcase files and ZIP using CE's native encoder."""
+"""Regenerate the StPalette showcase files and ZIP using SideTracker's native encoder."""
 import json
 import os
 from pathlib import Path
@@ -11,23 +11,23 @@ import zipfile
 
 def main():
     root = Path(__file__).resolve().parents[1]
-    source = root / "presets/palette"
-    pack = root / "build/PaletteShowcase"
-    settings = json.loads((source / "chains.json").read_text())
-    if settings.get("format") != "PTCH v2" or settings.get("source") != "Current sample":
-        raise ValueError("Expected PTCH v2 chains with the current sample as source")
-    chains = settings["chains"]
+    source = root / "presets/stpalette"
+    pack = root / "build/StPaletteShowcase"
+    settings = json.loads((source / "presets.json").read_text())
+    if settings.get("format") != "PTPR v1" or settings.get("source") != "Current sample":
+        raise ValueError("Expected PTPR v1 presets with the current sample as source")
+    presets = settings["presets"]
     # Quoted strings and numeric fields form data for stdin, never shell/C++ code.
-    lines = [str(len(chains))]
-    for chain in chains:
-        slot = chain["slot"]
+    lines = [str(len(presets))]
+    for preset in presets:
+        slot = preset["slot"]
         if type(slot) is not int:
-            raise ValueError("Chain slot must be an integer")
-        mix = chain.get("mix", 100)
+            raise ValueError("Preset slot must be an integer")
+        mix = preset.get("mix", 100)
         if type(mix) is not int or not 0 <= mix <= 100:
-            raise ValueError("Chain Mix must be an integer from 0 to 100")
-        lines.append(f'{slot} {json.dumps(chain["name"])} {len(chain["stages"])} {mix}')
-        for stage in chain["stages"]:
+            raise ValueError("Preset Mix must be an integer from 0 to 100")
+        lines.append(f'{slot} {json.dumps(preset["name"])} {len(preset["stages"])} {mix}')
+        for stage in preset["stages"]:
             values = [stage[key] for key in ("amount", "macro", "drift", "tail")]
             if any(type(value) not in (int, float) for value in values):
                 raise ValueError("Amount, Macro, Drift and Tail must be numbers")
@@ -41,34 +41,27 @@ def main():
         "make", "-s", "-C", str(root / "tests"), "-j8", "SANITIZE=", "STEREO=0",
         "../build/host-tests-release/libcore.a",
     ], check=True)
-    build = root / "build/palette-chain-generator"
+    build = root / "build/stpalette-preset-generator"
     build.mkdir(parents=True, exist_ok=True)
-    binary = build / "generate_palette_chains"
+    binary = build / "generate_stpalette_presets"
     subprocess.run([
         *shlex.split(os.environ.get("CXX", "c++")), "-std=c++20", "-O2",
         "-I", str(root / "core/effector"),
-        str(root / "tools/generate_palette_chains.cpp"),
+        str(root / "tools/generate_stpalette_presets.cpp"),
         str(root / "build/host-tests-release/libcore.a"), "-pthread", "-o", str(binary),
     ], check=True)
-    directory = pack / "Effects/Chains"
+    directory = pack / "Effects/Presets"
     subprocess.run([str(binary), str(directory)], input="\n".join(lines) + "\n",
                    text=True, check=True)
-    # Remove the former numbered outputs only when they are exact duplicates.
-    # Other user files in the pack directory are left intact.
-    for chain in chains:
-        legacy = directory / f'Chain{chain["slot"]:02d}.ptchain'
-        named = directory / f'{chain["name"]}.ptchain'
-        if legacy.is_file() and legacy.read_bytes() == named.read_bytes():
-            legacy.unlink()
-    archive = root / "build/PaletteShowcase.zip"
+    archive = root / "build/StPaletteShowcase.zip"
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as output:
-        for name in ("README.md", "chains.json"):
+        for name in ("README.md", "presets.json"):
             shutil.copyfile(source / name, pack / name)
             output.write(pack / name, name)
-        for chain in chains:
-            path = directory / f'{chain["name"]}.ptchain'
+        for preset in presets:
+            path = directory / f'{preset["name"]}.ptpreset'
             output.write(path, path.relative_to(pack))
-    print(f"Generated {len(chains)} chains in {directory}")
+    print(f"Generated {len(presets)} presets in {directory}")
     print(f"Pack: {archive}")
 
 

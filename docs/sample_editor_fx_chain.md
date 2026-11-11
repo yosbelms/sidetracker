@@ -1,6 +1,6 @@
 # Sample-editor FX chain
 
-The Sample Editor opens on the waveform, with **Preview, Start, End, Zoom, Undo, Effects, Tools** controls, in that order. The waveform spans the screen width. **Effects** builds a processing chain for the whole sample. Preview runs supported stages live, with parameter edits heard during playback. Apply saves the chain into the current slot, and Render to new slot creates a variation.
+The Sample Editor opens on the waveform, with **Preview, Start, End, Zoom, Undo, Effects, Tools** controls, in that order. The waveform spans the screen width. **Effects** builds a processing chain for the whole sample. Preview runs supported stages live, with parameter edits heard during playback. Apply processes the chain into the current sample slot, and Render to new slot creates a variation.
 
 The Chain view uses the Sample Loader’s browser-and-slots arrangement, followed by parameter editing:
 
@@ -13,7 +13,7 @@ The Chain view uses the Sample Loader’s browser-and-slots arrangement, followe
 
 Effects occupies 3/8 of the screen, Chain and Parameter each occupy 2/8, and Value occupies the final 1/8 at the right edge.
 
-Four native Palette entries—Character, Movement, Diffusion, and Texture—each expose six algorithms through Type. Each instance runs only its selected Type. Type lists use the Value column; Sync and Tail appear only where relevant. The chain row displays the category and selected Type. Native preview and Render share their DSP and resolved quality profiles. Economy mode is selected when the budget requires it; original Tracker timing estimates still require hardware calibration. A Palette stage's Insert menu offers Measure CPU, saving a selected-Type report to `/Effects/PaletteCPU.csv`. See [Native Palette](../core/effector/palette/README.md).
+Four native StPalette entries—Character, Movement, Diffusion, and Texture—each expose six algorithms through Type. Each instance runs only its selected Type. Type lists use the Value column; Sync and Tail appear only where relevant. The chain row displays the category and selected Type. Native preview and Render share their DSP and resolved quality profiles. Economy mode is selected when the budget requires it; original Tracker timing estimates still require hardware calibration. A StPalette stage's Insert menu offers Measure CPU, saving a selected-Type report to `/Effects/StPaletteCPU.csv`. See [Native StPalette](../core/effector/stpalette/README.md).
 
 Left/Right moves between columns. Up/Down and the encoder select entries; in Value, the encoder changes the value. Browsing Effects never replaces a chain stage or changes its settings. **Add** appends the browsed effect and keeps focus in the browser, so several effects can be added quickly. Repeated Add creates independent instances. Select a stage in Chain and press the physical **Insert** key to open its context menu for bypass, duplicate, replacement, removal, and chain operations. **Delete** removes the selected chain stage; in Value it restores the parameter default.
 
@@ -23,18 +23,18 @@ The chain toolbar is **Preview, Add, Back, Apply, Actions, Mix, empty, Value**. 
 
 **Mix** shows the chain’s global wet/dry percentage in its toolbar button. Hold Mix while turning the jog wheel or pressing arrows: Up/Right increases it, Down/Left decreases it. Releasing Mix restores normal navigation and parameter editing. Tapping Mix does not change focus, and Mix never replaces the selected parameter in the Value bar. The remaining empty toolbar slot keeps its separator lines, matching Sample Loader and Pattern Fill.
 
-0% is the dry source, 100% is the complete processed chain, and intermediate values use a linear blend after all stages. Mix consumes no stage slot. Live changes ramp over 10 ms without restarting the source or clearing effect history; effects continue running at 0%. Known Palette resampling latency is compensated on the dry path. Musical delays and modulation remain part of the wet sound. Dry becomes silence after its source ends, while wet tails retain the chain’s output length and are scaled by Mix.
+0% is the dry source, 100% is the complete processed chain, and intermediate values use a linear blend after all stages. Mix consumes no stage slot. Live changes ramp over 10 ms without restarting the source or clearing effect history; effects continue running at 0%. Known StPalette resampling latency is compensated on the dry path. Musical delays and modulation remain part of the wet sound. Dry becomes silence after its source ends, while wet tails retain the chain’s output length and are scaled by Mix.
 
 With a generator, dry means that generator’s output before subsequent effects. Live preview retains only a small block/delay history for this path. Prepared preview and Render retain the wet result, read dry audio from the existing source snapshot (or a separate generator snapshot), and blend in bounded foreground steps using shared scratch and the other working buffer. Editing Mix on a prepared result reuses the wet audio; it does not rerun its effects. Declared plugin prepends are aligned during this pass; unreported plugin latency cannot be automatically compensated.
 
-Mix is saved in `.ptchain` files. The reserved header byte 7 stores `100 - Mix`, so older chains default to 100% wet and file sizes remain unchanged. The preset generator accepts an optional chain-level `"mix": 50` setting in `chains.json`; omission means 100%.
+Presets store the chain’s Mix as a percentage. The preset generator accepts an optional `"mix": 50` setting in `presets.json`. The default is 100%.
 
 ## Build a sound
 
 1. The current sample is the default source. To generate a new sound, browse a `[Gen]` entry in Effects and press **Use src**. Generators work on empty sample slots too. The current sample is implicit input and appears in neither list. Select a generator and press **Delete** in Chain to remove it and return to sample input.
 2. Browse a built-in or `.ptfx` processing effect in Effects and press **Add**. It appears at the end of Chain. A chain supports eight processing stages plus its source.
 3. Move Right to Chain, select a stage, then Right to Parameter. Select a parameter and press its button below Value, or move Right again, to edit it with the encoder. **Delete** restores its default. Generator settings include the output length.
-4. Focus Chain and open **Actions** to reorder the selected stage with **Move Up / Move Down**, or to bypass, duplicate, replace, remove, load or save a chain. Duplicate stages have independent settings.
+4. Focus Chain and open **Actions** to reorder the selected stage with **Move Up / Move Down**, or to bypass, duplicate, replace, or remove stages. Use **Load Preset** or **Save Preset** to reuse chain settings. Duplicate stages have independent settings.
 5. Press **Preview** to audition the chain live. Parameter edits take effect on the next 128-frame audio block, without restarting the source. Structural edits (add, bypass, reorder, replace) rebuild and restart the live preview automatically. **Stop** ends auditioning.
 6. Press **Apply** to process the chain into the current instrument. The waveform and existing pattern notes for that slot use the edited audio as soon as Apply finishes. Tools uses the same workflow with its **Apply** button.
 7. To make a variation, choose **Actions → Render to new slot**, select an empty sample slot, and press **Select**. CE selects the rendered instrument and closes Effects. The source instrument remains available.
@@ -45,33 +45,37 @@ Live preview reads the immutable sample snapshot once before starting, then proc
 
 **Back** returns immediately to the waveform without confirmation and keeps the constructed chain. Main-view **Preview** plays through that draft, and reopening Chain restores it. Physical view buttons such as Master stop auditioning, restore the source buffers, and switch views; the draft remains available for the same sample until restart, Apply, or Render. Applying or rendering closes the active chain and starts the next session with an empty processing list, preventing accidental double processing. The most recently applied or rendered settings remain available as **Last Used** until restart.
 
-## Sources, effects, and chains
+## Sources and effects
 
 Generators are visible in Effects alongside processing plugins, marked `[Gen]`. When selected with **Use src**, they occupy the source row. They generate new audio rather than transforming an incoming sample. They can be followed by built-in effects and `.ptfx` effects in any supported order. All stages process the complete output of the preceding stage, including added tails.
 
-The chain browser contains amplifier, overdrive, delay, bitcrusher, chorus, flanger, EQ, limiter, and compressor. **Sample Editor → Tools** contains Crop, Reverse, Normalizer, Fade In, Fade Out, WT Smoother, Timestretch Beat, and Timestretch Note in a left-hand column matching the chain browser. Tools use the current waveform selection; the Chain processes the whole sample. Select any tool to open **Preview**, **Back**, and **Apply**. Preview plays the resulting sample, including the audio outside the selection. Back returns to the waveform without saving the tool output. Apply saves the result in the current slot. Tools with settings display their parameter controls on the same page. Existing chains containing Normalizer, Fade In, or Fade Out remain supported.
+The chain browser contains amplifier, overdrive, delay, bitcrusher, chorus, flanger, EQ, limiter, and compressor. **Sample Editor → Tools** contains Crop, Reverse, Normalizer, Fade In, Fade Out, WT Smoother, Timestretch Beat, and Timestretch Note in a left-hand column matching the chain browser. Tools use the current waveform selection; the Chain processes the whole sample. Select any tool to open **Preview**, **Back**, and **Apply**. Preview plays the resulting sample, including the audio outside the selection. Back returns to the waveform without saving the tool output. Apply saves the result in the current slot. Tools with settings display their parameter controls on the same page.
 
-Press physical **Insert** while focused on Chain and choose **Load Chain** to load a saved chain. **Load Chain** browses `.ptchain` files in `/Effects/Chains/` by filename, without the extension. Named files such as `Worn Cassette.ptchain` and existing `Chain01.ptchain` files are both supported. **Save Chain** can replace a listed file; numbered destinations remain available for new unnamed chains. Chains store settings and plugin fingerprints, not audio. A Current Sample chain uses the sample selected when loaded. Loading a chain replaces the current draft settings; saving to an existing filename replaces that chain. The browser shows up to 32 saved files and scans the directory once when opened.
+## Presets
 
-The [Palette showcase pack](../presets/palette/README.md) provides ready-to-load chains covering all 24 native algorithms, with descriptive filenames and a guide to their settings.
+Open **Actions** or press physical **Insert** while focused on Chain. **Save Preset** saves the chain settings, including source, stage order, parameters, bypass, Mix, and any resolved quality profiles. Choose a numbered destination such as `Preset01` or replace a listed preset. **Load Preset** replaces the working chain with the saved settings. A preset with the current sample as its source uses the selected sample.
+
+The browser lists up to 32 `.ptpreset` files in `/Effects/Presets/` and displays their filenames without extensions. The current preset format is PTPR v1. Older `.ptchain` files and PTCH-based `.ptpreset` files are unsupported.
+
+The [StPalette showcase pack](../presets/stpalette/README.md) provides ready-to-load presets covering all 24 native algorithms, with descriptive filenames and a guide to their settings.
 
 To regenerate the pack, run this from the repository root:
 
 ```sh
-python3 tools/generate_palette_chains.py
+python3 tools/generate_stpalette_presets.py
 ```
 
-The generator reads `presets/palette/chains.json`, validates the settings with CE’s native registry, and uses the firmware’s encoder to write files such as `build/PaletteShowcase/Effects/Chains/Worn Cassette.ptchain` using each preset’s name. It also creates `build/PaletteShowcase.zip`. Python 3, Make and a C++20 host compiler are required; the portable core library builds automatically.
+The generator reads `presets/stpalette/presets.json`, validates the settings with CE’s native registry, and uses the firmware’s encoder to write files such as `build/StPaletteShowcase/Effects/Presets/Worn Cassette.ptpreset` using each preset’s name. It also creates `build/StPaletteShowcase.zip`. Python 3, Make and a C++20 host compiler are required; the portable core library builds automatically.
 
-Copy the pack’s `Effects` folder to the SD-card root, preserving any existing files with the same names before replacing them. Open **Load Chain** and select the preset by name.
+Copy the pack’s `Effects` folder to the SD-card root, preserving any existing files with the same names before replacing them. Open **Load Preset** and select the preset by name.
 
 If a plugin is missing or its contents changed, re-add it, remove the stage, or explicitly bypass it. A missing generator must be replaced. Recompiling a plugin changes its fingerprint even if the filename stays the same.
 
 ## Live and prepared preview
 
-The nine built-in effects in the chain browser support live preview. Older chains containing normalization or fades remain loadable and render correctly. Each stage has independent DSP history, including repeated effects. PTFX effects and generators use separate copies of their executable code, BSS, and scratch memory; callbacks run on the audio thread. Plugin UI metadata stays in the editor's separate shared loader.
+The nine built-in effects in the chain browser support live preview. The runner also processes normalization and fades. Each stage has independent DSP history, including repeated effects. PTFX effects and generators use separate copies of their executable code, BSS, and scratch memory; callbacks run on the audio thread. Plugin UI metadata stays in the editor's separate shared loader.
 
-Normalization in an older chain needs whole-input analysis, and plugins that prepend audio need a shifted upstream timeline. These chains automatically use **Prepared preview**. Chains that cannot fit private live state also use prepared processing; no effect is silently bypassed. Render remains available for these chains. Changes to a prepared preview need another Preview.
+Normalization in a chain needs whole-input analysis, and plugins that prepend audio need a shifted upstream timeline. These chains automatically use **Prepared preview**. Chains that cannot fit private live state also use prepared processing; no effect is silently bypassed. Render remains available for these chains. Changes to a prepared preview need another Preview.
 
 Length changes that outgrow a live delay's history, or switch a plugin into prepending, rebuild preview automatically. Ordinary parameter changes preserve DSP history and playback position. Existing PTFX v1 plugins must process 128-frame blocks and finish each callback promptly to work live. CE validates their returned lengths but cannot preempt plugin code; a plugin that blocks or takes too long requires offline use. CPU headroom still depends on the device and the chosen chain.
 
@@ -85,6 +89,6 @@ Length changes that outgrow a live delay's history, or switch a plugin into prep
 - Preview and rendering use shared editor memory and require stopped song playback. Keep the SD card inserted: CE stores a temporary source snapshot under `Workspace/FxChainTemp` so repeated previews can rebuild safely without retaining audio for every stage.
 - **FX Chain: RAM full** means resident sample audio overlaps the editor's working region. Free sample RAM before opening the chain. Rendering also checks that a new instrument's resident data fits outside that region.
 - Rendering and whole-input analysis run in bounded foreground work steps. Live DSP runs in the audio callback, with no filesystem access or allocation in its processing path.
-- ARM `.ptfx` binaries execute on the device. Desktop can add/configure plugins and save chains using validated metadata; requesting preview/render with an active plugin displays **PTFX: Tracker only**. Native generator/adapter tests cover the plugin processing contract separately.
+- ARM `.ptfx` binaries execute on the device. Desktop can add/configure plugins and save presets using validated metadata; requesting preview/render with an active plugin displays **PTFX: Tracker only**. Native generator/adapter tests cover the plugin processing contract separately.
 
-Save the project normally to retain rendered instruments. Chain saving is independent of project saving.
+Save the project normally to retain rendered instruments. Presets are saved independently of the project.

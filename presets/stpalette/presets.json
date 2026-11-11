@@ -1,8 +1,8 @@
 {
-  "format": "PTCH v2",
+  "format": "PTPR v1",
   "quality": "Automatic at preview; unresolved in the supplied files",
   "source": "Current sample",
-  "chains": [
+  "presets": [
     {
       "slot": 1,
       "name": "Worn Cassette",

@@ -30,7 +30,7 @@ extern const uint8_t displayFontCount;
 
 enum enDisplayBitmaps
 {
-    displayPolyLogoBitmap,
+    displayNoBitmap,
     displayPlayIcon,
     displayLoopIcon,
 
@@ -83,6 +83,7 @@ enum enDisplayBitmaps
 
 #endif
 
+    displaySideTrackerMonogram,
     displayBitmapsCount,
 };
 

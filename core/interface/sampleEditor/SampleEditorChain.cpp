@@ -1,6 +1,6 @@
 #include "SampleEditorChain.h"
 #include "sampleEditor.h"
-#include "SampleFxChain.h"
+#include "SampleFxPreset.h"
 #include "SampleFxRealtime.h"
 #include "interruptsControl.h"
 #include "ptfx_manager.h"
@@ -9,8 +9,8 @@
 #include "mtAudioEngine.h"
 #include "mtPadBoard.h"
 #include "VoiceStreamManager.h"
-#include "palette/Palette.h"
-#include "palette/Profiling.h"
+#include "stpalette/StPalette.h"
+#include "stpalette/Profiling.h"
 #include "Tracker.h"
 #include "Platform.h"
 
@@ -36,18 +36,18 @@ constexpr unsigned kActionsButton = 4;
 constexpr unsigned kMixButton = 5;
 constexpr unsigned kValueButton = 7;
 constexpr char kTempDir[] = "Workspace/FxChainTemp";
-constexpr char kChainDir[] = "/Effects/Chains";
+constexpr char kPresetDir[] = "/Effects/Presets";
+constexpr char kPresetExtension[] = ".ptpreset";
 
 bool supported(uint8_t effect)
 {
-    if(palette::contains(effect)) return true;
+    if(stpalette::contains(effect)) return true;
     return effect < kBuiltInEffectsCount && effect != editorEffectCut &&
            effect != editorEffectReverse && effect != editorEffectWavetableSmoother &&
            effect != editorEffectTimestretchBeat && effect != editorEffectTimestretchNote;
 }
 
-// Keep processing older chains valid while moving sample-editing utilities
-// out of the catalog for newly constructed chains.
+// These sample-editing utilities are offered in Tools.
 bool listedInChain(uint8_t effect)
 {
     return supported(effect) && effect != editorEffectNormalizer &&
@@ -100,7 +100,7 @@ class EffectBackend : public Backend
     uint32_t completed = 0;
     unsigned stageIndex = 1;
     uint32_t dryDelay = 0;
-    palette::Processor native;
+    stpalette::Processor native;
     RealtimeArena nativeArena;
     Audio nativeInput;
     bool nativeActive = false;
@@ -110,7 +110,7 @@ class EffectBackend : public Backend
     bool resolve(const Node& node, bool execute = true)
     {
         message = "Effect unavailable";
-        if(palette::contains(node.effect)) { effect=nullptr; return palette::valid(node); }
+        if(stpalette::contains(node.effect)) { effect=nullptr; return stpalette::valid(node); }
         if (node.effect != kPlugin)
         {
             if (!supported(node.effect)) return false;
@@ -136,7 +136,7 @@ class EffectBackend : public Backend
                uint32_t generatorFrames) override
     {
         if (!resolve(node)) return false;
-        nativeActive=palette::contains(node.effect);
+        nativeActive=stpalette::contains(node.effect);
         if(nativeActive)
         {
             nativeArena.reset(externalRamScratchBuff,SHARED_SCRATCH_MEMORY_SIZE);
@@ -147,7 +147,7 @@ class EffectBackend : public Backend
             uint64_t end=uint64_t(input.frames)+native.tail();
             if(end>capacity){message="Effect output too long";return false;}
             out.frames=end; out.channels=input.channels;
-            dryDelay += palette::latencyFrames(node);
+            dryDelay += stpalette::latencyFrames(node);
             return true;
         }
         const bool generator = node.effect == kPlugin && (node.flags & PTFX_FLAG_GENERATOR);
@@ -235,7 +235,7 @@ class LivePluginLoader : public RealtimePluginLoader
 class ChainScreen
 {
   public:
-    enum Page { Chain, Actions, SavedChains, Destinations };
+    enum Page { Chain, Actions, SavedPresets, Destinations };
     enum Work { Idle, Loading, Snapshot, Reading, Processing, CapturingDry, Mixing, Restoring, Writing, Applying };
     enum Output { Audition, Apply, NewSlot };
     cSampleEditor* editor = nullptr;
@@ -252,6 +252,8 @@ class ChainScreen
     }
     ChainDefinition definition;
     ChainDefinition lastUsed;
+    char presetName[kMaxPresetNameBytes + 1] = {};
+    char lastUsedPresetName[kMaxPresetNameBytes + 1] = {};
     bool haveLast = false;
     bool open = false;
     bool visible = false;
@@ -271,10 +273,10 @@ class ChainScreen
     uint32_t generatorDryFrames = 0;
     uint8_t generatorDryChannels = 1;
     char mixText[12] = {};
-    bool savingChain = false;
-    static constexpr unsigned kSavedChainLimit = 32;
-    static constexpr unsigned kChainFilenameBytes = 52;
-    unsigned savedChainCount = 0;
+    bool savingPreset = false;
+    static constexpr unsigned kSavedPresetLimit = 32;
+    static constexpr unsigned kPresetFilenameBytes = kMaxPresetNameBytes + sizeof(kPresetExtension);
+    unsigned savedPresetCount = 0;
     bool committed = false;
     Page page = Chain;
     unsigned focus = 0;
@@ -284,26 +286,26 @@ class ChainScreen
     unsigned visibleParameterCount() const
     {
         const Node& n=selectedNode?definition.stages[selectedNode-1]:definition.source;
-        if(!palette::contains(n.effect)) return n.count+(!selectedNode && n.effect==kPlugin?1:0);
-        unsigned count=0; for(unsigned p=0;p<n.count;++p) count+=palette::visible(n,p);
+        if(!stpalette::contains(n.effect)) return n.count+(!selectedNode && n.effect==kPlugin?1:0);
+        unsigned count=0; for(unsigned p=0;p<n.count;++p) count+=stpalette::visible(n,p);
         return count;
     }
     unsigned parameterIndex() const
     {
         const Node& n=selectedNode?definition.stages[selectedNode-1]:definition.source;
-        if(!palette::contains(n.effect)) return parameterSelection;
+        if(!stpalette::contains(n.effect)) return parameterSelection;
         unsigned row=0;
-        for(unsigned p=0;p<n.count;++p) if(palette::visible(n,p)) {if(row++==parameterSelection)return p;}
+        for(unsigned p=0;p<n.count;++p) if(stpalette::visible(n,p)) {if(row++==parameterSelection)return p;}
         return 0;
     }
     const strEffectDisplayConstantParams& schema()
-    { return palette::contains(node().effect)?nativeSchema():node().effect==kPlugin?editor->s_modularEffectParams:effectDisplayConstantParams[node().effect<kBuiltInEffectsCount?node().effect:0]; }
+    { return stpalette::contains(node().effect)?nativeSchema():node().effect==kPlugin?editor->s_modularEffectParams:effectDisplayConstantParams[node().effect<kBuiltInEffectsCount?node().effect:0]; }
     bool replacingEffect = false;
     unsigned browserSelection = 0;
     static constexpr unsigned kMenuRows = kSampleInstrumentsCount + 16;
     unsigned menuCount = 0, boundMenuCount = 0;
     unsigned menuEntries[kMenuRows] = {};
-    char menuRows[kMenuRows][52] = {};
+    char menuRows[kMenuRows][kPresetFilenameBytes] = {};
     char* menuPointers[kMenuRows] = {};
     strList menuList = {};
     hControl menuControl = -1;
@@ -436,8 +438,8 @@ class ChainScreen
     }
     const char* name(const Node& n)
     {
-        if(palette::contains(n.effect)) {
-            snprintf(nativeName,sizeof(nativeName),"%s: %s",palette::category(n.effect),palette::typeName(n.effect,unsigned(n.params[palette::Type])));
+        if(stpalette::contains(n.effect)) {
+            snprintf(nativeName,sizeof(nativeName),"St %s: %s",stpalette::category(n.effect),stpalette::typeName(n.effect,unsigned(n.params[stpalette::Type])));
             return nativeName;
         }
         if (n.effect == kSample) return "Current Sample";
@@ -482,8 +484,8 @@ class ChainScreen
     void removeOrReset();
     void finishRestore();
     bool pluginNode(unsigned index, Node& n);
-    void chainFile(unsigned slot, bool save);
-    void scanSavedChains();
+    void presetFile(unsigned slot, bool save);
+    void scanSavedPresets();
     void render(unsigned slot);
     void finishRender();
     void measureCpu();
@@ -520,53 +522,54 @@ bool ChainScreen::pluginNode(unsigned index, Node& n)
     return true;
 }
 
-void ChainScreen::scanSavedChains()
+void ChainScreen::scanSavedPresets()
 {
     menuCount = 0;
-    if (!savingChain && haveLast) addMenuRow(lastUsed.name[0] ? lastUsed.name : "Last Used", 0);
+    if (!savingPreset && haveLast) addMenuRow("Last Used", 0);
     const unsigned first = menuCount;
-    int found = kSavedChainLimit;
-    fs->listDirContents(kChainDir, FileSystem::kFiles, [](const char* name) {
+    static_assert(kMenuRows > kSavedPresetLimit);
+    constexpr size_t suffixLength = sizeof(kPresetExtension) - 1;
+    int found = kSavedPresetLimit;
+    fs->listDirContents(kPresetDir, FileSystem::kFiles, [](const char* name) {
         const size_t length = strlen(name);
-        return length > 8 && length < kChainFilenameBytes &&
+        return length > suffixLength && length - suffixLength <= kMaxPresetNameBytes &&
             !strchr(name, '/') && !strchr(name, '\\') &&
-            !strcasecmp(name + length - 8, ".ptchain");
-    }, menuRows[first], (kMenuRows - first) * kChainFilenameBytes,
-       kChainFilenameBytes, found, menuPointers + first);
-    menuCount = first + std::clamp(found, 0, int(kSavedChainLimit));
-    // Expand the packed directory results into the existing menu rows, moving
-    // backwards so no unread filename is overwritten. Keep the extension after
-    // the display string's NUL: both filename and label share the same storage.
+            !strcasecmp(name + length - suffixLength, kPresetExtension);
+    }, menuRows[first], (kMenuRows - first) * kPresetFilenameBytes,
+       kPresetFilenameBytes, found, menuPointers + first);
+    menuCount = first + std::clamp(found, 0, int(kSavedPresetLimit));
+    // Firmware sorts the pointers, so recover buffer order before expanding in place.
+    std::sort(menuPointers + first, menuPointers + menuCount, std::less<const char*>{});
     for (unsigned i = menuCount; i-- > first;)
     {
         const size_t length = strlen(menuPointers[i]);
         memmove(menuRows[i], menuPointers[i], length + 1);
-        menuRows[i][length - 8] = 0;
+        menuRows[i][length - suffixLength] = 0;
         menuPointers[i] = menuRows[i];
     }
     std::sort(menuPointers + first, menuPointers + menuCount,
               [](const char* a, const char* b) { return strcmp(a, b) < 0; });
     for (unsigned i = first; i < menuCount; ++i) menuEntries[i] = i + 1;
-    // Keep numbered destinations for new unnamed chains, while existing named
+    // Keep numbered destinations for new unnamed presets, while existing named
     // files are replaced directly under their own filenames.
-    for (unsigned slot = 1; savingChain && menuCount < 16 && slot <= 16; ++slot)
+    for (unsigned slot = 1; savingPreset && menuCount < kSavedPresetLimit && slot <= 16; ++slot)
     {
         char name[16];
-        snprintf(name, sizeof(name), "Chain%02u", slot);
+        snprintf(name, sizeof(name), "Preset%02u", slot);
         bool exists = false;
         for (unsigned i = 0; i < menuCount; ++i) exists |= !strcasecmp(menuPointers[i], name);
         if (exists) continue;
-        snprintf(menuRows[menuCount], sizeof(menuRows[menuCount]), "%s.ptchain", name);
+        snprintf(menuRows[menuCount], sizeof(menuRows[menuCount]), "%s%s", name, kPresetExtension);
         menuRows[menuCount][strlen(name)] = 0;
         menuPointers[menuCount] = menuRows[menuCount];
         menuEntries[menuCount] = menuCount + 1;
         ++menuCount;
     }
-    if (!menuCount) addMenuRow("No saved chains", 255);
-    if (savingChain && definition.name[0])
+    if (!menuCount) addMenuRow("No saved presets", 255);
+    if (savingPreset && presetName[0])
         for (unsigned i = 0; i < menuCount; ++i)
-            if (!strcmp(menuPointers[i], definition.name)) selected = i;
-    savedChainCount = menuCount;
+            if (!strcmp(menuPointers[i], presetName)) selected = i;
+    savedPresetCount = menuCount;
 }
 
 void ChainScreen::show(Page next)
@@ -583,8 +586,8 @@ void ChainScreen::show(Page next)
     // just as the Sample Loader keeps its file browser independent of slots.
     for (unsigned i = 0; i < kBuiltInEffectsCount; ++i)
         if (listedInChain(i)) addRow(effectNamesLabels[i], i);
-    for(unsigned id=palette::kFirst;id<=palette::kLast;++id) {
-        snprintf(text,sizeof(text),"Palette - %s",palette::category(id));
+    for(unsigned id=stpalette::kFirst;id<=stpalette::kLast;++id) {
+        snprintf(text,sizeof(text),"St %s",stpalette::category(id));
         addRow(text,id);
     }
     for (unsigned i = 0; i < PtfxManager::getPluginCount(); ++i)
@@ -605,14 +608,14 @@ void ChainScreen::show(Page next)
             addMenuRow("Duplicate"); addMenuRow("Remove"); addMenuRow("Replace Effect", 20);
         }
         else addMenuRow("Choose Generator");
-        addMenuRow("Load Chain", 10); addMenuRow("Save Chain", 11);
-        if(palette::contains(node().effect)) addMenuRow("Measure CPU",12);
+        addMenuRow("Load Preset", 10); addMenuRow("Save Preset", 11);
+        if(stpalette::contains(node().effect)) addMenuRow("Measure CPU",12);
         addMenuRow("Render to new slot", 13);
     }
-    else if (page == SavedChains)
+    else if (page == SavedPresets)
     {
-        if (pageChanged) scanSavedChains();
-        else menuCount = savedChainCount;
+        if (pageChanged) scanSavedPresets();
+        else menuCount = savedPresetCount;
     }
     else if (page == Destinations)
     {
@@ -625,9 +628,9 @@ void ChainScreen::show(Page next)
     if (notice[0]) snprintf(title, sizeof(title), "%s", notice);
     else {
         bool economy=false;
-        for(unsigned i=0;i<definition.count;++i) economy |= !definition.stages[i].bypass && palette::contains(definition.stages[i].effect) && definition.stages[i].quality;
+        for(unsigned i=0;i<definition.count;++i) economy |= !definition.stages[i].bypass && stpalette::contains(definition.stages[i].effect) && definition.stages[i].quality;
         snprintf(title, sizeof(title), "FX Chain %u/8%s%s%s%s", definition.count,
-                  definition.name[0] ? " - " : "", definition.name,
+                  presetName[0] ? " - " : "", presetName,
                   busy() ? " - Preparing" : livePlaying ? " - Live" : "", economy ? " - Economy" : "");
     }
     if (!visible)
@@ -749,7 +752,7 @@ void ChainScreen::drawColumns(bool pageChanged, unsigned previousCount)
         if (!i && implicitSample) continue;
         const Node& n = i ? definition.stages[i - 1] : definition.source;
         if (!i) snprintf(stageRows[stageCount], sizeof(stageRows[stageCount]), "Gen: %s", name(n));
-        else snprintf(stageRows[stageCount], sizeof(stageRows[stageCount]), "%02u %s%s", i,
+        else snprintf(stageRows[stageCount], sizeof(stageRows[stageCount]), "%s%s",
             n.bypass ? "- " : "", name(n));
         stagePointers[stageCount] = stageRows[stageCount];
         ++stageCount;
@@ -824,7 +827,7 @@ void ChainScreen::drawColumns(bool pageChanged, unsigned previousCount)
     if (!busy()) parameterSelection = parameterCursor;
     unsigned row=0;
     for (unsigned i = 0; i < n.count && available; ++i)
-        if(!palette::contains(n.effect) || palette::visible(n,i)) parameterPointers[row++] = const_cast<char*>(d.labelsText[i]);
+        if(!stpalette::contains(n.effect) || stpalette::visible(n,i)) parameterPointers[row++] = const_cast<char*>(d.labelsText[i]);
     if (available && parameterCount > n.count) parameterPointers[row++] = lengthLabel;
     if (!parameterCount) parameterPointers[0] = const_cast<char*>(n.effect == kSample ? "Sample source" :
         busy() ? "Preparing..." : n.count ? "Unavailable" : "No parameters");
@@ -857,10 +860,10 @@ void ChainScreen::drawColumns(bool pageChanged, unsigned previousCount)
         value = n.params[param]; low = d.downConstrain[param]; high = d.upConstrain[param];
         unit = d.afterValueText[param] ? d.afterValueText[param] : "";
         snprintf(valueText, sizeof(valueText), d.displayType[param] == 'd' ? "%.0f%s" : "%.3f%s", value * d.displayMult[param], unit);
-        if (palette::contains(n.effect) && (param==palette::Type || param==palette::Sync))
+        if (stpalette::contains(n.effect) && (param==stpalette::Type || param==stpalette::Sync))
         {
-            unsigned length=param==palette::Type?6:palette::syncCount();
-            for(unsigned i=0;i<length;++i) valuePointers[i]=const_cast<char*>(param==palette::Type?palette::typeName(n.effect,i):palette::syncName(i));
+            unsigned length=param==stpalette::Type?6:stpalette::syncCount();
+            for(unsigned i=0;i<length;++i) valuePointers[i]=const_cast<char*>(param==stpalette::Type?stpalette::typeName(n.effect,i):stpalette::syncName(i));
             valuesList.data=valuePointers; valuesList.length=length;
             valuesList.linesCount=std::min(12u,length); valuesList.lineWidthMax=activeColumn==3?78:0;
             valuesList.lineTextLenMax=32; valuesList.start=unsigned(value);
@@ -904,7 +907,7 @@ void ChainScreen::drawColumns(bool pageChanged, unsigned previousCount)
     display.refreshControl(valueBar);
     valueName = available ? (param < n.count ? d.labelsText[param] : lengthLabel) : "";
 
-    const char* titles[4] = {"Effects", page == Actions ? "Actions" : page == SavedChains ? (savingChain ? "Save Chain" : "Load Chain") :
+    const char* titles[4] = {"Effects", page == Actions ? "Actions" : page == SavedPresets ? (savingPreset ? "Save Preset" : "Load Preset") :
         page == Destinations ? "Render to" : "Chain", "Parameter", "Value"};
     for (unsigned i = 0; i < 4; ++i)
     {
@@ -973,7 +976,7 @@ void ChainScreen::editValue(int delta)
         const auto& d=schema();
         if(std::clamp(n.params[i]+delta*d.changeStep[i],d.downConstrain[i],d.upConstrain[i])==n.params[i]) return;
     }
-    bool typeChange=palette::contains(n.effect) && (i==palette::Type || i==palette::Sync);
+    bool typeChange=stpalette::contains(n.effect) && (i==stpalette::Type || i==stpalette::Sync);
     changed(!typeChange);
     if (i >= n.count)
     {
@@ -1033,7 +1036,7 @@ void ChainScreen::addSelectedEffect()
     else
     {
         n.effect = id;
-        if(palette::contains(id)) n=palette::defaults(id);
+        if(stpalette::contains(id)) n=stpalette::defaults(id);
         else if (id != kSample)
         {
             n.count = effectDisplayConstantParams[id].paramsNumber;
@@ -1086,7 +1089,7 @@ void ChainScreen::choose()
             show(Chain); return;
         }
         if (action >= 10)
-        { savingChain = action == 11; selected = 0; show(SavedChains); return; }
+        { savingPreset = action == 11; selected = 0; show(SavedPresets); return; }
         if (!selectedNode) { browseSource(); return; }
         changed();
         unsigned i = selectedNode - 1;
@@ -1100,13 +1103,13 @@ void ChainScreen::choose()
         focus = 1;
         show(Chain);
     }
-    else if (page == SavedChains && menuEntries[selected] != 255) chainFile(menuEntries[selected], savingChain);
+    else if (page == SavedPresets && menuEntries[selected] != 255) presetFile(menuEntries[selected], savingPreset);
     else if (page == Destinations && menuEntries[selected] != 255) render(menuEntries[selected]);
 }
 
 void ChainScreen::measureCpu()
 {
-    if(!palette::contains(node().effect) || busy())return;
+    if(!stpalette::contains(node().effect) || busy())return;
     stopAudio();
     Timer* timer=Tracker::getInstance()->getPlatform()->getTimer();
 #ifdef TRACKER_DESKTOP
@@ -1119,21 +1122,21 @@ void ChainScreen::measureCpu()
     unsigned ticksPerUs=timer->clockCyclesPerUs();
 #endif
     fs->mkdir(0,"/Effects");
-    auto [ok,file]=fs->openFile("/Effects/PaletteCPU.csv",FileSystem::kWriteCreateNew);
+    auto [ok,file]=fs->openFile("/Effects/StPaletteCPU.csv",FileSystem::kWriteCreateNew);
     if(!ok){error("Cannot save CPU report");return;}
     static const char heading[]="category,type,quality,processing_quality,channels,max_ticks,average_ticks,ticks_per_us,arena_bytes\n";
     bool success=fs->writeFile(heading,sizeof(heading)-1,file)==sizeof(heading)-1;
     for(unsigned q=0;q<3 && success;++q) {
         Node n=node();n.quality=q;
         RealtimeArena arena;arena.reset(externalRamScratchBuff,SHARED_SCRATCH_MEMORY_SIZE);
-        auto result=palette::profile(n,chainChannels(),{&arena,[](void* a,size_t bytes){return static_cast<RealtimeArena*>(a)->allocate(bytes);}},timer,clock);
+        auto result=stpalette::profile(n,chainChannels(),{&arena,[](void* a,size_t bytes){return static_cast<RealtimeArena*>(a)->allocate(bytes);}},timer,clock);
         char line[192];
-        int length=snprintf(line,sizeof(line),"%s,%s,%u,%u,%u,%lu,%lu,%lu,%lu\n",palette::category(n.effect),palette::typeName(n.effect,unsigned(n.params[0])),q,palette::processingQuality(n),chainChannels(),(unsigned long)result.maximumTicks,(unsigned long)(result.blocks?result.totalTicks/result.blocks:0),(unsigned long)ticksPerUs,(unsigned long)(SHARED_SCRATCH_MEMORY_SIZE-arena.available()));
+        int length=snprintf(line,sizeof(line),"%s,%s,%u,%u,%u,%lu,%lu,%lu,%lu\n",stpalette::category(n.effect),stpalette::typeName(n.effect,unsigned(n.params[0])),q,stpalette::processingQuality(n),chainChannels(),(unsigned long)result.maximumTicks,(unsigned long)(result.blocks?result.totalTicks/result.blocks:0),(unsigned long)ticksPerUs,(unsigned long)(SHARED_SCRATCH_MEMORY_SIZE-arena.available()));
         success=result.success && length>0 && unsigned(length)<sizeof(line) && fs->writeFile(line,length,file)==length;
     }
     fs->closeFile(file);
     schemaReady=false;
-    snprintf(notice,sizeof(notice),success?"Saved Effects/PaletteCPU.csv":"CPU measurement failed");
+    snprintf(notice,sizeof(notice),success?"Saved Effects/StPaletteCPU.csv":"CPU measurement failed");
     focus=1;show(Chain);
 }
 
@@ -1144,8 +1147,8 @@ void ChainScreen::removeOrReset()
     {
         changed(true);
         unsigned i = parameterIndex();
-        if(palette::contains(node().effect) && i==palette::Type) changed();
-        if (i < node().count) node().params[i] = palette::contains(node().effect)?palette::defaults(node().effect).params[i]:node().effect == kPlugin ?
+        if(stpalette::contains(node().effect) && i==stpalette::Type) changed();
+        if (i < node().count) node().params[i] = stpalette::contains(node().effect)?stpalette::defaults(node().effect).params[i]:node().effect == kPlugin ?
             PtfxManager::getActiveHeader().params[i].default_val : effectDefaultParamsTable[node().effect].parameter[i];
         schemaReady=false;
         publishParameters();
@@ -1294,7 +1297,7 @@ void ChainScreen::startRealtime()
     {
         const Node& n = definition.stages[i];
         if (n.bypass || n.effect == kPlugin) continue;
-        if(palette::contains(n.effect)) { if(!palette::valid(n)){error("Invalid native effect");return;} continue; }
+        if(stpalette::contains(n.effect)) { if(!stpalette::valid(n)){error("Invalid native effect");return;} continue; }
         if (!supported(n.effect) || n.count != effectDisplayConstantParams[n.effect].paramsNumber)
         { error("Effect unavailable"); return; }
         const auto& d = effectDisplayConstantParams[n.effect];
@@ -1328,7 +1331,7 @@ void ChainScreen::startRealtime()
     snprintf(notice, sizeof(notice), "%s", live->error());
     if (live) { live->~RealtimeChain(); live = nullptr; }
     liveRequested = false;
-    for(unsigned i=0;i<definition.count;++i) if(palette::contains(definition.stages[i].effect))
+    for(unsigned i=0;i<definition.count;++i) if(stpalette::contains(definition.stages[i].effect))
     { error(live ? live->error() : "Native preview memory limit"); return; }
     // Noncausal effects (normalization and prepending) keep exact offline
     // behavior. Never silently bypass a stage in order to start live audio.
@@ -1340,9 +1343,9 @@ void ChainScreen::preview(Output action)
 {
     stopAudio();
     const bool render = action != Audition;
-    bool native=false; for(unsigned i=0;i<definition.count;++i) native |= palette::contains(definition.stages[i].effect);
+    bool native=false; for(unsigned i=0;i<definition.count;++i) native |= stpalette::contains(definition.stages[i].effect);
     if(native && (!definition.qualityResolved || !render) &&
-       !palette::resolve(definition, chainChannels(), kCapacity*2-65536, render ? ~0u : RealtimeChain::kChainBudgetUs))
+       !stpalette::resolve(definition, chainChannels(), kCapacity*2-65536, render ? ~0u : RealtimeChain::kChainBudgetUs))
     { error(render ? "FX memory limit" : "FX estimate too high. Apply"); return; }
 #ifdef TRACKER_DESKTOP
     bool armPlugin = definition.source.effect == kPlugin;
@@ -1354,7 +1357,7 @@ void ChainScreen::preview(Output action)
     liveRequested = !render;
     if (render && runner.state() == Runner::State::Ready)
     { prepareOutput(false); return; }
-    if (sourceFrames && !snapshotReady) { error("Source snapshot unavailable; reopen Chain"); return; }
+    if (sourceFrames && !snapshotReady) { error("Source snapshot unavailable; reopen Effects"); return; }
     schemaReady = false;
     touched = true;
     if (definition.source.effect == kSample)
@@ -1372,48 +1375,61 @@ void ChainScreen::preview(Output action)
     show(Chain);
 }
 
-void ChainScreen::chainFile(unsigned slot, bool save)
+void ChainScreen::presetFile(unsigned slot, bool save)
 {
     stopAudio();
-    if (!slot && !save && haveLast) { changed(); definition = lastUsed; stageSelection = 0; schemaReady = false; focus = 1; selected = 0; show(Chain); return; }
-    if (!slot || slot > savedChainCount) { error("Choose a saved chain"); return; }
-    fs->mkdir(0, "/Effects"); fs->mkdir(0, kChainDir);
+    if (!slot && !save && haveLast)
+    {
+        changed();
+        definition = lastUsed;
+        memcpy(presetName, lastUsedPresetName, sizeof(presetName));
+        stageSelection = 0;
+        schemaReady = false;
+        focus = 1;
+        selected = 0;
+        show(Chain);
+        return;
+    }
+    if (!slot || slot > savedPresetCount) { error("Choose a saved preset"); return; }
     char path[80], temp[84], backup[84];
     const char* filename = menuPointers[slot - 1];
     const char* extension = filename + strlen(filename) + 1;
-    snprintf(path, sizeof(path), "%s/%s.%s", kChainDir, filename, extension);
+    if (save)
+    {
+        fs->mkdir(0, "/Effects");
+        fs->mkdir(0, kPresetDir);
+    }
+    snprintf(path, sizeof(path), "%s/%s.%s", kPresetDir, filename, extension);
     snprintf(temp, sizeof(temp), "%s.tmp", path);
     snprintf(backup, sizeof(backup), "%s.bak", path);
     // Recover an interrupted replacement before attempting another read/write.
     if (!fs->exists(path) && fs->exists(backup)) fs->rename(backup, path);
-    uint8_t bytes[kChainFileBytes];
+    uint8_t bytes[kPresetFileBytes];
     if (save)
     {
-        snprintf(definition.name, sizeof(definition.name), "%s", filename);
-        if (!encode(definition, bytes, sizeof(bytes)) || !openIo(temp, FileSystem::kWriteCreateNew))
-        { error("Cannot save chain"); return; }
+        if (!encodePreset(definition, bytes, sizeof(bytes)) || !openIo(temp, FileSystem::kWriteCreateNew))
+        { error("Cannot save preset"); return; }
         bool ok = fs->writeFile(bytes, sizeof(bytes), io) == int32_t(sizeof(bytes));
         closeIo();
-        if (!ok) { fs->remove(temp); error("Chain write failed"); return; }
+        if (!ok) { fs->remove(temp); error("Preset write failed"); return; }
         fs->remove(backup);
         bool previous = fs->exists(path);
         if ((previous && !fs->rename(path, backup)) || !fs->rename(temp, path))
-        { if (previous && !fs->exists(path)) fs->rename(backup, path); fs->remove(temp); error("Chain save failed"); return; }
+        { if (previous && !fs->exists(path)) fs->rename(backup, path); fs->remove(temp); error("Preset save failed"); return; }
         fs->remove(backup);
         snprintf(notice, sizeof(notice), "Saved %s", filename);
     }
     else
     {
-        if (!openIo(path, FileSystem::kRead)) { error("Chain not found"); return; }
+        if (!openIo(path, FileSystem::kRead)) { error("Preset not found"); return; }
         ChainDefinition loaded;
-        bool ok = fs->getFileSize(io) == sizeof(bytes) && fs->readFile(bytes, sizeof(bytes), io) == int32_t(sizeof(bytes)) && decode(bytes, sizeof(bytes), loaded);
+        bool ok = fs->getFileSize(io) == sizeof(bytes) && fs->readFile(bytes, sizeof(bytes), io) == int32_t(sizeof(bytes)) && decodePreset(bytes, sizeof(bytes), loaded);
         closeIo();
-        if (!ok) { error("Invalid or unsupported chain"); return; }
-        // The filename is also the display name, including for old unnamed files.
-        snprintf(loaded.name, sizeof(loaded.name), "%s", filename);
+        if (!ok) { error("Invalid or unsupported preset"); return; }
         changed(); definition = loaded; stageSelection = 0; schemaReady = false; focus = 1;
-        if (definition.name[0]) snprintf(notice, sizeof(notice), "Loaded %s", definition.name);
+        snprintf(notice, sizeof(notice), "Loaded %s", filename);
     }
+    snprintf(presetName, sizeof(presetName), "%s", filename);
     selected = 0;
     show(Chain);
 }
@@ -1531,6 +1547,7 @@ void ChainScreen::finishRender()
     newFileManager.setInstrumentStructChanged(destinationSlot);
     newFileManager.setProjectStructChanged();
     lastUsed = definition;
+    memcpy(lastUsedPresetName, presetName, sizeof(lastUsedPresetName));
     haveLast = true;
     // Restore current editor data before it is saved or another instrument is selected.
     work = Idle;
@@ -1628,9 +1645,9 @@ void ChainScreen::update()
     if(budget) {
         unsigned best=kMaxStages,saving=0;
         for(unsigned i=0;i<definition.count;++i) {
-            Node& n=definition.stages[i]; if(!palette::contains(n.effect)||n.bypass||n.quality==palette::Minimum)continue;
-            Node lower=n; if(!palette::lowerQuality(lower))continue;
-            unsigned gain=palette::estimatedUs(n,chainChannels())-palette::estimatedUs(lower,chainChannels());
+            Node& n=definition.stages[i]; if(!stpalette::contains(n.effect)||n.bypass||n.quality==stpalette::Minimum)continue;
+            Node lower=n; if(!stpalette::lowerQuality(lower))continue;
+            unsigned gain=stpalette::estimatedUs(n,chainChannels())-stpalette::estimatedUs(lower,chainChannels());
             if(gain>saving){saving=gain;best=i;}
         }
         if(best==kMaxStages)
@@ -1643,7 +1660,7 @@ void ChainScreen::update()
             show(page);
             return;
         }
-        changed(); palette::lowerQuality(definition.stages[best]); definition.qualityResolved=true; return;
+        changed(); stpalette::lowerQuality(definition.stages[best]); definition.qualityResolved=true; return;
     }
     if (open && autoPreview && work == Idle)
     { autoPreview = false; preview(); return; }
@@ -1684,6 +1701,7 @@ void ChainScreen::update()
         else if (status == fmImportSampleFromSampleEditorEnd)
         {
             lastUsed = definition;
+            memcpy(lastUsedPresetName, presetName, sizeof(lastUsedPresetName));
             haveLast = true;
             haveDraft = false;
             // The editor reopens the committed slot on its next update.
@@ -1829,7 +1847,11 @@ static void openChainSession(cSampleEditor* editor, bool visible)
         for (unsigned c = 0; c < 2; ++c)
             screen.buffers[b][c] = externalRamEffectsBuff + (c < mtEffect::kChannels ? c : 0) * EDIT_BUFF_SIZE + b * kCapacity;
     screen.committed = false;
-    if (!screen.haveDraft || screen.draftSlot != screen.sourceSlot) screen.definition = {};
+    if (!screen.haveDraft || screen.draftSlot != screen.sourceSlot)
+    {
+        screen.definition = {};
+        screen.presetName[0] = 0;
+    }
     screen.runner.invalidate();
     screen.notice[0] = 0;
     screen.open = true;

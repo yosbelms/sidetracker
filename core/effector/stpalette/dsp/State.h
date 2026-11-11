@@ -1,9 +1,9 @@
 #pragma once
-#include "../Palette.h"
+#include "../StPalette.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-namespace samplefx { namespace palette {
+namespace samplefx { namespace stpalette {
 struct History {
     int16_t* data=nullptr; int length=0;
     struct Ref {

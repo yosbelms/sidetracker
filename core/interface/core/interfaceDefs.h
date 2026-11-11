@@ -318,7 +318,7 @@ class InterfaceGlobals
     char* ptrIntrumentsNames[kTotalInstrumentsCount];
 
     //-----------------------------------------------------
-    char currentFirmwareVersion[32];
+    char currentFirmwareVersion[sizeof("255.255.255 " FW_EDITION_NAME " beta 254")];
     const char* currentFirmwareBuild = nullptr;
 
     //-----------------------------------------------------

@@ -25,16 +25,12 @@
 #include "LiberationSans-Regular_17_L4.h"
 
 // BITMAPS
-#ifndef TRACKER_MINI
-#include "images/poly_logo_160x172_L8.h"
-#else
-#include "images/poly_logo_172x172_L8.h"
-#endif
 #include "CompressionRLE.h"
 #include "images/arrowIcons.h"
 #include "images/battery_28x13_L4.h"
 #include "images/battery_ch_28x19_L4.h"
 #include "images/songIcons.h"
+#include "images/sideTrackerMonogram.h"
 #include "log.h"
 #include <cr_section_macros.h>
 
@@ -79,7 +75,6 @@
 #endif
 
 static constexpr int kMaxFontBufferSize = 22396;
-__NOINIT(EXTERNAL_RAM) uint8_t poly_logo_160x172_l8[27520];
 __NOINIT(EXTERNAL_RAM) uint8_t decompressedFontsCommonBuffer[kMaxFontBufferSize];
 
 const uint8_t displayFontCount = 5;
@@ -139,27 +134,7 @@ __NOINIT(EXTERNAL_RAM)
 strFont fonts[displayFontCount];
 
 const strBitmap bitmaps[displayBitmapsCount] = {
-#ifndef TRACKER_MINI
-    {
-      poly_logo_160x172_l8,
-      80000,
-      27520,
-      160,
-      172,
-      L8,
-      160,
-    },
-#else
-    {
-      poly_logo_172x172_l8,
-      80000,
-      29584,
-      172,
-      172,
-      L8,
-      172,
-    },
-#endif
+    {}, // displayNoBitmap
 
     { playIcon20x20, 110000, 200, 20, 20, L4, 10 },
     { loopIcon20x20, 110500, 200, 20, 20, L4, 10 },
@@ -211,6 +186,8 @@ const strBitmap bitmaps[displayBitmapsCount] = {
     { chip_med_108x40_L2, 127700, 1080, 108, 40, L2, 27 },
 
 #endif
+    { kSideTrackerMonogram, 80000, sizeof(kSideTrackerMonogram), kSideTrackerMonogramWidth,
+      kSideTrackerMonogramHeight, L4, kSideTrackerMonogramWidth / 2 },
 };
 
 uint32_t ImageViewerJpegAddress = 350000;
@@ -298,13 +275,7 @@ void cDisplay::begin(DisplayDriver* displayDriver, Timer* timer)
 
     this->timer = timer;
     // ####################################
-#ifndef TRACKER_MINI
-    decompress(poly_logo_160x172_l8_compressed,
-               sizeof(poly_logo_160x172_l8_compressed) / sizeof(poly_logo_160x172_l8_compressed[0]),
-               poly_logo_160x172_l8);
-#endif
-
-    for (uint8_t i = 0; i < displayBitmapsCount; i++)
+    for (uint8_t i = displayPlayIcon; i < displayBitmapsCount; i++)
     {
         displayDriver->writeDataRAMG(bitmaps[i].data, bitmaps[i].source, bitmaps[i].address);
     }
@@ -321,24 +292,7 @@ void cDisplay::begin(DisplayDriver* displayDriver, Timer* timer)
     API_CLEAR_COLOR(0x000000);
     API_CLEAR(1, 1, 1);
 
-    API_VERTEX_FORMAT(0);
-
-    constexpr int bitmap_index = displayPolyLogoBitmap;
-
-    API_SAVE_CONTEXT();
-
-    API_BITMAP_HANDLE(0);
-    API_BITMAP_SOURCE(bitmaps[bitmap_index].address);
-    API_BITMAP_LAYOUT(
-      bitmaps[bitmap_index].format, bitmaps[bitmap_index].linestride, bitmaps[bitmap_index].height);
-    API_BITMAP_SIZE(
-      NEAREST, BORDER, BORDER, bitmaps[bitmap_index].width, bitmaps[bitmap_index].height);
-
-    API_BEGIN(BITMAPS);
-    API_VERTEX2F((800 / 2) - (bitmaps[bitmap_index].width / 2), 100);
-    API_END();
-
-    API_RESTORE_CONTEXT();
+    drawSideTrackerLogo();
 
     API_DISPLAY();
     API_CMD_SWAP();

@@ -1,9 +1,9 @@
-#include "Palette.h"
+#include "StPalette.h"
 #include "dsp/Helpers.h"
 #include <new>
 #include <cstring>
 
-namespace samplefx { namespace palette {
+namespace samplefx { namespace stpalette {
 namespace {
 unsigned algorithm(const Node& n) { return (n.effect-kFirst)*6+unsigned(n.params[Type]); }
 unsigned factor(const Node& n) {
@@ -108,7 +108,7 @@ bool Processor::parameters(const Node& n,float tempo) {
     return true;
 }
 uint32_t Processor::tail() const { return state ? tailLength(state->node)+profileLatency(state->factor) : 0; }
-PALETTE_HOT_CODE bool Processor::process(int16_t* const* input,int16_t* const* output,unsigned frames) {
+STPALETTE_HOT_CODE bool Processor::process(int16_t* const* input,int16_t* const* output,unsigned frames) {
     if(!state || frames>128 || !output || !output[0] || (state->channels==2 && !output[1])) return false;
     State& s=*state;
     const unsigned latency=profileLatency(s.factor);

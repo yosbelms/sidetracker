@@ -1,5 +1,5 @@
 #include "Tables.h"
-namespace samplefx { namespace palette {
+namespace samplefx { namespace stpalette {
 const float lut_ap_poles[17] = {
    9.999174437e-01,  9.997160329e-01,  9.993897602e-01,  9.987952776e-01,
    9.976718129e-01,  9.955280098e-01,  9.914315323e-01,  9.836199785e-01,

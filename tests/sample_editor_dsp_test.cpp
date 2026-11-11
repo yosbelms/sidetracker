@@ -541,14 +541,14 @@ TEST(SampleFxRealtime, MixChangesRampWithoutRestartingTheChain)
     EXPECT_EQ(chain.played(), 768);
 }
 
-TEST(SampleFxRealtime, MixCompensatesPaletteResamplingLatency)
+TEST(SampleFxRealtime, MixCompensatesStPaletteResamplingLatency)
 {
     std::vector<int16_t> input(1025); input[37] = 10000;
     samplefx::ChainDefinition definition;
-    auto stage = samplefx::palette::defaults(32);
-    stage.quality = samplefx::palette::Economy; stage.params[1] = 0;
+    auto stage = samplefx::stpalette::defaults(32);
+    stage.quality = samplefx::stpalette::Economy; stage.params[1] = 0;
     definition.add(stage); definition.add(stage);
-    const unsigned latency = 2 * samplefx::palette::latencyFrames(stage);
+    const unsigned latency = 2 * samplefx::stpalette::latencyFrames(stage);
     ASSERT_GT(latency, 0);
     for (unsigned percent : {0u, 50u, 100u})
     {
@@ -604,9 +604,9 @@ TEST(SampleFxRealtime, GeneratedDryRemainsAlignedAcrossBlocksAndTail)
     NativeLiveLoader loader; samplefx::RealtimeChain chain; samplefx::ChainDefinition definition;
     definition.source = liveNode(samplefx::kPlugin, {2}); definition.source.flags = PTFX_FLAG_GENERATOR;
     definition.generatorFrames = 301; definition.mix = 50;
-    auto neutral = samplefx::palette::defaults(32); neutral.params[1] = 0; neutral.quality = 1;
+    auto neutral = samplefx::stpalette::defaults(32); neutral.params[1] = 0; neutral.quality = 1;
     definition.add(neutral);
-    const unsigned latency = samplefx::palette::latencyFrames(neutral);
+    const unsigned latency = samplefx::stpalette::latencyFrames(neutral);
     std::vector<uint8_t> arena(32768); samplefx::Audio empty;
     ASSERT_TRUE(chain.prepare(definition, empty, arena.data(), arena.size(), loader, 1000)) << chain.error();
     int16_t left[128], right[128]; unsigned at = 0;

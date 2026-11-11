@@ -4,12 +4,12 @@
 #if defined(PLATFORM_IMX) && !defined(TRACKER_DESKTOP)
 #include "config.h"
 // Keep the hottest preview routines in ITCM on Tracker+ and Mini.
-#define PALETTE_HOT_CODE AUDIO_CORE_RAM
+#define STPALETTE_HOT_CODE AUDIO_CORE_RAM
 #else
-#define PALETTE_HOT_CODE
+#define STPALETTE_HOT_CODE
 #endif
 extern "C" const int16_t AudioWaveformSine[257];
-namespace samplefx { namespace palette {
+namespace samplefx { namespace stpalette {
 constexpr float TWO_PI=6.28318530718f, DENORM=1e-20f;
 inline float clampf(float x,float a,float b) { return std::clamp(x,a,b); }
 inline float lerpf(float a,float b,float t) { return a+(b-a)*t; }

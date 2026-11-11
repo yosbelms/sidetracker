@@ -45,4 +45,4 @@ $(OUT)/%.o: %.cpp Makefile $(ROOT)/version.mk
 -include $(OBJS:.o=.d) $(HOST:.o=.d)
 .PHONY: all check
 
-CPPFLAGS += -I$(CORE)/effector/palette/vendor/clouds
+CPPFLAGS += -I$(CORE)/effector/stpalette/vendor/clouds

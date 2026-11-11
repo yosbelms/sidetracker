@@ -1,4 +1,4 @@
-# Tracker CE Desktop
+# SideTracker Desktop
 
 The desktop build compiles the Original Tracker variant of the CE application core
 with the host compiler. It calls the real Tracker startup, update, and audio

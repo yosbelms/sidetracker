@@ -90,7 +90,7 @@ jobs:
           POSTFIX_ARGS=""
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             SHORT_SHA=$(git rev-parse --short=7 HEAD)
-            POSTFIX_ARGS="ORIGINAL_POSTFIX=CE_${SHORT_SHA} PLUS_POSTFIX=CE_${SHORT_SHA} MINI_POSTFIX=CE_${SHORT_SHA}"
+            POSTFIX_ARGS="ORIGINAL_POSTFIX=SideTracker_${SHORT_SHA} PLUS_POSTFIX=SideTracker_${SHORT_SHA} MINI_POSTFIX=SideTracker_${SHORT_SHA}"
           fi
           make all $POSTFIX_ARGS 2>&1 | tee build_output.log
 
@@ -123,7 +123,7 @@ jobs:
           } > pr_summary.md
 
           {
-            echo "## Polyend Tracker CE - Firmware Build & Memory Summary"
+            echo "## SideTracker firmware build and memory summary"
             echo ""
             cat pr_summary.md
             echo ""
@@ -162,7 +162,7 @@ jobs:
 
             const body = [
               marker,
-              '### Polyend Tracker CE Test Firmware',
+              '### SideTracker Test Firmware',
               '',
               'This pull request passed all build checks. You can download and test the built firmware for **Original Tracker**, **Tracker+**, and **Tracker Mini** (`Build: ' + shortSha + '`) directly using the link below (no GitHub account required):',
               '',
@@ -174,9 +174,9 @@ jobs:
               '### 1. Flashing the Firmware (`.ptf`)',
               `1. Download and unzip **[polyend-tracker-ce-firmware.zip](${fwUrl})**.`,
               '2. Copy the `.ptf` file matching your hardware to the **`/Firmware/`** folder on your Tracker\'s microSD card:',
-              `   * **Original Polyend Tracker**: \`PolyendTracker_CE_${shortSha}.ptf\``,
-              `   * **Polyend Tracker+**: \`TrackerPlus_CE_${shortSha}.ptf\``,
-              `   * **Polyend Tracker Mini**: \`TrackerMini_CE_${shortSha}.ptf\``,
+              `   * **Original Polyend Tracker**: \`PolyendTracker_SideTracker_${shortSha}.ptf\``,
+              `   * **Polyend Tracker+**: \`TrackerPlus_SideTracker_${shortSha}.ptf\``,
+              `   * **Polyend Tracker Mini**: \`TrackerMini_SideTracker_${shortSha}.ptf\``,
               '3. Insert the microSD card into your Tracker, navigate to **Config → Firmware → Firmware update**, select the `.ptf` file, and confirm.',
               `4. Once rebooted, you can verify you are running this PR build under **Config → Firmware** (\`Build: ${shortSha}\`).`,
               '',

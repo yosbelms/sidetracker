@@ -1,16 +1,16 @@
-# Native Palette integration plan
+# Native StPalette integration plan
 
-Status: native implementation is present in `core/effector/palette/`. Simulator/DSP/build validation is covered by the implementation checks. Physical-device cost calibration, listening validation, and realtime timing certification remain outstanding; provisional estimates are not measured Tracker timings. See that folder's README for supported profiles, benchmarks, and the on-device Measure CPU action.
+Status: native implementation is present in `core/effector/stpalette/`. Simulator/DSP/build validation is covered by the implementation checks. Physical-device cost calibration, listening validation, and realtime timing certification remain outstanding; provisional estimates are not measured Tracker timings. See that folder's README for supported profiles, benchmarks, and the on-device Measure CPU action.
 
 ## 1. Goal and workflow
 
 Integrate all 24 processors from `temp/palette-move-master` behind four native category effects, each exposing a Type selector. Optimize first for the original Tracker's Cortex-M4, with shared production DSP on desktop, Original, Plus, and Mini. Realtime preview takes priority over exact reproduction of Palette's implementation; document intentional sound and bandwidth changes.
 
-Retain the existing eight-stage chain, independent duplicate instances, explicit bypass, chains, and Preview/Render workflow. Use the implemented layout: Effects 3/8, Chain 2/8, Parameter 2/8, Value 1/8, with the Value footer on the eighth physical button.
+Retain the existing eight-stage chain, independent duplicate instances, explicit bypass, saved presets, and Preview/Render workflow. Use the implemented layout: Effects 3/8, Chain 2/8, Parameter 2/8, Value 1/8, with the Value footer on the eighth physical button.
 
-Palette's Move UI, four-slot restriction, uniqueness rule, global feedback, randomizers, and factory presets are outside this integration. Existing PTFX support remains available, but the Palette collection uses no PTFX packaging or execution.
+Palette's Move UI, four-slot restriction, uniqueness rule, global feedback, randomizers, and factory presets are outside this integration. Existing PTFX support remains available, but the StPalette collection uses no PTFX packaging or execution.
 
-Append exactly four entries to the Effects catalog, labelled **Palette - Character**, **Palette - Movement**, **Palette - Diffusion**, and **Palette - Texture**. Each instance selects one of its category's six algorithms through Type; the option order below defines stable serialized Type values 0–5.
+Append exactly four entries to the Effects catalog, labelled **St Character**, **St Movement**, **St Diffusion**, and **St Texture**. Each instance selects one of its category's six algorithms through Type; the option order below defines stable serialized Type values 0–5.
 
 | Native effect | Type options, in order |
 | --- | --- |
@@ -25,15 +25,15 @@ Use stable parameter indices: Type=0, Amount=1, Macro=2, Drift=3, Sync=4, Tail=5
 
 New instances select the first Type in their category, with Amount=0%, Macro=50%, Drift=0%, Sync=Free, and Tail=2 seconds; Texture starts with Amount=50% so Filter is neutral. A Type change preserves these common parameter values, resets the selected algorithm's DSP state, and invalidates prepared output. Use explicit bypass independently of Amount.
 
-Tempo-capable processors receive Sync using Palette's musical divisions and CE's project tempo. Processors with delayed output receive Tail, default 2 seconds, range 0–10 seconds. Process the tail with zero input and fade its final 10 ms; reject output exceeding the existing sample capacity rather than truncating it silently.
+Tempo-capable processors receive Sync using StPalette's musical divisions and CE's project tempo. Processors with delayed output receive Tail, default 2 seconds, range 0–10 seconds. Process the tail with zero input and fade its final 10 ms; reject output exceeding the existing sample capacity rather than truncating it silently.
 
 ## 2. Native DSP and interfaces
 
-- Keep all new Palette production code in the dedicated `core/effector/palette/` folder, under the `samplefx::palette` namespace. Organize it as follows:
+- Keep all new StPalette production code in the dedicated `core/effector/stpalette/` folder, under the `samplefx::stpalette` namespace. Organize it as follows:
 
   ```text
-  core/effector/palette/
-    Palette.h           minimal public API for CE integration
+  core/effector/stpalette/
+    StPalette.h           minimal public API for CE integration
     Processor.*         instance lifecycle, Type switching, and quality handling
     Registry.*          four categories, Type options, descriptors, and factories
     groups/             Character, Movement, Diffusion, and Texture algorithms
@@ -44,7 +44,7 @@ Tempo-capable processors receive Sync using Palette's musical divisions and CE's
     README.md           internal architecture, attribution, and generation steps
   ```
 
-  CE's existing UI/chain files contain only integration glue calling the public API; keep kernels, tables, category metadata, and Palette-specific lifecycle logic inside this folder. Keep regression tests in the existing `tests/` tree and the integration plan in `docs/`. Firmware and desktop already discover nested effector `.cpp` sources; explicitly add the portable sources to host-test and benchmark builds. Do not add a second independently compiled copy of shared DSP or vendor tables.
+  CE's existing UI/chain files contain only integration glue calling the public API; keep kernels, tables, category metadata, and StPalette-specific lifecycle logic inside this folder. Keep regression tests in the existing `tests/` tree and the integration plan in `docs/`. Firmware and desktop already discover nested effector `.cpp` sources; explicitly add the portable sources to host-test and benchmark builds. Do not add a second independently compiled copy of shared DSP or vendor tables.
 - Add a portable native processor interface for preparation, parameter publication, block processing, reset, memory requirements, tail length, supported quality profiles, and measured processing cost. Share it between realtime preview and offline rendering.
 - Add a shared descriptor/factory for category names, native enum choices, parameter definitions/defaults, per-Type capabilities, processor creation, and chain validation. Bridge existing effects through their current adapters. Preserve legacy effect IDs, including Modular. Assign category IDs Character=32, Movement=33, Diffusion=34, Texture=35; identify each algorithm by category ID plus Type, not by its own chain effect ID.
 - Instantiate, allocate history for, and execute only the selected Type in each stage. Loading all algorithms into firmware does not require six live processors per category. Keep each stage's state independent and allocate it during preparation through the existing editor arena. Reset identically for preview and Render. Derive deterministic drift seeds from category ID, Type, and chain position.
@@ -104,7 +104,7 @@ This design follows the piecewise-polynomial ADAA approach in [Werner and Azelbo
 - Start preparation at Full. Repeatedly downgrade the stage yielding the greatest measured saving, breaking ties by chain order, until CPU and arena limits fit. Show Economy whenever any stage is downgraded. Bypassed effects have no processing cost.
 - Monitor actual callback cost. Request fade-out and reprepare from the main loop if further reduction is necessary; no reinitialization or allocation in the audio callback. Do not automatically upgrade during playback. If Minimum still exceeds limits, stop preview with an explanation and retain Render.
 - Render uses the last resolved preview profiles and deterministic seeds. Without a previous preview, run the same admission resolver. A quality change invalidates prepared audio so Render cannot reuse a stale result.
-- Store category ID and the six stable parameter values, including Type, in each Palette chain node. Validate Type as an integer in 0–5 and resolve its per-Type capabilities before execution. Add a native resolved-quality field using the currently unused final serialized byte. Write version 2 for chains containing Palette categories and continue reading version 1. Keep legacy-only chains in version 1; leave plugin flag interpretation and project/instrument formats unchanged.
+- Store category ID and the six stable parameter values, including Type, in each StPalette chain node. Validate Type as an integer in 0–5 and resolve its per-Type capabilities before execution. Save per-node quality, resolved-quality state, and whole-chain Mix through the PTPR v1 preset codec in `SampleFxPreset`.
 - Use mono processing on Original wherever the topology permits. For its shared reverb tank, combine the tank's outputs for mono; Plus/Mini retain stereo. Do not allocate an unused second mono history.
 - Allocate all state, history, resampling buffers, and block workspaces through bounded preparation. No heap allocation, SD access, large clearing, or substantial initialization in the callback. Audit against Original's 4 KiB stack, targeting at most 512 bytes of local stack per new DSP function.
 
@@ -125,11 +125,11 @@ Each batch must pass:
 
 - Sanitized mono/stereo production-DSP tests: bounds, silence, impulses, extreme parameters, near-identical adjacent samples, segment boundaries, clipping, reset, duplicate instances, partial blocks, and tails. Check allocation and stack budgets.
 - Category/Type tests: all four selectors and 24 algorithms, stable enum values, malformed/out-of-range Type rejection, conditional Sync/Tail visibility, independent repeated category instances, and Type changes during preview. Verify only the selected algorithm allocates and processes, ordinary parameter values survive a switch, and no initialization occurs in the audio callback.
-- Exact preview-versus-Render comparisons for fixed parameters, profiles, and seeds, including economy profiles and rate-conversion latency. Repeat after stop/restart and chain reload.
+- Exact preview-versus-Render comparisons for fixed parameters, profiles, and seeds, including economy profiles and rate-conversion latency. Repeat after stop/restart and preset reload.
 - Reference comparisons for frequency response, level, transient behavior, aliasing, modulation timing, pitch, resonator tuning, reverb decay, and Shift's unwanted sideband. Document intentional differences per profile. Include listening checks at high drive and on quiet decays.
 - Native M4 disassembly/symbol inspection confirming no software double helpers or general-purpose transcendental calls in new sample-processing loops. Control-rate single-precision calls are allowed when bounded and included in measurements.
-- Automatic-quality tests: deterministic selection/ties, resampler overhead, parameter extremes, insufficient memory, runtime downgrade, stale-result invalidation, chain compatibility, and failure at Minimum. Exercise duplicate expensive effects and representative eight-stage mixed chains.
-- Existing desktop workflow checks for Add, reordering, bypass, duplication, parameter editing, chains, retained drafts, repeated preview, and physical view switching. Verify exactly four Palette browser entries, the selected Type in each chain row, native enum editing, and actual native execution in the simulator.
+- Automatic-quality tests: deterministic selection/ties, resampler overhead, parameter extremes, insufficient memory, runtime downgrade, stale-result invalidation, preset round trips, and failure at Minimum. Exercise duplicate expensive effects and representative eight-stage mixed chains.
+- Existing desktop workflow checks for Add, reordering, bypass, duplication, parameter editing, presets, retained drafts, repeated preview, and physical view switching. Verify exactly four StPalette browser entries, the selected Type in each chain row, native enum editing, and actual native execution in the simulator.
 - Original Tracker worst-case cycle measurements for each offered profile, plus firmware builds and flash/internal-RAM/arena/stack reports for Original, Plus, and Mini. Host/QEMU figures are supporting evidence, not device timing certification.
 
 Completion requires all 24 effects to have an individually safe realtime profile on the original Tracker. Eight structural slots remain available; measured combined cost determines the economy level needed for a particular chain. Report measured costs and profile tradeoffs with the implementation rather than predicting an arbitrary safe effect count.

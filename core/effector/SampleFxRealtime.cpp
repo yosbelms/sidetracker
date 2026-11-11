@@ -45,7 +45,7 @@ void RealtimeBuiltin::reset() { fx.reset(); native.reset(); }
 
 bool RealtimeBuiltin::supports(uint8_t id)
 {
-    if(palette::contains(id)) return true;
+    if(stpalette::contains(id)) return true;
     switch (id)
     {
         case editorEffectAmplifier: case editorEffectOverdrive: case editorEffectDelay:
@@ -63,7 +63,7 @@ bool RealtimeBuiltin::prepare(const Node& node, uint32_t frames, uint8_t ch, Rea
     settings = node;
     channels = ch; inputFrames = frames; position = 0; heldFrames = 0;
     history[0] = history[1] = nullptr;
-    if(palette::contains(node.effect))
+    if(stpalette::contains(node.effect))
         return native.prepare(node,ch,frames,{&arena,[](void* a,size_t n){return static_cast<RealtimeArena*>(a)->allocate(n);}},stage,tempo);
     switch (node.effect)
     {
@@ -114,7 +114,7 @@ bool RealtimeBuiltin::prepare(const Node& node, uint32_t frames, uint8_t ch, Rea
 void RealtimeBuiltin::parameters(const Node& node, float tempo)
 {
     settings = node;
-    if(palette::contains(node.effect)) { nativeParametersValid=native.parameters(node,tempo); return; }
+    if(stpalette::contains(node.effect)) { nativeParametersValid=native.parameters(node,tempo); return; }
     if (node.effect == editorEffectDelay)
     {
         delayFrames = std::max<uint32_t>(1u, uint32_t(uint16_t(node.params[1]) * 44.1f));
@@ -173,11 +173,11 @@ void RealtimeBuiltin::parameters(const Node& node, float tempo)
     }
 }
 
-uint32_t RealtimeBuiltin::tail() const { return palette::contains(settings.effect) ? native.tail() : settings.effect == editorEffectDelay ? echoes * delayFrames : 0; }
+uint32_t RealtimeBuiltin::tail() const { return stpalette::contains(settings.effect) ? native.tail() : settings.effect == editorEffectDelay ? echoes * delayFrames : 0; }
 
 bool RealtimeBuiltin::process(int16_t* const* input, int16_t* const* output, unsigned frames)
 {
-    if(palette::contains(settings.effect)) return nativeParametersValid && native.process(input,output,frames);
+    if(stpalette::contains(settings.effect)) return nativeParametersValid && native.process(input,output,frames);
     if (settings.effect == editorEffectDelay)
     {
         // Parameter edits cannot grow the allocation while audio is running.
@@ -259,8 +259,8 @@ bool RealtimeChain::prepare(const ChainDefinition& definition, const Audio& audi
     dryHistoryFrames = 0;
     dryHistory[0] = dryHistory[1] = nullptr;
     for (unsigned i = 0; i < definition.count; ++i)
-        if (!definition.stages[i].bypass && palette::contains(definition.stages[i].effect))
-            dryLatency += palette::latencyFrames(definition.stages[i]);
+        if (!definition.stages[i].bypass && stpalette::contains(definition.stages[i].effect))
+            dryLatency += stpalette::latencyFrames(definition.stages[i]);
     count = definition.count + 1;
     uint32_t frames = definition.source.effect == kSample ? source.frames : definition.generatorFrames;
     uint8_t channels = source.channels;
@@ -268,7 +268,7 @@ bool RealtimeChain::prepare(const ChainDefinition& definition, const Audio& audi
     {
         auto& stage = stages[i];
         stage.node = i ? definition.stages[i - 1] : definition.source;
-        nativeUsed |= palette::contains(stage.node.effect) && !stage.node.bypass;
+        nativeUsed |= stpalette::contains(stage.node.effect) && !stage.node.bypass;
         stage.plugin = {};
         stage.inputFrames = frames;
         stage.channels = stage.outputChannels = channels;

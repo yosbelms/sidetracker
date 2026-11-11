@@ -15,7 +15,7 @@ struct Node
 {
     uint8_t effect = kSample;
     uint8_t count = 0;
-    uint8_t quality = 0; // Native Palette: Full/Economy/Minimum.
+    uint8_t quality = 0; // Native StPalette: Full/Economy/Minimum.
     bool bypass = false;
     uint16_t flags = 0;
     uint32_t fingerprint = 0;
@@ -30,7 +30,6 @@ struct ChainDefinition
     uint32_t generatorFrames = 44100;
     uint8_t count = 0;
     bool qualityResolved = false;
-    char name[32] = {};
     uint8_t mix = 100;
 
     bool add(const Node& node);
@@ -39,9 +38,7 @@ struct ChainDefinition
     bool duplicate(unsigned index);
 };
 
-constexpr size_t kChainFileBytes = 16 + (kMaxStages + 1) * 100;
-bool encode(const ChainDefinition& definition, uint8_t* bytes, size_t size);
-bool decode(const uint8_t* bytes, size_t size, ChainDefinition& definition);
+bool validChain(const ChainDefinition& definition);
 uint32_t fingerprint(const void* bytes, size_t size, uint32_t hash = 2166136261u);
 
 struct Audio

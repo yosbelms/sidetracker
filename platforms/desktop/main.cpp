@@ -503,7 +503,7 @@ int run(const Options& options)
     }
 
     SdlPtr<SDL_Window, SDL_DestroyWindow> window(
-        SDL_CreateWindow("Tracker CE Desktop", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+        SDL_CreateWindow(FW_EDITION_NAME " Desktop", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                          width, height, SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI), SDL_DestroyWindow);
     check(bool(window));
 

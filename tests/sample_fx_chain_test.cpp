@@ -1,4 +1,4 @@
-#include "SampleFxChain.h"
+#include "SampleFxPreset.h"
 #include <gtest/gtest.h>
 #include <array>
 #include <cmath>
@@ -137,31 +137,43 @@ TEST_F(ChainTest, MonoConversionReachesDownstreamStage)
     EXPECT_EQ(runner.result().channels, 1);
     EXPECT_EQ(runner.result().channel[0][0], 10);
 }
-TEST_F(ChainTest, ChainRoundTripIsVersionedAndChecksummed)
+TEST_F(ChainTest, PresetRoundTripIsVersionedAndChecksummed)
 {
     definition.add(stage(3, 2));
     definition.source.effect = kPlugin; definition.source.flags = 5;
     definition.source.fingerprint = 0xdeadbeef;
     strcpy(definition.source.filename, "wavetable.ptfx");
-    std::array<uint8_t, kChainFileBytes> bytes;
-    ASSERT_TRUE(encode(definition, bytes.data(), bytes.size()));
+    std::array<uint8_t, kPresetFileBytes> bytes;
+    ASSERT_TRUE(encodePreset(definition, bytes.data(), bytes.size()));
     ChainDefinition restored;
-    ASSERT_TRUE(decode(bytes.data(), bytes.size(), restored));
+    ASSERT_TRUE(decodePreset(bytes.data(), bytes.size(), restored));
     EXPECT_EQ(restored.source.flags, 5);
     EXPECT_EQ(restored.source.fingerprint, 0xdeadbeef);
     EXPECT_EQ(restored.stages[0].params[0], 2);
     bytes.back() ^= 1;
     restored.count = 7;
-    EXPECT_FALSE(decode(bytes.data(), bytes.size(), restored));
+    EXPECT_FALSE(decodePreset(bytes.data(), bytes.size(), restored));
     EXPECT_EQ(restored.count, 7); // Invalid files cannot replace a draft.
-    EXPECT_FALSE(decode(bytes.data(), bytes.size() - 1, restored));
-
-    definition = {};
-    strcpy(definition.name, "Worn Cassette");
-    definition.add(stage(3, 4));
-    ASSERT_TRUE(encode(definition, bytes.data(), bytes.size()));
-    ASSERT_TRUE(decode(bytes.data(), bytes.size(), restored));
-    EXPECT_STREQ(restored.name, "Worn Cassette");
+    EXPECT_FALSE(decodePreset(bytes.data(), bytes.size() - 1, restored));
+}
+TEST_F(ChainTest, ObsoletePresetFormatsAreRejected)
+{
+    std::array<uint8_t, kPresetFileBytes> bytes;
+    ASSERT_TRUE(encodePreset(definition, bytes.data(), bytes.size()));
+    EXPECT_EQ(memcmp(bytes.data(), "PTPR", 4), 0);
+    EXPECT_EQ(bytes[4], 1);
+    memcpy(bytes.data(), "PTCH", 4);
+    ChainDefinition restored;
+    restored.count = 1;
+    for (uint8_t version : {1, 2})
+    {
+        bytes[4] = version;
+        bytes[7] = 0; // The obsolete format stored the inverse mix.
+        uint32_t hash = fingerprint(bytes.data() + 16, bytes.size() - 16, fingerprint(bytes.data(), 12));
+        for (unsigned i = 0; i < 4; ++i) bytes[12 + i] = hash >> (i * 8);
+        EXPECT_FALSE(decodePreset(bytes.data(), bytes.size(), restored));
+        EXPECT_EQ(restored.count, 1);
+    }
 }
 TEST_F(ChainTest, InvalidChainsAndStageBoundsAreRejected)
 {
@@ -172,37 +184,37 @@ TEST_F(ChainTest, InvalidChainsAndStageBoundsAreRejected)
     EXPECT_FALSE(definition.duplicate(0));
     ASSERT_TRUE(definition.remove(1));
     EXPECT_EQ(definition.stages[1].params[0], 2);
-    std::array<uint8_t, kChainFileBytes> bytes;
+    std::array<uint8_t, kPresetFileBytes> bytes;
     definition.stages[0].params[0] = NAN;
-    EXPECT_FALSE(encode(definition, bytes.data(), bytes.size()));
+    EXPECT_FALSE(encodePreset(definition, bytes.data(), bytes.size()));
     definition.stages[0].params[0] = 0;
     definition.source.effect = kPlugin; definition.source.flags = 1;
     strcpy(definition.source.filename, "../escape.ptfx");
-    EXPECT_FALSE(encode(definition, bytes.data(), bytes.size()));
+    EXPECT_FALSE(encodePreset(definition, bytes.data(), bytes.size()));
 }
 
-TEST_F(ChainTest, ChainMixPersistsWithoutChangingLegacyDefaults)
+TEST_F(ChainTest, PresetPreservesWholeChainMix)
 {
-    std::array<uint8_t, kChainFileBytes> bytes;
+    std::array<uint8_t, kPresetFileBytes> bytes;
     ChainDefinition restored;
-    ASSERT_TRUE(encode(definition, bytes.data(), bytes.size()));
-    EXPECT_EQ(bytes[7], 0);
-    ASSERT_TRUE(decode(bytes.data(), bytes.size(), restored));
+    ASSERT_TRUE(encodePreset(definition, bytes.data(), bytes.size()));
+    EXPECT_EQ(bytes[7], 100);
+    ASSERT_TRUE(decodePreset(bytes.data(), bytes.size(), restored));
     EXPECT_EQ(restored.mix, 100);
     for (unsigned percent : {0u, 35u, 100u})
     {
         definition.mix = percent;
-        ASSERT_TRUE(encode(definition, bytes.data(), bytes.size()));
-        ASSERT_TRUE(decode(bytes.data(), bytes.size(), restored));
+        ASSERT_TRUE(encodePreset(definition, bytes.data(), bytes.size()));
+        ASSERT_TRUE(decodePreset(bytes.data(), bytes.size(), restored));
         EXPECT_EQ(restored.mix, percent);
     }
     definition.mix = 101;
-    EXPECT_FALSE(encode(definition, bytes.data(), bytes.size()));
+    EXPECT_FALSE(encodePreset(definition, bytes.data(), bytes.size()));
     bytes[7] = 101;
     uint32_t hash = fingerprint(bytes.data() + 16, bytes.size() - 16, fingerprint(bytes.data(), 12));
     for (unsigned i = 0; i < 4; ++i) bytes[12 + i] = hash >> (i * 8);
     restored.mix = 35;
-    EXPECT_FALSE(decode(bytes.data(), bytes.size(), restored));
+    EXPECT_FALSE(decodePreset(bytes.data(), bytes.size(), restored));
     EXPECT_EQ(restored.mix, 35);
 }
 

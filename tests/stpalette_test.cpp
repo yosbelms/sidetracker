@@ -1,11 +1,12 @@
 #include <gtest/gtest.h>
-#include "palette/Palette.h"
+#include "stpalette/StPalette.h"
+#include "SampleFxPreset.h"
 #include "SampleFxRealtime.h"
 #include <vector>
 #include <cmath>
 #include <cstring>
 #include "mtStructs.h"
-#include "palette/dsp/Helpers.h"
+#include "stpalette/dsp/Helpers.h"
 
 static int16_t editorPool[EDIT_BUFF_SIZE * SAMPLE_CHANNELS];
 int16_t* externalRamEffectsBuff=editorPool;
@@ -23,10 +24,10 @@ struct Arena {
         if(at+n>a.bytes.size())return nullptr;
         void* p=a.bytes.data()+at; std::memset(p,0,n); a.position=at+n; return p;
     }
-    palette::Memory memory(){return {this,get};}
+    stpalette::Memory memory(){return {this,get};}
 };
 std::vector<int16_t> run(Node node,unsigned channels,unsigned frames=8192) {
-    Arena arena; palette::Processor p;
+    Arena arena; stpalette::Processor p;
     if(!p.prepare(node,channels,frames,arena.memory(),1,130))return {};
     unsigned total=frames+p.tail();
     std::vector<int16_t> result(total*channels);
@@ -42,71 +43,72 @@ std::vector<int16_t> run(Node node,unsigned channels,unsigned frames=8192) {
     return result;
 }
 }
-TEST(Palette, AllTypesAndQualitiesProduceDeterministicBoundedMonoAndStereo) {
+TEST(StPalette, AllTypesAndQualitiesProduceDeterministicBoundedMonoAndStereo) {
     for(unsigned id=32;id<36;++id) for(unsigned type=0;type<6;++type)
     for(unsigned quality=0;quality<3;++quality) for(unsigned channels=1;channels<=2;++channels) {
         SCOPED_TRACE(::testing::Message()<<id<<":"<<type<<" quality="<<quality<<" channels="<<channels);
-        Node n=palette::defaults(id); n.params[0]=type; n.params[1]=70; n.params[2]=60; n.params[3]=40; n.params[5]=0; n.quality=quality;
+        Node n=stpalette::defaults(id); n.params[0]=type; n.params[1]=70; n.params[2]=60; n.params[3]=40; n.params[5]=0; n.quality=quality;
         auto first=run(n,channels,4099);
-        ASSERT_EQ(first.size(),(4099+palette::latencyFrames(n))*channels);
+        ASSERT_EQ(first.size(),(4099+stpalette::latencyFrames(n))*channels);
         EXPECT_EQ(first,run(n,channels,4099));
     }
 }
-TEST(Palette, DefaultsVisibleParametersAndSelectedTypeOnlyMemory) {
-    EXPECT_EQ(palette::defaults(35).params[1],50);
-    Arena a,b; palette::Processor filter,delay;
-    auto n=palette::defaults(35);
+TEST(StPalette, DefaultsVisibleParametersAndSelectedTypeOnlyMemory) {
+    EXPECT_EQ(stpalette::defaults(35).params[1],50);
+    Arena a,b; stpalette::Processor filter,delay;
+    auto n=stpalette::defaults(35);
     ASSERT_TRUE(filter.prepare(n,1,1024,a.memory()));
-    EXPECT_FALSE(palette::visible(n,palette::Tail));
-    EXPECT_FALSE(palette::visible(n,palette::Sync));
-    auto d=palette::defaults(34);
+    EXPECT_FALSE(stpalette::visible(n,stpalette::Tail));
+    EXPECT_FALSE(stpalette::visible(n,stpalette::Sync));
+    auto d=stpalette::defaults(34);
     ASSERT_TRUE(delay.prepare(d,1,1024,b.memory()));
-    EXPECT_TRUE(palette::visible(d,palette::Tail));
-    EXPECT_TRUE(palette::visible(d,palette::Sync));
+    EXPECT_TRUE(stpalette::visible(d,stpalette::Tail));
+    EXPECT_TRUE(stpalette::visible(d,stpalette::Sync));
     EXPECT_GT(b.position,a.position+100000);
-    EXPECT_LE(a.position,palette::requiredMemory(n,1));
-    EXPECT_LE(b.position,palette::requiredMemory(d,1));
+    EXPECT_LE(a.position,stpalette::requiredMemory(n,1));
+    EXPECT_LE(b.position,stpalette::requiredMemory(d,1));
 }
-TEST(Palette, InvalidTypesProfilesParametersAndInsufficientArenaFailSafely) {
-    auto n=palette::defaults(32); Arena a(128); palette::Processor p;
+TEST(StPalette, InvalidTypesProfilesParametersAndInsufficientArenaFailSafely) {
+    auto n=stpalette::defaults(32); Arena a(128); stpalette::Processor p;
     EXPECT_FALSE(p.prepare(n,1,100,a.memory()));
-    n.params[0]=.5f; EXPECT_FALSE(palette::valid(n));
-    n.params[0]=6; EXPECT_FALSE(palette::valid(n));
-    n.params[0]=0; n.quality=3; EXPECT_FALSE(palette::valid(n));
-    n.quality=0; n.params[4]=1.5; EXPECT_FALSE(palette::valid(n));
-    n.params[4]=0; n.params[2]=NAN; EXPECT_FALSE(palette::valid(n));
+    n.params[0]=.5f; EXPECT_FALSE(stpalette::valid(n));
+    n.params[0]=6; EXPECT_FALSE(stpalette::valid(n));
+    n.params[0]=0; n.quality=3; EXPECT_FALSE(stpalette::valid(n));
+    n.quality=0; n.params[4]=1.5; EXPECT_FALSE(stpalette::valid(n));
+    n.params[4]=0; n.params[2]=NAN; EXPECT_FALSE(stpalette::valid(n));
 }
-TEST(Palette, TypeChangesRequirePreparationAndOrdinaryParametersPublish) {
-    Arena a; palette::Processor p; auto n=palette::defaults(32);
+TEST(StPalette, TypeChangesRequirePreparationAndOrdinaryParametersPublish) {
+    Arena a; stpalette::Processor p; auto n=stpalette::defaults(32);
     ASSERT_TRUE(p.prepare(n,1,1024,a.memory()));
     n.params[1]=80; EXPECT_TRUE(p.parameters(n));
     n.params[0]=2; EXPECT_FALSE(p.parameters(n));
     n.params[0]=0; n.quality=1; EXPECT_FALSE(p.parameters(n));
 }
-TEST(Palette, ChainV2KeepsCategoryTypeAndQualityWithLegacyV1Unchanged) {
-    ChainDefinition r; auto n=palette::defaults(32);n.params[0]=2;n.quality=2;
+TEST(StPalette, PresetPreservesCategoryTypeAndResolvedQuality) {
+    ChainDefinition r; auto n=stpalette::defaults(32);n.params[0]=2;n.quality=2;
     r.add(n);r.qualityResolved=true;r.mix=35;
-    uint8_t bytes[kChainFileBytes]; ASSERT_TRUE(encode(r,bytes,sizeof(bytes))); EXPECT_EQ(bytes[4],2);
-    ChainDefinition decoded;ASSERT_TRUE(decode(bytes,sizeof(bytes),decoded));
+    uint8_t bytes[kPresetFileBytes]; ASSERT_TRUE(encodePreset(r,bytes,sizeof(bytes))); EXPECT_EQ(bytes[4],1);
+    ChainDefinition decoded;ASSERT_TRUE(decodePreset(bytes,sizeof(bytes),decoded));
     EXPECT_EQ(decoded.stages[0].effect,32); EXPECT_EQ(decoded.stages[0].params[0],2);
     EXPECT_EQ(decoded.stages[0].quality,2); EXPECT_TRUE(decoded.qualityResolved);
     EXPECT_EQ(decoded.mix,35);
     r={}; n={};n.effect=3;n.count=1;n.params[0]=1;r.add(n);
-    ASSERT_TRUE(encode(r,bytes,sizeof(bytes))); EXPECT_EQ(bytes[4],1);
-    ASSERT_TRUE(decode(bytes,sizeof(bytes),decoded));
+    ASSERT_TRUE(encodePreset(r,bytes,sizeof(bytes))); EXPECT_EQ(bytes[4],1);
+    ASSERT_TRUE(decodePreset(bytes,sizeof(bytes),decoded));
+    EXPECT_EQ(decoded.stages[0].effect,3); EXPECT_FALSE(decoded.qualityResolved);
 }
-TEST(Palette, EconomyAdmissionIsDeterministicAndRespectsMinimumAndBypass) {
-    ChainDefinition r;auto n=palette::defaults(32);n.params[0]=2;
+TEST(StPalette, EconomyAdmissionIsDeterministicAndRespectsMinimumAndBypass) {
+    ChainDefinition r;auto n=stpalette::defaults(32);n.params[0]=2;
     for(unsigned i=0;i<8;++i)r.add(n);
-    auto other=r; ASSERT_TRUE(palette::resolve(r,1,4*1024*1024));
-    ASSERT_TRUE(palette::resolve(other,1,4*1024*1024));
+    auto other=r; ASSERT_TRUE(stpalette::resolve(r,1,4*1024*1024));
+    ASSERT_TRUE(stpalette::resolve(other,1,4*1024*1024));
     bool economy=false;for(unsigned i=0;i<8;++i){EXPECT_EQ(r.stages[i].quality,other.stages[i].quality);economy|=r.stages[i].quality!=0;}
     EXPECT_TRUE(economy);
-    EXPECT_FALSE(palette::resolve(r,1,1));
+    EXPECT_FALSE(stpalette::resolve(r,1,1));
     for(unsigned i=0;i<8;++i)r.stages[i].bypass=true;
-    EXPECT_TRUE(palette::resolve(r,1,1));
+    EXPECT_TRUE(stpalette::resolve(r,1,1));
 }
-TEST(Palette, PreviewBudgetRequiresConsecutiveSlowBlocks) {
+TEST(StPalette, PreviewBudgetRequiresConsecutiveSlowBlocks) {
     RealtimeChain chain;
     chain.reportDuration(1200);EXPECT_FALSE(chain.budgetOverrun());
     chain.reportDuration(900);EXPECT_FALSE(chain.budgetOverrun());
@@ -119,23 +121,23 @@ TEST(Palette, PreviewBudgetRequiresConsecutiveSlowBlocks) {
     EXPECT_EQ(chain.budgetOverrun().callbackUs,2250u);
 }
 
-TEST(Palette, AntialiasedSaturatorMatchesHighPrecisionReferenceAndHandlesSmallDifferences) {
+TEST(StPalette, AntialiasedSaturatorMatchesHighPrecisionReferenceAndHandlesSmallDifferences) {
     for(float a : {-12.f,-3.f,-.01f,0.f,.1f,1.f,7.f,12.f})
     for(float b : {-11.f,-2.f,-.00999f,.000001f,.100001f,.5f,8.f,11.f}) {
         float previous=a;
         double reference=std::fabs(b-a)<1e-4 ? std::tanh((double(a)+b)*.5) :
             (std::log(std::cosh(double(b)))-std::log(std::cosh(double(a))))/(b-a);
-        EXPECT_NEAR(palette::tanh_adaa(b,&previous),reference,.003) << a << " -> " << b;
+        EXPECT_NEAR(stpalette::tanh_adaa(b,&previous),reference,.003) << a << " -> " << b;
     }
 }
 
-TEST(Palette, AntialiasedWaveshaperReducesFoldedHighHarmonicEnergy) {
+TEST(StPalette, AntialiasedWaveshaperReducesFoldedHighHarmonicEnergy) {
     constexpr unsigned count=1024, fundamental=87;
     std::vector<float> naive(count),antialiased(count);
     float previous=5*std::sin(-6.283185307179586f*fundamental/count);
     for(unsigned i=0;i<count;++i) {
         float x=5*std::sin(6.283185307179586f*fundamental*i/count);
-        naive[i]=palette::fastTanh(x);antialiased[i]=palette::tanh_adaa(x,&previous);
+        naive[i]=stpalette::fastTanh(x);antialiased[i]=stpalette::tanh_adaa(x,&previous);
     }
     auto aliasRatio=[&](const std::vector<float>& signal) {
         double energy=0,wanted=0,base=0;
@@ -153,7 +155,7 @@ TEST(Palette, AntialiasedWaveshaperReducesFoldedHighHarmonicEnergy) {
     EXPECT_LT(aliasRatio(antialiased),aliasRatio(naive));
 }
 
-TEST(Palette, RealtimeChainMatchesTheSharedRenderProcessorForEveryAlgorithmAndQuality) {
+TEST(StPalette, RealtimeChainMatchesTheSharedRenderProcessorForEveryAlgorithmAndQuality) {
     struct NoPlugins : RealtimePluginLoader {
         PtfxHostApi api={};
         bool load(const Node&,RealtimePlugin&,RealtimeArena&) override {return false;}
@@ -165,7 +167,7 @@ TEST(Palette, RealtimeChainMatchesTheSharedRenderProcessorForEveryAlgorithmAndQu
     for(unsigned id=32;id<36;++id)for(unsigned type=0;type<6;++type)for(unsigned q=0;q<3;++q)
     for(unsigned channels=1;channels<=SAMPLE_CHANNELS;++channels) {
         SCOPED_TRACE(::testing::Message()<<id<<":"<<type<<" quality="<<q<<" channels="<<channels);
-        ChainDefinition definition; auto n=palette::defaults(id);n.params[0]=type;n.params[1]=70;n.params[2]=60;n.params[3]=40;n.params[5]=0;n.quality=q;
+        ChainDefinition definition; auto n=stpalette::defaults(id);n.params[0]=type;n.params[1]=70;n.params[2]=60;n.params[3]=40;n.params[5]=0;n.quality=q;
         definition.add(n);Arena arena;
         RealtimeChain chain;Audio audio{{source[0].data(),source[1].data()},frames,uint8_t(channels)};
         ASSERT_TRUE(chain.prepare(definition,audio,arena.bytes.data(),arena.bytes.size(),loader,frames+64));
@@ -183,8 +185,8 @@ TEST(Palette, RealtimeChainMatchesTheSharedRenderProcessorForEveryAlgorithmAndQu
     }
 }
 
-TEST(Palette, ProcessingAllocatesNothingAndNeutralFilterPreservesAudio) {
-    Arena a;palette::Processor filter;auto n=palette::defaults(35);
+TEST(StPalette, ProcessingAllocatesNothingAndNeutralFilterPreservesAudio) {
+    Arena a;stpalette::Processor filter;auto n=stpalette::defaults(35);
     ASSERT_TRUE(filter.prepare(n,1,1024,a.memory()));size_t prepared=a.position;
     int16_t input[128],output[128];for(unsigned i=0;i<128;++i)input[i]=int16_t(i*411-25000);
     int16_t* in[]={input,nullptr};int16_t* out[]={output,nullptr};

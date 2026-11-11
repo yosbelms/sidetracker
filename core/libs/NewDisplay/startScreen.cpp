@@ -5,6 +5,101 @@
 #include "displayControls.h"
 #include "startScreenControl.h"
 
+namespace
+{
+struct Glyph
+{
+    int width;
+    uint8_t rows[7];
+};
+
+constexpr Glyph e{5, {0, 0, 0b01110, 0b10001, 0b11111, 0b10000, 0b01111}};
+constexpr Glyph r{4, {0, 0, 0b1011, 0b1100, 0b1000, 0b1000, 0b1000}};
+
+constexpr Glyph wordmark[] = {
+    {5, {0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110}}, // S
+    {1, {1, 0, 1, 1, 1, 1, 1}},                                       // i
+    {5, {0b00001, 0b00001, 0b01111, 0b10001, 0b10001, 0b10001, 0b01111}}, // d
+    e,
+    {5, {0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100}}, // T
+    r,
+    {5, {0, 0, 0b01110, 0b00001, 0b01111, 0b10001, 0b01111}}, // a
+    {4, {0, 0, 0b0111, 0b1000, 0b1000, 0b1000, 0b0111}},      // c
+    {5, {0b10000, 0b10000, 0b10001, 0b10010, 0b11100, 0b10010, 0b10001}}, // k
+    e,
+    r,
+};
+
+void logoRect(int x, int y, int w, int h)
+{
+    API_VERTEX2F(x, y);
+    API_VERTEX2F(x + w - 1, y + h - 1);
+}
+
+void drawWordmark(int center, int top, int pixel)
+{
+    int width = -1;
+    for (const auto& glyph : wordmark)
+        width += glyph.width + 1;
+
+    API_BEGIN(RECTS);
+    int x = center - width * pixel / 2;
+    for (const auto& glyph : wordmark)
+    {
+        for (int row = 0; row < 7; ++row)
+        {
+            int run = -1;
+            for (int col = 0; col <= glyph.width; ++col)
+            {
+                const bool filled = col < glyph.width && (glyph.rows[row] & (1 << (glyph.width - col - 1)));
+                if (filled && run < 0)
+                    run = col;
+                else if (!filled && run >= 0)
+                {
+                    logoRect(x + run * pixel, top + row * pixel, (col - run) * pixel, pixel);
+                    run = -1;
+                }
+            }
+        }
+        x += (glyph.width + 1) * pixel;
+    }
+
+    API_END();
+}
+}
+
+void drawSideTrackerLogo()
+{
+    constexpr int center = 400;
+    constexpr int badgeY = 139;
+    constexpr int badgeRadius = 46;
+    constexpr uint32_t logoGray = 0x313131; // Solid fill in both original startup bitmaps.
+
+    API_SAVE_CONTEXT();
+    API_VERTEX_FORMAT(0);
+    API_LINE_WIDTH(16);
+
+    API_COLOR(logoGray);
+    API_POINT_SIZE(16 * badgeRadius);
+    API_BEGIN(FTPOINTS);
+    API_VERTEX2F(center, badgeY);
+    API_END();
+
+    const auto& monogram = bitmaps[displaySideTrackerMonogram];
+    API_COLOR(0x000000);
+    API_BITMAP_HANDLE(0);
+    API_BITMAP_SOURCE(monogram.address);
+    API_BITMAP_LAYOUT(monogram.format, monogram.linestride, monogram.height);
+    API_BITMAP_SIZE(NEAREST, BORDER, BORDER, monogram.width, monogram.height);
+    API_BEGIN(BITMAPS);
+    API_VERTEX2F(center - monogram.width / 2, badgeY - monogram.height / 2);
+    API_END();
+
+    API_COLOR(logoGray);
+    drawWordmark(center, 213, 7);
+    API_RESTORE_CONTEXT();
+}
+
 //--------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------
@@ -88,19 +183,8 @@ void cStartScreen::setData(void* data)
 //--------------------------------------------------------------------------------
 void cStartScreen::update()
 {
-#define bitmap_index 0
-
     API_SAVE_CONTEXT();
-    // API_BITMAP_HANDLE(0);
-    API_BITMAP_SOURCE(bitmaps[bitmap_index].address);
-    API_BITMAP_LAYOUT(
-      bitmaps[bitmap_index].format, bitmaps[bitmap_index].linestride, bitmaps[bitmap_index].height);
-    API_BITMAP_SIZE(
-      NEAREST, BORDER, BORDER, bitmaps[bitmap_index].width, bitmaps[bitmap_index].height);
-
-    API_BEGIN(BITMAPS);
-    API_VERTEX2F((800 / 2) - (bitmaps[bitmap_index].width / 2), 100);
-    API_END();
+    drawSideTrackerLogo();
 
     uint16_t barWidth = (5 * width) / 7;
     uint16_t barX = posX + (width / 7);
