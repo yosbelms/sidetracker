@@ -4,6 +4,8 @@
 * **[Changelog](CHANGELOG)**
 
 #### User Guides
+* **[Perf FX](perf_fx)**
+* **[Sample Editor, ST Effects & Presets](sample_editor)**
 * **[Custom Themes & Fonts](custom_themes_and_fonts)**
 * **[Wavetable Envelopes & LFOs](wavetable_envelopes)**
 * **[SD Card Image Viewer](image_viewer)**

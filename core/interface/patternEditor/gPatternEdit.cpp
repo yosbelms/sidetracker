@@ -1,4 +1,5 @@
 #include "config.h"
+#include "PerfFx/PerfFx.h"
 #include "core/interfacePopups.h"
 #include "fileManager.h"
 #include "mtAudioExport.h"
@@ -1741,7 +1742,8 @@ void cPatternEditor::showActualParamOnBar(bool forceShow)
             }
 
             uint8_t fxVal_temp =
-              (stepFx.type == sequencer.fx.FX_TYPE_CHANCE) ? stepFx.value : 0xFF;
+              (stepFx.type == sequencer.fx.FX_TYPE_CHANCE || stepFx.type == sequencer.fx.FX_TYPE_PERF_FX)
+                ? stepFx.value : 0xFF;
 
             if (lastTitleBarParamValue == type_temp && lastTitleBarFx == fxVal_temp &&
                 (lastTitleBarParam == editParam) && !forceShow)
@@ -1752,7 +1754,17 @@ void cPatternEditor::showActualParamOnBar(bool forceShow)
             lastTitleBarParamValue = type_temp;
             lastTitleBarFx = fxVal_temp;
 
-            if (stepFx.type == sequencer.fx.FX_TYPE_CHANCE)
+            if (stepFx.type == sequencer.fx.FX_TYPE_PERF_FX)
+            {
+                using Action = perffx::PatternCommand::Action;
+                const auto command = perffx::decodePatternCommand(stepFx.value);
+                const char* name = command.column ? command.column->name : "Perf FX";
+                const char* setting = command.action == Action::Press ? command.column->labels[command.level]
+                                    : command.action == Action::Release ? "Off"
+                                    : command.action == Action::AllOff ? "All Off" : "Invalid";
+                snprintf(rightTitleBarLabel, sizeof(rightTitleBarLabel), "%s / %s", name, setting);
+            }
+            else if (stepFx.type == sequencer.fx.FX_TYPE_CHANCE)
             {
                 uint8_t val = stepFx.value;
                 if (val <= sequencer.fx.CHANCE_PROB_MAX)

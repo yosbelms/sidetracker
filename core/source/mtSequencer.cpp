@@ -398,7 +398,8 @@ AUDIO_CORE_FLASH void Sequencer::play_microStep(int row)
     if (playerRow.uStep == 1)
     {
 
-        if (stepToSend.fx[0].type == fx.FX_TYPE_RANDOM_VALUE)
+        if (stepToSend.fx[0].type == fx.FX_TYPE_RANDOM_VALUE &&
+            stepToSend.fx[1].type != fx.FX_TYPE_PERF_FX)
         {
             int16_t lowVal = clamp<int>(stepToSend.fx[1].value - stepToSend.fx[0].value,
                                         getFxMin(stepToSend.fx[1].type, true),
@@ -410,7 +411,8 @@ AUDIO_CORE_FLASH void Sequencer::play_microStep(int row)
 
             randomisedValue = utilMathRandom::random(lowVal, hiVal + 1);
         }
-        else if (stepToSend.fx[1].type == fx.FX_TYPE_RANDOM_VALUE)
+        else if (stepToSend.fx[1].type == fx.FX_TYPE_RANDOM_VALUE &&
+                 stepToSend.fx[0].type != fx.FX_TYPE_PERF_FX)
         {
             int16_t lowVal = clamp<int>(stepToSend.fx[0].value - stepToSend.fx[1].value,
                                         getFxMin(stepToSend.fx[0].type, true),
@@ -449,6 +451,16 @@ AUDIO_CORE_FLASH void Sequencer::play_microStep(int row)
 
                     break;
             }
+        }
+
+        // Global commands run at the row boundary and never reach the voice.
+        for (int fxIndex = kStepFxSlots - 1; fxIndex >= 0; --fxIndex)
+        {
+            auto& stepFx = stepToSend.fx[fxIndex];
+            if (stepFx.type != fx.FX_TYPE_PERF_FX) continue;
+            if (!playerRow.cancelStep)
+                engine.getAudioOutput()->getPerfFx().rack().sequence(stepFx.value);
+            stepFx = {};
         }
 
         if (!playerRow.cancelStep)
@@ -1302,6 +1314,7 @@ void Sequencer::play(void)
 }
 AUDIO_CORE_RAM void Sequencer::play(uint8_t fromPos)
 {
+    engine.getAudioOutput()->getPerfFx().rack().releaseSource(perffx::Source::Sequencer);
     fromPos = clamp<int>(fromPos, 0, MAXSTEP);
 
     if (!(isRec() && isPreRollConfigOn()))
@@ -1349,6 +1362,7 @@ void Sequencer::playSelection(bool looped) // potrzebuje aktualnego zaznaczenia
         return;
     }
 
+    engine.getAudioOutput()->getPerfFx().rack().releaseSource(perffx::Source::Sequencer);
     songTimer.start();
 
     player.loopSelection = selection;
@@ -3292,6 +3306,7 @@ void Sequencer::switchRamPatternsNow()
 
     if (bufferPatternIdx != player.activePatternIdx)
     {
+        engine.getAudioOutput()->getPerfFx().rack().releaseSource(perffx::Source::Sequencer);
         player.activePatternIdx = bufferPatternIdx;
         for (int row = 0; row < kAllTracks; row++)
         {

@@ -182,6 +182,7 @@ class Sequencer
             FX_TYPE_R7,
             FX_TYPE_R8,
             FX_TYPE_R9,
+            FX_TYPE_PERF_FX = 51,
 
         };
 

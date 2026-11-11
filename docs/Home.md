@@ -8,6 +8,10 @@ Welcome to the official documentation for **Polyend Tracker Community Edition (C
 
 ## Musician & User Guides
 
+* **[Perf FX](perf_fx.md)**
+  * Live pads, pattern commands, Line In, and master exports.
+* **[Sample Editor, ST effects, and presets](sample_editor.md)**
+  * Waveform tools, effect chains, and installing the showcase pack.
 * **[Custom Themes & Fonts (`docs/custom_themes_and_fonts.md`)](custom_themes_and_fonts.md)**
   * How to install and create custom JSON color themes (`/Themes/*.json`) and custom antialiased bitmap fonts (`/Fonts/*.ptfont`) using the [Web Theme & Font Editor](https://polyend.github.io/tracker-theme-editor/) ([`polyend/tracker-theme-editor`](https://github.com/polyend/tracker-theme-editor)), plus full color key reference tables.
 * **[Wavetable Envelopes, LFOs & Step FX (`docs/wavetable_envelopes.md`)](wavetable_envelopes.md)**

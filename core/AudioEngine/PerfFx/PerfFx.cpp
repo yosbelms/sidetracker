@@ -61,6 +61,18 @@ unsigned column(Effect effect)
     return id < effectColumns.size() ? effectColumns[id] : kColumns;
 }
 
+// Serialized pattern order. The Performance grid may be rearranged independently.
+constexpr struct
+{
+    Effect effect;
+    const char* mnemonic;
+} patternEffects[kColumns] = {
+    {Effect::BeatRepeat, "BR"}, {Effect::Stutter, "CT"}, {Effect::Scatter, "SC"},
+    {Effect::DubEcho, "DE"}, {Effect::Pitch, "PT"}, {Effect::Reverse, "RV"},
+    {Effect::Scratch, "SK"}, {Effect::TapeStop, "TS"}, {Effect::LowPass, "LP"},
+    {Effect::HighPass, "HP"}, {Effect::Crush, "CR"}, {Effect::Unison, "UN"},
+};
+
 bool captures(Effect effect)
 {
     return effect == Effect::BeatRepeat || effect == Effect::Loop || effect == Effect::TripletLoop ||
@@ -123,17 +135,45 @@ void wrap(float& position, unsigned frames)
 }
 }
 
+PatternCommand decodePatternCommand(uint8_t value)
+{
+    using Action = PatternCommand::Action;
+    if (value == kPatternOff) return {Action::AllOff, nullptr, nullptr, 0};
+    if (value > kPatternMax) return {Action::Invalid, nullptr, nullptr, 0};
+    const bool release = value >= kPatternFirstRelease;
+    const unsigned preset = value - kPatternFirstPreset;
+    const auto& effect = patternEffects[release ? value - kPatternFirstRelease : preset / kLevels];
+    return {release ? Action::Release : Action::Press, &columns[column(effect.effect)],
+            effect.mnemonic, static_cast<uint8_t>(release ? 0 : preset % kLevels)};
+}
+
+uint8_t patternValueForPad(uint8_t pad)
+{
+    if (pad < kColumns * kLevels)
+        for (unsigned i = 0; i < kColumns; ++i)
+            if (patternEffects[i].effect == columns[pad % kColumns].effect)
+                return kPatternFirstPreset + i * kLevels + pad / kColumns;
+    return kPatternMax + 1;
+}
+
+uint8_t patternPadForValue(uint8_t value)
+{
+    const auto command = decodePatternCommand(value);
+    return command.action == PatternCommand::Action::Press
+        ? column(command.column->effect) + command.level * kColumns : kColumns * kLevels;
+}
+
 void Rack::enqueue(Command command)
 {
     // A preempting producer never spins on the interrupted producer.
     if (producer.test_and_set(std::memory_order_acquire))
     {
-        reset();
+        resetRequested.store(true, std::memory_order_release);
         return;
     }
     const auto next = (head.load(std::memory_order_relaxed) + 1) % kQueue;
     if (next == tail.load(std::memory_order_acquire))
-        reset();
+        resetRequested.store(true, std::memory_order_release);
     else
     {
         commands[head.load(std::memory_order_relaxed)] = command;
@@ -158,24 +198,45 @@ void Rack::releaseSource(Source source)
     enqueue({owner(source, 0), Effect::None, 0, Operation::ReleaseSource});
 }
 
-void Rack::reset() { resetRequested.store(true, std::memory_order_release); }
+void Rack::sequence(uint8_t value)
+{
+    const auto command = decodePatternCommand(value);
+    if (command.action == PatternCommand::Action::AllOff)
+        releaseSource(Source::Sequencer);
+    else if (command.column)
+    {
+        const auto effect = command.column->effect;
+        const auto token = owner(Source::Sequencer, static_cast<uint8_t>(effect));
+        if (command.action == PatternCommand::Action::Release)
+            release(token);
+        else
+            press(token, effect, command.level);
+    }
+}
+
+void Rack::reset() { enqueue({0, Effect::None, 0, Operation::Reset}); }
 
 int Rack::soundingLevel(unsigned index) const
 {
     return index < kColumns ? static_cast<int>(sounding[index].load(std::memory_order_relaxed)) - 1 : -1;
 }
 
-void Rack::consume()
+void Rack::clear()
+{
+    for (auto& entry : held) entry = {};
+    for (auto& order : columnOrder) order = 0;
+    for (auto& lane : lanes) lane = {};
+    hasHeld = false;
+    serial = historyWrite = historyValid = 0;
+}
+
+void Rack::consume(bool sequencedOnly)
 {
     const auto end = head.load(std::memory_order_acquire);
     if (resetRequested.exchange(false, std::memory_order_acq_rel))
     {
         tail.store(end, std::memory_order_release);
-        for (auto& entry : held) entry = {};
-        for (auto& order : columnOrder) order = 0;
-        for (auto& lane : lanes) lane = {};
-        hasHeld = false;
-        serial = historyWrite = historyValid = 0;
+        clear();
         return;
     }
 
@@ -185,19 +246,35 @@ void Rack::consume()
         const auto command = commands[index];
         index = (index + 1) % kQueue;
         tail.store(index, std::memory_order_release);
+        if (command.operation == Operation::Reset)
+        {
+            clear();
+            continue;
+        }
+        const auto source = static_cast<Source>(command.owner >> 8);
+        if (sequencedOnly && source != Source::Sequencer) continue;
+
         Held* free = nullptr;
+        bool unchanged = false;
         for (auto& entry : held)
         {
+            if (command.operation == Operation::Press && source == Source::Sequencer &&
+                entry.owner == command.owner && entry.effect == command.effect && entry.level == command.level)
+            {
+                unchanged = true;
+                break;
+            }
             if (entry.owner && (entry.owner == command.owner ||
                 (command.operation == Operation::ReleaseSource && (entry.owner >> 8) == (command.owner >> 8))))
                 entry = {};
             if (!entry.owner && !free) free = &entry;
         }
+        if (unchanged) continue;
         if (command.operation == Operation::Press)
         {
             if (!free)
             {
-                reset();
+                resetRequested.store(true, std::memory_order_release);
                 return;
             }
             *free = {command.owner, command.effect, command.level, ++serial};
@@ -380,9 +457,10 @@ void Rack::admit()
         sounding[i].store(rows[i], std::memory_order_relaxed);
 }
 
-void Rack::beginBlock(float tempo, float sampleRate, uint8_t percent, bool record)
+void Rack::beginBlock(float tempo, float sampleRate, uint8_t percent, bool record,
+                     bool sequencedOnly)
 {
-    consume();
+    consume(sequencedOnly);
     rate = sampleRate;
     beatFrames = static_cast<unsigned>(rate * 60 / std::clamp(tempo >= 5 ? tempo : 5.0f, 5.0f, 800.0f));
     attackStep = 100 / rate;

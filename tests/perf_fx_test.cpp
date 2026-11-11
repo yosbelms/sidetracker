@@ -20,14 +20,14 @@ class PerfFxTest : public testing::Test
     std::array<int16_t, kBlock> left{}, right{}, outL{}, outR{};
     unsigned cursor = 0;
 
-    void block(float tempo = 120, uint8_t mix = 100)
+    void block(float tempo = 120, uint8_t mix = 100, bool sequencedOnly = false)
     {
         for (unsigned i = 0; i < kBlock; ++i, ++cursor)
         {
             left[i] = static_cast<int16_t>(9000 * std::sin(cursor * 0.036f) + int(cursor % 127) - 63);
             right[i] = static_cast<int16_t>(6000 * std::sin(cursor * 0.057f));
         }
-        rack.beginBlock(tempo, 44100, mix, true);
+        rack.beginBlock(tempo, 44100, mix, true, sequencedOnly);
         if (rack.wet())
             rack.process(left.data(), right.data(), outL.data(), outR.data(), kBlock);
         else
@@ -43,6 +43,79 @@ class PerfFxTest : public testing::Test
         for (unsigned i = 0; i < blocks; ++i) block(tempo, mix);
     }
 };
+
+TEST_F(PerfFxTest, PatternValuesDecodeEveryPresetAndRelease)
+{
+    using Action = perffx::PatternCommand::Action;
+    using Effect = perffx::Effect;
+    constexpr Effect order[] = {
+        Effect::BeatRepeat, Effect::Stutter, Effect::Scatter, Effect::DubEcho,
+        Effect::Pitch, Effect::Reverse, Effect::Scratch, Effect::TapeStop,
+        Effect::LowPass, Effect::HighPass, Effect::Crush, Effect::Unison,
+    };
+    for (unsigned effect = 0; effect < std::size(order); ++effect)
+    {
+        for (unsigned level = 0; level < perffx::kLevels; ++level)
+        {
+            const uint8_t value = 1 + effect * 4 + level;
+            const auto command = perffx::decodePatternCommand(value);
+            ASSERT_EQ(command.action, Action::Press);
+            EXPECT_EQ(command.column->effect, order[effect]);
+            EXPECT_EQ(command.level, level);
+            const auto pad = perffx::patternPadForValue(value);
+            EXPECT_EQ(perffx::patternValueForPad(pad), value);
+            EXPECT_EQ(perffx::columns[pad % perffx::kColumns].effect, order[effect]);
+            EXPECT_EQ(pad / perffx::kColumns, level);
+        }
+        const auto release = perffx::decodePatternCommand(49 + effect);
+        ASSERT_EQ(release.action, Action::Release);
+        EXPECT_EQ(release.column->effect, order[effect]);
+    }
+    EXPECT_EQ(perffx::decodePatternCommand(0).action, Action::AllOff);
+    EXPECT_EQ(perffx::decodePatternCommand(61).action, Action::Invalid);
+    EXPECT_EQ(perffx::decodePatternCommand(255).action, Action::Invalid);
+}
+
+TEST_F(PerfFxTest, PatternLatchesStackAndReleaseIndependentlyOfPads)
+{
+    rack.sequence(35); // LP3
+    rack.sequence(14); // DE2
+    rack.sequence(255);
+    advance(16);
+    EXPECT_EQ(rack.soundingLevel(8), 2);
+    EXPECT_EQ(rack.soundingLevel(3), 1);
+
+    rack.press(pad(8), perffx::Effect::LowPass, 0);
+    advance(16);
+    rack.sequence(35); // A repeated row must not take priority from the pad.
+    advance(16);
+    EXPECT_EQ(rack.soundingLevel(8), 0);
+    rack.release(pad(8));
+    advance(16);
+    EXPECT_EQ(rack.soundingLevel(8), 2);
+
+    rack.sequence(57); // LP-
+    advance(16);
+    EXPECT_EQ(rack.soundingLevel(8), -1);
+    EXPECT_EQ(rack.soundingLevel(3), 1);
+    rack.press(pad(8), perffx::Effect::LowPass, 0);
+    rack.sequence(0);
+    advance(16);
+    EXPECT_EQ(rack.soundingLevel(8), 0);
+    EXPECT_EQ(rack.soundingLevel(3), -1);
+}
+
+TEST_F(PerfFxTest, OrderedResetKeepsFirstSequencedCommandAndExportSkipsPads)
+{
+    rack.sequence(35);
+    advance(4);
+    rack.reset();
+    rack.press(pad(8), perffx::Effect::LowPass, 0);
+    rack.sequence(5); // CT1 on the first row after reset
+    block(120, 100, true);
+    EXPECT_EQ(rack.soundingLevel(8), -1);
+    EXPECT_EQ(rack.soundingLevel(1), 0);
+}
 
 TEST_F(PerfFxTest, EachPresetProcessesStereoAndHasADistinctResult)
 {

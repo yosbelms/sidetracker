@@ -329,8 +329,10 @@ void mtAudioExport::saveMasterBufferToSD(uint8_t closeFile)
     if (blocksBuffered >= maxBlocksForStem)
         blocksBuffered = maxBlocksForStem;
 
-    [[maybe_unused]] auto [isOpen, fileHandle] = fileSystem->openFile(
-      stemsPaths[stem_master], FileSystem::FileOpenMode::kWriteCreateNew, &wavStemsFile);
+    const auto mode = bytesWrittenInStem[stem_master] == 0
+        ? FileSystem::FileOpenMode::kWriteCreateNew : FileSystem::FileOpenMode::kWriteOpen;
+    [[maybe_unused]] auto [isOpen, fileHandle] =
+      fileSystem->openFile(stemsPaths[stem_master], mode, &wavStemsFile);
 
     if (blocksBuffered > 0)
     {

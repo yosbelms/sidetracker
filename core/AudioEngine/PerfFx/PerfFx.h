@@ -29,6 +29,24 @@ struct Column
 
 extern const Column columns[kColumns];
 
+constexpr uint8_t kPatternOff = 0;
+constexpr uint8_t kPatternFirstPreset = 1;
+constexpr uint8_t kPatternFirstRelease = kPatternFirstPreset + kColumns * kLevels;
+constexpr uint8_t kPatternMax = kPatternFirstRelease + kColumns - 1;
+
+struct PatternCommand
+{
+    enum class Action : uint8_t { Invalid, Press, Release, AllOff };
+    Action action;
+    const Column* column;
+    const char* mnemonic;
+    uint8_t level;
+};
+
+PatternCommand decodePatternCommand(uint8_t value);
+uint8_t patternValueForPad(uint8_t pad);
+uint8_t patternPadForValue(uint8_t value);
+
 enum class Source : uint8_t { Pads = 1, Sequencer };
 using Owner = uint16_t;
 constexpr Owner owner(Source source, uint8_t key)
@@ -50,17 +68,19 @@ class Rack
     void press(Owner owner, Effect effect, uint8_t level);
     void release(Owner owner);
     void releaseSource(Source source);
+    void sequence(uint8_t value);
     void reset();
     int soundingLevel(unsigned column) const;
 
     // Audio thread. Call beginBlock before deciding whether writable blocks are needed.
-    void beginBlock(float tempo, float sampleRate, uint8_t mix, bool capture);
+    void beginBlock(float tempo, float sampleRate, uint8_t mix, bool capture,
+                    bool sequencedOnly = false);
     bool wet() const;
     void process(const int16_t* left, const int16_t* right,
                  int16_t* outLeft, int16_t* outRight, unsigned frames);
 
   private:
-    enum class Operation : uint8_t { Press, Release, ReleaseSource };
+    enum class Operation : uint8_t { Press, Release, ReleaseSource, Reset };
     struct Command
     {
         Owner owner;
@@ -96,7 +116,8 @@ class Rack
     };
 
     void enqueue(Command command);
-    void consume();
+    void consume(bool sequencedOnly);
+    void clear();
     void admit();
     void activate(Lane& lane, const Held& held, uint32_t order);
     void processLane(Lane& lane, unsigned index, float& left, float& right);

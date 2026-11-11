@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <limits.h>
 #include <mtAudioExport.h>
+#include "PerfFx/PerfFx.h"
 
 #include "fileManager.h"
 #include "mtAudioEngine.h"
@@ -4355,6 +4356,14 @@ void cPatternEditor::lightUpPadBoard()
                                 break;
                             }
 
+                            if (tempStep.fx[fx_index].type == sequencer.fx.FX_TYPE_PERF_FX)
+                            {
+                                const auto pad = perffx::patternPadForValue(show_fx);
+                                if (pad < perffx::kColumns * perffx::kLevels)
+                                    padsBacklight.setBackLayer(1, mtConfig.values.padsLightBack, pad);
+                                break;
+                            }
+
                             int lastHandledPad =
                               std::min(47,
                                        sequencer.getFxMax(tempStep.fx[fx_index].type) -
@@ -4792,6 +4801,7 @@ static void functPads(uint8_t pad, uint8_t state, int16_t velo)
                            interfaceButtonFx2))) //&& mtPopups.getStepPopupState() == stepPopupNone)
                     {
                         PTE->dontShowPopupsUntilButtonRelease = 1;
+                        if (pad >= FX_COUNT - FX_COUNT_HIDDEN_FXes) return;
                         sequencer.setSelectionFxType(fx_index, interfaceGlobals.fxIDs[pad]);
                     }
                     else

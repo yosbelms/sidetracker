@@ -6,6 +6,8 @@ On **Master → Global Mixer 3/3**, hold **F5** and turn the jog wheel or use th
 
 The DSP is adapted from Vincent Fillion’s Punch-In FX under the [MIT license](LICENSE).
 
+See the [Perf FX user guide](../../../docs/perf_fx.md) for pattern commands, Line In, and exports.
+
 ## Validation
 
 ```sh

@@ -1,4 +1,5 @@
 #include "core/interfaceDefs.h"
+#include "PerfFx/PerfFx.h"
 #include "fileManager.h"
 #include "mtAudioEngine.h"
 #include "mtSequencer.h"
@@ -187,7 +188,7 @@ uint8_t Sequencer::generateRandomFx()
     uint8_t retVal;
     for (uint8_t a = 0; a < 100; a++)
     {
-        retVal = utilMathRandom::random(fx.FX_TYPE_OFF + 1, FX_COUNT - FX_COUNT_HIDDEN_FXes + 1);
+        retVal = utilMathRandom::random(fx.FX_TYPE_OFF + 1, fx.FX_TYPE_GRANULAR_LENGTH + 1);
         if (retVal != fx.FX_TYPE_TEMPO && retVal != fx.FX_TYPE_BREAK_PATTERN // breaka nie chcemy
         )
             break;
@@ -810,9 +811,18 @@ void Sequencer::setSelectionFxValueByPad(uint8_t fxIndex, int16_t pad)
                 _fx->type = interfaceGlobals.fxNameToId(patternEditor.getPreviousUsedFx());
             }
 
-            int lastHandledPad = std::min(47, getFxMax(_fx->type) - getFxMin(_fx->type));
-            _fx->value = roundf(
-              mapClamped<float>(pad, 0, lastHandledPad, getFxMin(_fx->type), getFxMax(_fx->type)));
+            if (_fx->type == fx.FX_TYPE_PERF_FX)
+            {
+                const uint8_t value = perffx::patternValueForPad(pad);
+                if (value > perffx::kPatternMax) continue;
+                _fx->value = value;
+            }
+            else
+            {
+                int lastHandledPad = std::min(47, getFxMax(_fx->type) - getFxMin(_fx->type));
+                _fx->value = roundf(
+                  mapClamped<float>(pad, 0, lastHandledPad, getFxMin(_fx->type), getFxMax(_fx->type)));
+            }
             patternEditor.setPreviousUsedFxValue(_fx->value);
 
             sometinghWasChanged = true;
@@ -993,9 +1003,10 @@ void Sequencer::changeSelectionFxType(uint8_t index, int16_t value)
 
                 uint8_t previousType = _fx->type;
 
-                _fx->type = clamp<int>(interfaceGlobals.fxNameToId(name), 0, 47);
+                _fx->type = std::max<int>(0, interfaceGlobals.fxNameToId(name));
 
-                if (previousType != _fx->type && !isMultiSelection())
+                if (previousType != _fx->type &&
+                    (!isMultiSelection() || _fx->type == fx.FX_TYPE_PERF_FX))
                 {
                     _fx->value = getFxDefault(_fx->type);
                 }
@@ -1034,21 +1045,22 @@ void Sequencer::setSelectionFxType(uint8_t fxSlot, int16_t value)
         {
             step = &currentPattern->track[t].step[s];
 
-            step->fx[fxSlot].type = value;
+            auto& stepFx = step->fx[fxSlot];
+            const bool newPerfFx = value == fx.FX_TYPE_PERF_FX && stepFx.type != value;
+            stepFx.type = value;
 
-            if (step->fx[fxSlot].type != patternEditor.getPreviousUsedFx() && !isMultiSelection())
+            if (newPerfFx || (value != fx.FX_TYPE_PERF_FX &&
+                              value != patternEditor.getPreviousUsedFx() && !isMultiSelection()))
             {
-                step->fx[fxSlot].value = getFxDefault(step->fx[fxSlot].type);
+                stepFx.value = getFxDefault(stepFx.type);
             }
             else
             {
-                step->fx[fxSlot].value = clamp<int>(step->fx[fxSlot].value,
-                                                    getFxMin(step->fx[fxSlot].type),
-                                                    getFxMax(step->fx[fxSlot].type));
+                stepFx.value = clamp<int>(stepFx.value, getFxMin(stepFx.type), getFxMax(stepFx.type));
             }
 
-            patternEditor.setPreviousUsedFxValue(step->fx[fxSlot].value);
-            patternEditor.setPreviousUsedFx(interfaceGlobals.fxIdToName(step->fx[fxSlot].type));
+            patternEditor.setPreviousUsedFxValue(stepFx.value);
+            patternEditor.setPreviousUsedFx(interfaceGlobals.fxIdToName(stepFx.type));
         }
     }
 
@@ -1746,6 +1758,7 @@ AUDIO_CORE_RAM int16_t Sequencer::getFxMax(uint8_t fxID, bool forRandom)
 {
     switch (fxID)
     {
+        case fx.FX_TYPE_PERF_FX: return perffx::kPatternMax;
         case fx.FX_TYPE_VOLUME: return 100;
         case fx.FX_TYPE_PANNING: return 100;
         case fx.FX_TYPE_MICROTUNING: return 198;
@@ -1814,6 +1827,7 @@ int16_t Sequencer::getFxDefault(uint8_t fxID)
     switch (fxID)
     {
         case fx.FX_TYPE_OFF: return 0;
+        case fx.FX_TYPE_PERF_FX: return perffx::kPatternFirstPreset;
         case fx.FX_TYPE_TEMPO: return 60;
         case fx.FX_TYPE_SWING: return 50;
         case fx.FX_TYPE_ROLL: return 1;
@@ -1966,6 +1980,19 @@ void Sequencer::makeFxValLabelWithAlgin(char* ptr,
             break;
         }
         case fx.FX_TYPE_OFF: strncpy(ptr, "OFF", len); break;
+
+        case fx.FX_TYPE_PERF_FX:
+        {
+            using Action = perffx::PatternCommand::Action;
+            const auto command = perffx::decodePatternCommand(valueFromFx);
+            if (command.action == Action::Press)
+                snprintf(ptr, len, "%s%u", command.mnemonic, command.level + 1);
+            else if (command.action == Action::Release)
+                snprintf(ptr, len, "%s-", command.mnemonic);
+            else
+                snprintf(ptr, len, "%s", command.action == Action::AllOff ? "OFF" : "---");
+            break;
+        }
 
         case fx.FX_TYPE_REVERSE_PLAYBACK:
             strncpy(ptr, valAfterCorrection > 0 ? "<<<" : ">>>", len);

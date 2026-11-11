@@ -306,6 +306,10 @@ const char* const fxDescriptions[FX_COUNT] = {
     "\n0379: Min6  037A: Min7"
     "\n0479: Maj6  047A: Maj7"
     "\n047B: MajMaj7",
+    // Sequencer::strFxConsts::enFxType::FX_TYPE_PERF_FX,
+    "Destination: Master mix \n\n"
+    "Select a Performance preset with the pads. The effect stays active on blank steps. "
+    "Use the wheel or arrows to select an individual Off value or All Off.",
     // Sequencer::strFxConsts::enFxType::FX_TYPE_BREAK_PATTERN,
     "Destination: Pattern \n\n"
     "Breaks current pattern playback and jumps to the next pattern.",
@@ -577,6 +581,10 @@ const char* const fxDescriptions[FX_COUNT] = {
     "\n0379: Min6  037A: Min7"
     "\n0479: Maj6  047A: Maj7"
     "\n047B: MajMaj7",
+    // Sequencer::strFxConsts::enFxType::FX_TYPE_PERF_FX,
+    "Destination: Master mix \n\n"
+    "Select a Performance preset with the pads. The effect stays active on blank steps. "
+    "Use the wheel or arrows to select an individual Off value or All Off.",
     // Sequencer::strFxConsts::enFxType::FX_TYPE_BREAK_PATTERN,
     "Destination: Pattern \n\n"
     "Breaks current pattern playback and jumps to the next pattern.",

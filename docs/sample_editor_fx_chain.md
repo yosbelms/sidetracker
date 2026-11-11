@@ -1,5 +1,7 @@
 # Sample-editor FX chain
 
+For everyday controls and preset installation, see the [Sample Editor quick guide](sample_editor.md).
+
 The Sample Editor opens on the waveform, with **Preview, Start, End, Zoom, Undo, Effects, Tools** controls, in that order. The waveform spans the screen width. **Effects** builds a processing chain for the whole sample. Preview runs supported stages live, with parameter edits heard during playback. Apply processes the chain into the current sample slot, and Render to new slot creates a variation.
 
 The Chain view uses the Sample Loader’s browser-and-slots arrangement, followed by parameter editing:

@@ -37,22 +37,19 @@ void Stream::update()
 #endif
 
     audio_block_t* wet[2] = {};
-    if (!renderMode)
+    effects.beginBlock(sequencer.getCurrentTempo(), sampleRate,
+                       mix.load(std::memory_order_relaxed),
+                       sequencer.isPlay() || (!renderMode && visible.load(std::memory_order_relaxed)),
+                       renderMode);
+    if (effects.wet())
     {
-        effects.beginBlock(sequencer.getCurrentTempo(), sampleRate,
-                           mix.load(std::memory_order_relaxed),
-                           visible.load(std::memory_order_relaxed) || sequencer.isPlay());
-        if (effects.wet())
-        {
-            for (unsigned ch = 0; ch < 2; ++ch)
-                wet[ch] = dry[ch] && dry[ch]->ref_count == 1 ? dry[ch] : allocate();
-        }
-        const bool available = wet[0] && wet[1];
-        effects.process(left, right, available ? wet[0]->data : nullptr,
-                        available ? wet[1]->data : nullptr, AUDIO_BLOCK_SAMPLES);
+        for (unsigned ch = 0; ch < 2; ++ch)
+            wet[ch] = dry[ch] && dry[ch]->ref_count == 1 ? dry[ch] : allocate();
     }
 
     const bool available = wet[0] && wet[1];
+    effects.process(left, right, available ? wet[0]->data : nullptr,
+                    available ? wet[1]->data : nullptr, AUDIO_BLOCK_SAMPLES);
     const bool meter = !renderMode && meterEnabled.load(std::memory_order_relaxed);
     int64_t sum = 0;
     for (unsigned ch = 0; ch < 2; ++ch)
