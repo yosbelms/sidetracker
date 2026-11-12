@@ -28,6 +28,19 @@ body {
 
 .brand img { display: block; }
 
+.brand h1 {
+  max-width: none;
+  font: inherit;
+  letter-spacing: normal;
+}
+
+.site-footer {
+  border-top: 1px solid var(--line);
+  padding-block: 1.5rem;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+
 .intro {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -51,7 +64,7 @@ p, dd {
 
 .intro p {
   max-width: 32ch;
-  margin: 1.5rem 0 0;
+  margin: 0;
   font-size: 1.1rem;
 }
 
