@@ -7,19 +7,19 @@ BUILD_TAG    ?= $(shell git -C "$(VER_ROOT_DIR)" rev-parse --short=7 HEAD 2>/dev
 # Original Tracker (MK66)
 ORIGINAL_VER_MAJOR := 0
 ORIGINAL_VER_MINOR := 0
-ORIGINAL_VER_PATCH := 1
+ORIGINAL_VER_PATCH := 2
 ORIGINAL_VER_BETA  := 255
 
 # Tracker+ (IMX)
 PLUS_VER_MAJOR     := 0
 PLUS_VER_MINOR     := 0
-PLUS_VER_PATCH     := 1
+PLUS_VER_PATCH     := 2
 PLUS_VER_BETA      := 255
 
 # Tracker Mini (IMX)
 MINI_VER_MAJOR     := 0
 MINI_VER_MINOR     := 0
-MINI_VER_PATCH     := 1
+MINI_VER_PATCH     := 2
 MINI_VER_BETA      := 255
 
 ifeq ($(PRODUCT), MINI)
@@ -46,4 +46,4 @@ FW_VERSION_DEFINES := -DFW_EDITION_NAME=\"$(EDITION_NAME)\" \
                       -DFW_VER_BETA=$(FW_BETA)
 
 BUILD_ID_STR           := $(BUILD_TAG)
-DEFAULT_TARGET_POSTFIX := $(EDITION_NAME)_$(FW_VER_1).$(FW_VER_2).$(FW_VER_3)
+DEFAULT_TARGET_POSTFIX := ST_$(FW_VER_1).$(FW_VER_2).$(FW_VER_3)

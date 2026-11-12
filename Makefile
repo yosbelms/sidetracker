@@ -26,9 +26,9 @@ ORIGINAL_POSTFIX ?= $(ORIGINAL_VER_MAJOR).$(ORIGINAL_VER_MINOR).$(ORIGINAL_VER_P
 PLUS_POSTFIX     ?= $(PLUS_VER_MAJOR).$(PLUS_VER_MINOR).$(PLUS_VER_PATCH)
 MINI_POSTFIX     ?= $(MINI_VER_MAJOR).$(MINI_VER_MINOR).$(MINI_VER_PATCH)
 
-ORIGINAL_PTF := $(EDITION_NAME)_$(ORIGINAL_POSTFIX).ptf
-PLUS_PTF     := $(EDITION_NAME)Plus_$(PLUS_POSTFIX).ptf
-MINI_PTF     := $(EDITION_NAME)Mini_$(MINI_POSTFIX).ptf
+ORIGINAL_PTF := PolyendTracker_ST_$(ORIGINAL_POSTFIX).ptf
+PLUS_PTF     := TrackerPlus_ST_$(PLUS_POSTFIX).ptf
+MINI_PTF     := TrackerMini_ST_$(MINI_POSTFIX).ptf
 
 RELEASE_VERSION ?= $(ORIGINAL_VER_MAJOR).$(ORIGINAL_VER_MINOR).$(ORIGINAL_VER_PATCH)
 RELEASE_ZIP := $(EDITION_NAME)_$(RELEASE_VERSION).zip
@@ -73,11 +73,11 @@ original: sd
 		TOOLCHAIN="$(TOOLCHAIN)" \
 		TRACKER_DIR="$(CORE_DIR)" \
 		PRODUCT=ORIGINAL \
-		TARGET_POSTFIX="$(ORIGINAL_POSTFIX)" \
+		TARGET_POSTFIX="ST_$(ORIGINAL_POSTFIX)" \
 		BUILD_ID_STR="$(BUILD_ID_STR)"
 	@mkdir -p "$(SD_DIR)/Firmware"
-	@cp "$(MK66_DIR)/build/PolyendTracker_$(ORIGINAL_POSTFIX).ptf" "$(OUT_DIR)/$(ORIGINAL_PTF)"
-	@cp "$(OUT_DIR)/$(ORIGINAL_PTF)" "$(SD_DIR)/Firmware/PolyendTracker.ptf"
+	@cp "$(MK66_DIR)/build/$(ORIGINAL_PTF)" "$(OUT_DIR)/$(ORIGINAL_PTF)"
+	@cp "$(OUT_DIR)/$(ORIGINAL_PTF)" "$(SD_DIR)/Firmware/$(ORIGINAL_PTF)"
 	@echo "-> Output: $(OUT_DIR)/$(ORIGINAL_PTF)"
 
 plus: sd
@@ -96,11 +96,11 @@ plus: sd
 		POLYUTIL_DIR="$(UTIL_DIR)" \
 		POLYSYNTH_DIR="$(SYNTH_DIR)" \
 		PRODUCT=PLUS \
-		TARGET_POSTFIX="$(PLUS_POSTFIX)" \
+		TARGET_POSTFIX="ST_$(PLUS_POSTFIX)" \
 		BUILD_ID_STR="$(BUILD_ID_STR)"
 	@mkdir -p "$(SD_DIR)/Firmware"
-	@cp "$(IMX_DIR)/build-PLUS/TrackerPlus_$(PLUS_POSTFIX).ptf" "$(OUT_DIR)/$(PLUS_PTF)"
-	@cp "$(OUT_DIR)/$(PLUS_PTF)" "$(SD_DIR)/Firmware/TrackerPlus.ptf"
+	@cp "$(IMX_DIR)/build-PLUS/$(PLUS_PTF)" "$(OUT_DIR)/$(PLUS_PTF)"
+	@cp "$(OUT_DIR)/$(PLUS_PTF)" "$(SD_DIR)/Firmware/$(PLUS_PTF)"
 	@echo "-> Output: $(OUT_DIR)/$(PLUS_PTF)"
 
 mini: sd
@@ -119,11 +119,11 @@ mini: sd
 		POLYUTIL_DIR="$(UTIL_DIR)" \
 		POLYSYNTH_DIR="$(SYNTH_DIR)" \
 		PRODUCT=MINI \
-		TARGET_POSTFIX="$(MINI_POSTFIX)" \
+		TARGET_POSTFIX="ST_$(MINI_POSTFIX)" \
 		BUILD_ID_STR="$(BUILD_ID_STR)"
 	@mkdir -p "$(SD_DIR)/Firmware"
-	@cp "$(IMX_DIR)/build-MINI/TrackerMini_$(MINI_POSTFIX).ptf" "$(OUT_DIR)/$(MINI_PTF)"
-	@cp "$(OUT_DIR)/$(MINI_PTF)" "$(SD_DIR)/Firmware/TrackerMini.ptf"
+	@cp "$(IMX_DIR)/build-MINI/$(MINI_PTF)" "$(OUT_DIR)/$(MINI_PTF)"
+	@cp "$(OUT_DIR)/$(MINI_PTF)" "$(SD_DIR)/Firmware/$(MINI_PTF)"
 	@echo "-> Output: $(OUT_DIR)/$(MINI_PTF)"
 
 ptfx: sd
@@ -144,9 +144,9 @@ release-zip:
 	@set -eu; stage=$$(mktemp -d "$(OUT_DIR)/release-stage.XXXXXX"); \
 		trap 'rm -rf "$$stage"' EXIT; \
 		$(MAKE) all OUT_DIR="$$stage" SD_DIR="$$stage/SD"; \
-		cmp "$$stage/$(ORIGINAL_PTF)" "$$stage/SD/Firmware/PolyendTracker.ptf"; \
-		cmp "$$stage/$(PLUS_PTF)" "$$stage/SD/Firmware/TrackerPlus.ptf"; \
-		cmp "$$stage/$(MINI_PTF)" "$$stage/SD/Firmware/TrackerMini.ptf"; \
+		cmp "$$stage/$(ORIGINAL_PTF)" "$$stage/SD/Firmware/$(ORIGINAL_PTF)"; \
+		cmp "$$stage/$(PLUS_PTF)" "$$stage/SD/Firmware/$(PLUS_PTF)"; \
+		cmp "$$stage/$(MINI_PTF)" "$$stage/SD/Firmware/$(MINI_PTF)"; \
 		mkdir "$$stage/Licenses"; \
 		cp "$(ROOT_DIR)/LICENSE" "$(ROOT_DIR)/NOTICE.md" "$(SYNTH_DIR)/lib/LICENSE-PROPRIETARY.txt" "$$stage/Licenses/"; \
 		if test -d "$$stage/SD/Patches/MINI"; then \
