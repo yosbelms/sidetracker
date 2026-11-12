@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="How to use SideTracker’s Performance FX, pattern automation, Sample Editor chains, and synth engines.">
+  <title>SideTracker · Feature guides</title>
+  <link rel="icon" href="assets/st.png" type="image/png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="brand">
+    <img src="assets/st.png" width="38" height="38" alt="">
+    <span>SideTracker</span>
+    <a class="brand-link" href="index.html">Tracker+ comparison</a>
+  </header>
+  <main>
+    <div class="guide-intro">
+      <h1>Feature guides</h1>
+      <nav aria-label="On this page">
+        <a href="#performance-fx">Performance FX</a>
+        <a href="#performance-fx-sequencing">Performance FX sequencing</a>
+        <a href="#sample-editor">Sample Editor</a>
+        <a href="#synth-engines">Synth engines</a>
+      </nav>
+    </div>
+
+    <section class="guide-section" id="performance-fx" aria-labelledby="performance-title">
+      <div>
+        <h2 id="performance-title">Performance FX</h2>
+        <ol>
+          <li>Press <strong>Perform</strong>. Each column is an effect and each row is a preset. Hold a pad to hear it and release the pad to fade out.</li>
+          <li>Hold pads in up to three different columns to stack effects. Within a column, the latest held pad wins. Press <strong>Delete</strong> to release all live pads.</li>
+          <li>Use the eight buttons under the screen to mute or unmute tracks. Press <strong>Perform</strong> again to switch between the audio and MIDI track banks.</li>
+        </ol>
+        <p>On <strong>Master → Global Mixer 3/3</strong>, hold <strong>F5</strong> and turn the jog wheel or use the arrows to adjust <strong>Perf FX Mix</strong>. Press Delete while holding F5 to reset it to 100%. Unmute and raise <strong>Line In</strong> on that page to process the monitored input through the rack.</p>
+      </div>
+      <figure>
+        <img src="assets/performance-fx.webp" width="800" height="480" alt="The Performance FX grid with 12 effect columns, four preset rows, and eight track mute buttons.">
+        <figcaption>Performance FX grid and audio track mutes</figcaption>
+      </figure>
+    </section>
+
+    <section class="guide-section" id="performance-fx-sequencing" aria-labelledby="sequencing-title">
+      <div>
+        <h2 id="sequencing-title">Performance FX sequencing</h2>
+        <p>In Pattern, choose <strong>X — Perf FX</strong> in FX1 or FX2. Pick a preset with the Performance pad layout in value edit, or use the jog wheel or arrows to select a preset or release command. You can place a command on a step without a note.</p>
+        <table>
+          <caption>Example pattern</caption>
+          <thead>
+            <tr><th scope="col">Step</th><th scope="col">FX1</th><th scope="col">FX2</th><th scope="col">Result</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">01</th><td><code>XLP3</code></td><td><code>XDE2</code></td><td>Start Low Pass at 800 Hz and Dub Echo at a dotted eighth note.</td></tr>
+            <tr><th scope="row">02</th><td><code>----</code></td><td><code>----</code></td><td>Both effects stay active.</td></tr>
+            <tr><th scope="row">05</th><td><code>XLP-</code></td><td><code>----</code></td><td>Release Low Pass. Dub Echo keeps playing.</td></tr>
+            <tr><th scope="row">09</th><td><code>XOFF</code></td><td><code>----</code></td><td>Release all sequenced effects.</td></tr>
+          </tbody>
+        </table>
+        <p>Commands on muted tracks or steps that fail Chance are skipped. Latches carry across loops of the same pattern and release when you change patterns or stop. Master WAV exports include the effects. Individual stems are taken before the rack.</p>
+      </div>
+      <figure>
+        <img src="assets/performance-sequencing.webp" width="800" height="480" loading="lazy" alt="Pattern grid showing XLP3 and XDE2 together on the first step, XLP- on step 5, and XOFF on step 9.">
+        <figcaption>Low Pass and Dub Echo sequenced in the same track</figcaption>
+      </figure>
+    </section>
+
+    <section class="guide-section" id="sample-editor" aria-labelledby="sample-title">
+      <div>
+        <h2 id="sample-title">Sample Editor</h2>
+        <ol>
+          <li>Open <strong>Effects</strong>. Select an effect and press <strong>Add</strong>. Choose the stage in <strong>Chain</strong>, then edit its <strong>Parameter</strong> and <strong>Value</strong>. The chain can contain up to eight stages.</li>
+          <li>Try <strong>ST Texture → Cassette</strong> for a starting point. The four ST categories offer six Types each. Hold <strong>Mix</strong> and turn the jog wheel or use the arrows to blend the whole chain.</li>
+          <li>Use <strong>Preview</strong> to listen. <strong>Back</strong> keeps the draft active for waveform preview. <strong>Apply</strong> writes to the current sample slot. Use <strong>Actions → Render to new slot</strong> for a separate copy. If realtime preview exceeds the audio budget, you can still Apply.</li>
+        </ol>
+        <p>Use <strong>Actions → Save Patch</strong> or <strong>Load Patch</strong> to reuse a chain. Effect patches live in <code>/Effects/Patches/</code> on the SD card. For selection edits such as Crop or fades, open <strong>Tools</strong> from the waveform. After Apply, <strong>Undo</strong> on the waveform restores the previous audio.</p>
+      </div>
+      <figure>
+        <img src="assets/sample-effects.webp" width="800" height="480" loading="lazy" alt="Sample Editor Effects view with ST Texture in the chain and its Type choices in the Value column.">
+        <figcaption>The four-column Effects editor with ST Texture selected</figcaption>
+      </figure>
+    </section>
+
+    <section class="guide-section" id="synth-engines" aria-labelledby="synth-title">
+      <div>
+        <h2 id="synth-title">Synth engines</h2>
+        <p>Hold <strong>Instrument</strong> and choose a synth slot. Open <strong>I. Params → Model</strong> to select an engine. Use <strong>Load</strong> for a patch or <strong>Edit</strong> to shape it.</p>
+        <ul>
+          <li><strong>MINI</strong> is a three-oscillator monosynth with a resonant ladder filter and low-note priority.</li>
+          <li><strong>OBER</strong> is a two-oscillator synth with PWM, hard sync, and SEM filter morphing. Its <strong>Voice</strong> section offers up to four voices or <strong>Mono Legato</strong>.</li>
+          <li><strong>CHIP</strong> is the Community Edition’s chiptune engine.</li>
+        </ul>
+        <p>MINI and OBER each have three built-in patches. Put extra <code>.patch</code> files in <code>/Patches/MINI/</code> or <code>/Patches/OBER/</code> on the SD card to load them from the synth editor.</p>
+      </div>
+      <figure>
+        <img src="assets/synth-engines.webp" width="800" height="480" loading="lazy" alt="Synth Parameters in the desktop simulator, with CHIP, MINI, and OBER in the Model picker.">
+        <figcaption>Native synth models in the SideTracker desktop simulator</figcaption>
+      </figure>
+    </section>
+  </main>
+</body>
+</html>

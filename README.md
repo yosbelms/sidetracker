@@ -1,6 +1,8 @@
 # SideTracker
 
-A fork of Polyend Tracker Community Edition. With new performance, synth engines, smaple editor
+SideTracker is a fork of Polyend Tracker Community Edition (Tracker CE). [Upstream repository](https://github.com/polyend/tracker-ce)
+
+It adds a live Performance FX rack, Performance FX sequencing in patterns, and a redesigned Sample Editor with reusable effect chains. Tracker+ and Tracker Mini also gain the MINI and OBER synth engines.
 
 This unified codebase powers all three hardware instruments in the Tracker family:
 * **Original Polyend Tracker** (`NXP Kinetis MK66FX1M0`, Cortex-M4F @ 180 MHz)
