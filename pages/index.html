@@ -9,21 +9,29 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="brand">
-    <img src="assets/st.png" width="38" height="38" alt="">
-    <h1>SideTracker</h1>
-    <a class="brand-link" href="guides.html">Guides</a>
+  <header class="site-header">
+    <a class="site-home" href="index.html" aria-label="SideTracker home">
+      <img src="assets/st.png" width="44" height="44" alt="">
+    </a>
+    <nav class="site-nav" aria-label="Main navigation">
+      <a href="index.html" aria-current="page">Overview</a>
+      <a href="guides.html">Guides</a>
+    </nav>
   </header>
   <main>
-    <div class="intro">
-      <p>SideTracker is a fork of Polyend Tracker Community Edition (Tracker CE). This page compares it with <a href="https://polyend.com/downloads/tracker-plus-downloads/">Polyend’s stock Tracker+ 1.2 firmware</a>.</p>
-      <figure>
+    <section class="intro" aria-labelledby="intro-title">
+      <div class="hero-copy">
+        <h1 id="intro-title">SideTracker</h1>
+        <p>A fork of Polyend Tracker Community Edition (Tracker CE). Compare SideTracker with <a href="https://polyend.com/downloads/tracker-plus-downloads/">Polyend’s stock Tracker+ 1.2 firmware</a>.</p>
+        <a class="hero-link" href="#comparison">See the differences <span aria-hidden="true">↓</span></a>
+      </div>
+      <figure class="hero-screen">
         <img src="assets/sample-effects.webp" width="800" height="480" alt="SideTracker Sample Editor with Effects, Chain, Parameter, and Value columns.">
-        <figcaption>SideTracker’s Sample Editor Effects view</figcaption>
+        <figcaption>Sample Editor · Effects view</figcaption>
       </figure>
-    </div>
+    </section>
 
-    <section class="comparison" aria-label="Firmware differences">
+    <section class="comparison" id="comparison" aria-label="Firmware differences">
       <article>
         <div>
           <h2>Performance FX</h2>
