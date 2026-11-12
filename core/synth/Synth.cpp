@@ -3,6 +3,7 @@
 #include "Synth.h"
 #include "FileSystemAdapter.h"
 #include "MidiAdapter.h"
+#include "engines/AnalogSynthVoice.h"
 #include "config.h"
 
 #include "fileTransfer.h"
@@ -27,12 +28,19 @@
 #include "fileManager.h"
 #include "interruptsControl.h"
 #include "mtStructs.h"
+#include <algorithm>
 #include <numeric>
+
+#ifdef TRACKER_DESKTOP_PLUS
+static constexpr std::array<uint8_t, 3> kDefaultTypes = {7, 8, 6};
+#else
+static constexpr std::array<uint8_t, 3> kDefaultTypes = {3, 0, 2};
+#endif
 
 static const std::array kDefaultSettings = {
     SynthPartSettings{ .gainDb = Synth::kGainDefault,
                        .voiceCount = 1,
-                       .synthType = 3,
+                       .synthType = kDefaultTypes[0],
                        .panning = Synth::kPanningDefault,
                        .patchName = {},
                        .reverbSend = Synth::kSendDefaultValue,
@@ -40,7 +48,7 @@ static const std::array kDefaultSettings = {
                        .macroValue = { 0 } },
     SynthPartSettings{ .gainDb = Synth::kGainDefault,
                        .voiceCount = 1,
-                       .synthType = 0,
+                       .synthType = kDefaultTypes[1],
                        .panning = Synth::kPanningDefault,
                        .patchName = {},
                        .reverbSend = Synth::kSendDefaultValue,
@@ -48,7 +56,7 @@ static const std::array kDefaultSettings = {
                        .macroValue = { 0 } },
     SynthPartSettings{ .gainDb = Synth::kGainDefault,
                        .voiceCount = 1,
-                       .synthType = 2,
+                       .synthType = kDefaultTypes[2],
                        .panning = Synth::kPanningDefault,
                        .patchName = {},
                        .reverbSend = Synth::kSendDefaultValue,
@@ -115,7 +123,11 @@ void Synth::init(Platform* platform, std::function<tiny_optional<float>()> getTe
         int partIdx = std::distance(parts.begin(), &part);
         auto& instrument = part.instrument;
 
+#ifdef TRACKER_DESKTOP_PLUS
+        part.instrumentTypeId = kSynthTypes[kDefaultTypes[partIdx]];
+#else
         part.instrumentTypeId = kSynthTypes[partIdx];
+#endif
         part.patchName = kInitPatchName;
         setPatch(partIdx, patchStore->createPatch(*part.instrumentTypeId), part.patchName);
 
@@ -147,20 +159,35 @@ std::vector<std::string_view> Synth::getPatchList(int part)
 {
     newFileManager.createPatchesFolder();
 
-    return patchStore->listPatchesByType(*parts[part].instrumentTypeId);
+    const auto type = parts[part].instrumentTypeId;
+    auto names = patchStore->listPatchesByType(*type);
+    polysynth::appendAnalogFactoryPatches(type, names);
+    return names;
 }
 
 bool Synth::loadPatch(int part, const char* name)
 {
     assert(part < kSynthParts);
 
-    if (patchStore->loadPatch(name, *parts[part].patch, true))
+    auto& target = parts[part];
+    if (patchStore->loadPatch(name, *target.patch, true))
     {
-        setPatch(part, std::move(parts[part].patch), name);
-        return true;
+        setPatch(part, std::move(target.patch), name);
     }
-
-    return false;
+    else
+    {
+        const auto type = target.instrumentTypeId;
+        if (type != polysynth::InstrumentTypeId::kMiniSynth && type != polysynth::InstrumentTypeId::kOberSynth)
+            return false;
+        std::shared_ptr<polysynth::Patch> patch = patchStore->createPatch(*type);
+        if (!patch || !polysynth::applyAnalogFactoryPatch(type, name, *patch)) return false;
+        DISABLE_AUDIO_INTERRUPTS();
+        target.instrument->assignPatch(patch);
+        ENABLE_AUDIO_INTERRUPTS();
+        setPatch(part, std::move(patch), name);
+    }
+    setVoiceCount(part, mtProject.values.synthPart[part].voiceCount);
+    return true;
 }
 
 bool Synth::savePatch(int part, const char* name)
@@ -196,6 +223,7 @@ void Synth::initPatch(int part)
     ENABLE_AUDIO_INTERRUPTS();
 
     setPatch(part, std::move(newPatch), kInitPatchName);
+    setVoiceCount(part, mtProject.values.synthPart[part].voiceCount);
     savePatchToWorkspace(part);
 }
 
@@ -222,6 +250,7 @@ bool Synth::loadPatchFromWorkspace(int part, std::optional<std::string> override
         }
     }
 
+    setVoiceCount(part, mtProject.values.synthPart[part].voiceCount);
     parts[part].patchDirty = false;
     return fileLoaded;
 }
@@ -239,6 +268,7 @@ void Synth::saveDirtyWorkspacePatches()
 
 void Synth::setVoiceCount(int part, int voiceCount)
 {
+    voiceCount = std::clamp(voiceCount, 0, getMaxVoiceCount(part));
     if (parts[part].instrument->getVoiceCount() != voiceCount)
     {
         DISABLE_AUDIO_INTERRUPTS();
@@ -384,8 +414,8 @@ void Synth::updateToSettings(const strMtValues& settings, bool resetAllVoices)
 
     for (int part = 0; part < kSynthParts; part++)
     {
-        setVoiceCount(part, settings.synthPart[part].voiceCount);
         setInstrumentType(part, kSynthTypes.at(settings.synthPart[part].synthType));
+        setVoiceCount(part, settings.synthPart[part].voiceCount);
         parts[part].patchName = settings.synthPart[part].patchName;
     }
 }
@@ -428,7 +458,7 @@ void Synth::validateSynthPartSettings(int part, SynthPartSettings& settings)
         }
     }
 
-    if (isOutOfRange<int>(settings.synthType, 0, std::ssize(kSynthTypes) - 1) ||
+    if (isOutOfRange<int>(settings.synthType, kFirstAvailableType, std::ssize(kSynthTypes) - 1) ||
         isOutOfRange<int>(settings.voiceCount, 0, kSynthMaxVoices) ||
         isOutOfRange<float>(settings.gainDb, kGainSilence, kGainMax) ||
         isOutOfRange<float>(settings.panning, -kPanningMax, kPanningMax) ||

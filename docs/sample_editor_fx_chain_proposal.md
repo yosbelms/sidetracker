@@ -90,19 +90,19 @@ Result: Needs preview
 Add      Edit      Actions      Preview      Render
 ```
 
-The source row opens its own settings. Selecting an effect opens its parameters. An Actions menu contains Bypass, Move Up/Down, Duplicate, Remove, Load Preset, and Save Preset; this avoids fitting every operation onto a dedicated soft key. Exact button assignments need a separate screen-layout review on Original, Mini, and Tracker+.
+The source row opens its own settings. Selecting an effect opens its parameters. An Actions menu contains Bypass, Move Up/Down, Duplicate, Remove, Load Patch, and Save Patch; this avoids fitting every operation onto a dedicated soft key. Exact button assignments need a separate screen-layout review on Original, Mini, and Tracker+.
 
 Use visible states: **Needs preview**, **Preparing**, **Ready**, and **Failed**. During preparation show the current stage, stage count, progress, and Cancel. Do not display an inaccurate overall time estimate for analysis passes or plugin loading.
 
 Changing a parameter marks the result out of date without immediately rerendering. Preview is an explicit action in the first release. Stop sample audition before overwriting its playback buffer. Original/Processed comparisons switch safely with a short transition or restart; they need not be phase-aligned live crossfades.
 
-Render targets empty slots in the first release. Replacing the current sample and multi-step undo are later additions. Users can discard an unneeded new instrument through the existing instrument workflow. Leaving a draft offers Keep Editing or Discard; saving a preset is a separate explicit action.
+Render targets empty slots in the first release. Replacing the current sample and multi-step undo are later additions. Users can discard an unneeded new instrument through the existing instrument workflow. Leaving a draft offers Keep Editing or Discard. Saving a patch is a separate action.
 
-## Presets and persistence
+## Patches and persistence
 
-Save reusable chains as versioned files on the SD card, using `.ptpreset` files. Store them under `/Effects/Presets/`.
+Save reusable chains as versioned files on the SD card, using `.patch` files. Store them under `/Effects/Patches/`.
 
-A preset stores the chain’s source mode, optional generator identity/settings, ordered effect identities, parameter values, bypass states, and host generation-length settings. A Current Sample preset binds to the sample selected when loaded; it does not store an instrument index or embed source audio.
+A patch stores the chain’s source mode, optional generator identity/settings, ordered effect identities, parameter values, bypass states, and host generation-length settings. A Current Sample patch binds to the sample selected when loaded. The file contains the settings only.
 
 Use stable built-in IDs. For plugins, store a path plus a content fingerprint and parameter-layout information. A renamed, missing, or changed plugin must be resolved explicitly, rather than substituting another effect or guessing parameter compatibility. Unsupported effects stay visible in the draft and block rendering until resolved, removed, or explicitly bypassed. An unresolved generator blocks generation.
 
@@ -154,7 +154,7 @@ Publish a new instrument only after the final audio, destination capacity, and m
 | 1 | Chain/session model and offline runner | Whole-sample sequential stages, source protection, bounded buffers, failure/cancel handling |
 | 2 | Built-in stage adapters and generator/plugin sources | Repeated stages reset independently; generator into empty slot; lengths/channels validated |
 | 3 | Chain screen, parameters, audition, and new-slot render | User can complete both example workflows; Render matches preview exactly |
-| 4 | Preset save/load and validation | Round trips preserve settings; missing/changed plugins are handled explicitly |
+| 4 | Patch save/load and validation | Round trips preserve settings; missing/changed plugins are handled explicitly |
 | 5 | Original/Mini/Tracker+ validation | Resource ownership, maximum lengths, UI responsiveness, and render timing verified |
 
 All five steps make up the proposed first release. Live master/track chains, song-selection bounce, automatic processing while encoders move, per-stage audio caching, sample replacement, selection processing, and multiple generator mixing are follow-up work.

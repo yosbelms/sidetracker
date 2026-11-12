@@ -1,18 +1,18 @@
-# STPalette showcase presets
+# STPalette showcase patches
 
-Twenty native STPalette presets for Sample Editor → Effects. Tailored as expressive sonic texturizers for synths and sample material, they use three or four stages each and collectively cover all 24 algorithms. Designed around STPalette’s four categories, the collection ranges from warm analog lo-fi degradation and tape saturation to aggressive wavefolding, formant shaping, rhythmic gating, and crystalline granular clouds.
+Twenty native STPalette patches for Sample Editor → Effects. Tailored as expressive sonic texturizers for synths and sample material, they use three or four stages each and collectively cover all 24 algorithms. Designed around STPalette’s four categories, the collection ranges from warm analog lo-fi degradation and tape saturation to aggressive wavefolding, formant shaping, rhythmic gating, and crystalline granular clouds.
 
 ## Install and load
 
-Generate the pack or unpack `build/STPaletteShowcase.zip`, then copy its `Effects` folder into the root of your Tracker SD card or desktop virtual card. Each preset uses its descriptive filename, such as `Worn Cassette.ptpreset` or `Radio Static.ptpreset`. Preserve any file with the same name before replacing it.
+Copy `Effects/Patches/` from `build/SD/` or `build/STPaletteShowcase.zip` to the matching folder on your Tracker SD card or desktop virtual card. Each patch uses its descriptive filename, such as `Worn Cassette.patch` or `Radio Static.patch`. Preserve any file with the same name before replacing it.
 
-Load a sample, open **Sample Editor → Effects**, focus the **Chain** column, press physical **Insert**, choose **Load Preset**, then select the preset below (e.g. **Worn Cassette**, **Radio Static**). Press **Preview** to audition or **Apply** to update the current sample slot.
+Load a sample, open **Sample Editor → Effects**, focus the **Chain** column, press physical **Insert**, choose **Load Patch**, then select the patch below (e.g. **Worn Cassette**, **Radio Static**). Press **Preview** to audition or **Apply** to update the current sample slot.
 
-Presets contain settings only and use the currently selected sample. Synced stages follow the project tempo; 120 BPM is a useful comparison point. Try the same input through multiple presets, then explore their suggested sources. Mono processing works on Original Tracker; spatial differences are more apparent with stereo material on Plus/Mini.
+Patches contain settings only and use the currently selected sample. Synced stages follow the project tempo; 120 BPM is a useful comparison point. Try the same input through multiple patches, then explore their suggested sources. Mono processing works on Original Tracker; spatial differences are more apparent with stereo material on Plus/Mini.
 
-Quality is left unresolved so preview can choose its profile for the device, channel count and available memory. Preview and Render use the shared native DSP; rendering after a preview retains its resolved profiles. These presets have not been timed or listened to on physical Tracker hardware.
+Quality is left unresolved so preview can choose its profile for the device, channel count and available memory. Preview and Render use the shared native DSP; rendering after a preview retains its resolved profiles. These patches have not been timed or listened to on physical Tracker hardware.
 
-## Presets
+## Patches
 
 | # | Name | Character | Processing order |
 | --- | --- | --- | --- |
@@ -39,7 +39,7 @@ Quality is left unresolved so preview can choose its profile for the device, cha
 
 ## Settings
 
-Amount, Macro and Drift use the editor’s 0–100 scale. Tail is the additional duration in seconds for that stage; stage tails accumulate through the chain. `—` means the control is hidden for that Type (stored as zero). Macro changes meaning with Type: it is not a universal dry/wet control. Mix controls the final linear dry/wet blend across the chain (0–100%). A machine-readable copy of the settings is also recorded in [presets.json](presets.json).
+Amount, Macro and Drift use the editor’s 0–100 scale. Tail is the additional duration in seconds for that stage; stage tails accumulate through the chain. `—` means the control is hidden for that Type (stored as zero). Macro changes meaning with Type: it is not a universal dry/wet control. Mix controls the final linear dry/wet blend across the chain (0–100%). A machine-readable copy of the settings is also recorded in [patches.json](patches.json).
 
 ### 01 — Worn Cassette (Mix: 100%)
 
@@ -329,7 +329,7 @@ Cassette RF interference and aliasing grit compressed by an aggressive pumping v
 From the repository root:
 
 ```sh
-python3 tools/generate_stpalette_presets.py
+make sd
 ```
 
-This reads `presets.json`, preserves its names and settings, and writes a `.ptpreset` file under each preset’s actual name in `build/STPaletteShowcase/Effects/Presets/`. It also rebuilds `build/STPaletteShowcase.zip`. Python 3, Make and a C++20 host compiler are required.
+The generator reads `patches.json`, preserves its names and settings, and writes the patches to `build/SD/Effects/Patches/` and `build/STPaletteShowcase.zip`. Python 3, Make and a C++20 host compiler are required.

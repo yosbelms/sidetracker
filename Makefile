@@ -14,24 +14,41 @@ IMX_DIR       := $(ROOT_DIR)/platforms/imx
 SYNTH_DIR     := $(ROOT_DIR)/synth
 UTIL_DIR      := $(ROOT_DIR)/util
 OUT_DIR       := $(ROOT_DIR)/build
+SD_DIR        := $(OUT_DIR)/SD
+MINI_DONOR    := $(ROOT_DIR)/temp/fmini-1-2.5.12
+OBER_DONOR    := $(ROOT_DIR)/temp/obervave-main
+SYNTH_PATCH_INPUTS := $(addprefix $(MINI_DONOR)/,LICENSE firmware/src/eng_fmini_presets.h firmware/src/eng_fmini_filter.h) \
+                      $(addprefix $(OBER_DONOR)/,LICENSE firmware/src/obv_patches.h firmware/src/obv_params.h)
 
 include $(ROOT_DIR)/version.mk
 
-ORIGINAL_POSTFIX ?= $(EDITION_NAME)_$(ORIGINAL_VER_MAJOR).$(ORIGINAL_VER_MINOR).$(ORIGINAL_VER_PATCH)
-PLUS_POSTFIX     ?= $(EDITION_NAME)_$(PLUS_VER_MAJOR).$(PLUS_VER_MINOR).$(PLUS_VER_PATCH)
-MINI_POSTFIX     ?= $(EDITION_NAME)_$(MINI_VER_MAJOR).$(MINI_VER_MINOR).$(MINI_VER_PATCH)
+ORIGINAL_POSTFIX ?= $(ORIGINAL_VER_MAJOR).$(ORIGINAL_VER_MINOR).$(ORIGINAL_VER_PATCH)
+PLUS_POSTFIX     ?= $(PLUS_VER_MAJOR).$(PLUS_VER_MINOR).$(PLUS_VER_PATCH)
+MINI_POSTFIX     ?= $(MINI_VER_MAJOR).$(MINI_VER_MINOR).$(MINI_VER_PATCH)
+
+ORIGINAL_PTF := $(EDITION_NAME)_$(ORIGINAL_POSTFIX).ptf
+PLUS_PTF     := $(EDITION_NAME)Plus_$(PLUS_POSTFIX).ptf
+MINI_PTF     := $(EDITION_NAME)Mini_$(MINI_POSTFIX).ptf
 
 .DEFAULT_GOAL := all
 
-.PHONY: all original plus mini desktop desktop-check test host-test bench bench-m4 perf-gate ptfx clean version bump-patch bump-minor
+.PHONY: all original plus mini desktop desktop-check sd test host-test bench bench-m4 perf-gate ptfx clean version bump-patch bump-minor
 
 all: original plus mini
 
-desktop:
-	$(MAKE) -C "$(ROOT_DIR)/platforms/desktop"
+sd:
+	python3 "$(ROOT_DIR)/tools/generate_stpalette_patches.py" --sd "$(SD_DIR)"
+ifeq ($(words $(wildcard $(SYNTH_PATCH_INPUTS))),$(words $(SYNTH_PATCH_INPUTS)))
+	python3 "$(ROOT_DIR)/tools/port_analog_synth_presets.py" --sd "$(SD_DIR)"
+else
+	@echo "MINI and OBER patch sources are unavailable in temp/. Staged the STPalette patches."
+endif
 
-desktop-check:
-	$(MAKE) -C "$(ROOT_DIR)/platforms/desktop" check
+desktop: sd
+	$(MAKE) -C "$(ROOT_DIR)/platforms/desktop" SD_TARGET=
+
+desktop-check: sd
+	$(MAKE) -C "$(ROOT_DIR)/platforms/desktop" check SD_TARGET=
 
 test host-test:
 	$(MAKE) -C "$(ROOT_DIR)/tests" test
@@ -39,7 +56,7 @@ test host-test:
 bench bench-m4 perf-gate:
 	$(MAKE) -C "$(ROOT_DIR)/tests" $@
 
-original:
+original: sd
 	@echo "=================================================================="
 	@echo " Building Original Tracker (MK66) - $(EDITION_NAME) $(ORIGINAL_VER_MAJOR).$(ORIGINAL_VER_MINOR).$(ORIGINAL_VER_PATCH) ($(BUILD_TAG))"
 	@echo "=================================================================="
@@ -55,11 +72,12 @@ original:
 		PRODUCT=ORIGINAL \
 		TARGET_POSTFIX="$(ORIGINAL_POSTFIX)" \
 		BUILD_ID_STR="$(BUILD_ID_STR)"
-	@mkdir -p "$(OUT_DIR)"
-	@cp "$(MK66_DIR)/build/PolyendTracker_$(ORIGINAL_POSTFIX).ptf" "$(OUT_DIR)/"
-	@echo "-> Output: $(OUT_DIR)/PolyendTracker_$(ORIGINAL_POSTFIX).ptf"
+	@mkdir -p "$(SD_DIR)/Firmware"
+	@cp "$(MK66_DIR)/build/PolyendTracker_$(ORIGINAL_POSTFIX).ptf" "$(OUT_DIR)/$(ORIGINAL_PTF)"
+	@cp "$(OUT_DIR)/$(ORIGINAL_PTF)" "$(SD_DIR)/Firmware/PolyendTracker.ptf"
+	@echo "-> Output: $(OUT_DIR)/$(ORIGINAL_PTF)"
 
-plus:
+plus: sd
 	@echo "=================================================================="
 	@echo " Building Tracker+ (IMX) - $(EDITION_NAME) $(PLUS_VER_MAJOR).$(PLUS_VER_MINOR).$(PLUS_VER_PATCH) ($(BUILD_TAG))"
 	@echo "=================================================================="
@@ -77,11 +95,12 @@ plus:
 		PRODUCT=PLUS \
 		TARGET_POSTFIX="$(PLUS_POSTFIX)" \
 		BUILD_ID_STR="$(BUILD_ID_STR)"
-	@mkdir -p "$(OUT_DIR)"
-	@cp "$(IMX_DIR)/build-PLUS/TrackerPlus_$(PLUS_POSTFIX).ptf" "$(OUT_DIR)/"
-	@echo "-> Output: $(OUT_DIR)/TrackerPlus_$(PLUS_POSTFIX).ptf"
+	@mkdir -p "$(SD_DIR)/Firmware"
+	@cp "$(IMX_DIR)/build-PLUS/TrackerPlus_$(PLUS_POSTFIX).ptf" "$(OUT_DIR)/$(PLUS_PTF)"
+	@cp "$(OUT_DIR)/$(PLUS_PTF)" "$(SD_DIR)/Firmware/TrackerPlus.ptf"
+	@echo "-> Output: $(OUT_DIR)/$(PLUS_PTF)"
 
-mini:
+mini: sd
 	@echo "=================================================================="
 	@echo " Building Tracker Mini (IMX) - $(EDITION_NAME) $(MINI_VER_MAJOR).$(MINI_VER_MINOR).$(MINI_VER_PATCH) ($(BUILD_TAG))"
 	@echo "=================================================================="
@@ -99,15 +118,17 @@ mini:
 		PRODUCT=MINI \
 		TARGET_POSTFIX="$(MINI_POSTFIX)" \
 		BUILD_ID_STR="$(BUILD_ID_STR)"
-	@mkdir -p "$(OUT_DIR)"
-	@cp "$(IMX_DIR)/build-MINI/TrackerMini_$(MINI_POSTFIX).ptf" "$(OUT_DIR)/"
-	@echo "-> Output: $(OUT_DIR)/TrackerMini_$(MINI_POSTFIX).ptf"
+	@mkdir -p "$(SD_DIR)/Firmware"
+	@cp "$(IMX_DIR)/build-MINI/TrackerMini_$(MINI_POSTFIX).ptf" "$(OUT_DIR)/$(MINI_PTF)"
+	@cp "$(OUT_DIR)/$(MINI_PTF)" "$(SD_DIR)/Firmware/TrackerMini.ptf"
+	@echo "-> Output: $(OUT_DIR)/$(MINI_PTF)"
 
-ptfx:
-	@mkdir -p "$(ROOT_DIR)/editor-fx-sdk/build/Effects"
-	@for src in "$(ROOT_DIR)"/editor-fx-sdk/effects/*.c; do \
+ptfx: sd
+	@mkdir -p "$(ROOT_DIR)/editor-fx-sdk/build/Effects" "$(SD_DIR)/Effects"
+	@set -e; for src in "$(ROOT_DIR)"/editor-fx-sdk/effects/*.c; do \
 		base=$$(basename "$$src" .c); \
 		python3 "$(ROOT_DIR)/editor-fx-sdk/ptfx_builder.py" "$$src" -o "$(ROOT_DIR)/editor-fx-sdk/build/Effects/$$base.ptfx" --toolchain "$(TOOLCHAIN)"; \
+		cp "$(ROOT_DIR)/editor-fx-sdk/build/Effects/$$base.ptfx" "$(SD_DIR)/Effects/"; \
 	done
 
 clean:
@@ -121,9 +142,9 @@ clean:
 
 version:
 	@echo "Edition      : $(EDITION_NAME) (Build $(BUILD_TAG))"
-	@echo "Original (MK66): $(EDITION_NAME) $(ORIGINAL_VER_MAJOR).$(ORIGINAL_VER_MINOR).$(ORIGINAL_VER_PATCH) -> PolyendTracker_$(ORIGINAL_POSTFIX).ptf"
-	@echo "Tracker+ (IMX) : $(EDITION_NAME) $(PLUS_VER_MAJOR).$(PLUS_VER_MINOR).$(PLUS_VER_PATCH) -> TrackerPlus_$(PLUS_POSTFIX).ptf"
-	@echo "Mini     (IMX) : $(EDITION_NAME) $(MINI_VER_MAJOR).$(MINI_VER_MINOR).$(MINI_VER_PATCH) -> TrackerMini_$(MINI_POSTFIX).ptf"
+	@echo "Original (MK66): $(EDITION_NAME) $(ORIGINAL_VER_MAJOR).$(ORIGINAL_VER_MINOR).$(ORIGINAL_VER_PATCH) -> $(ORIGINAL_PTF)"
+	@echo "Tracker+ (IMX) : $(EDITION_NAME) $(PLUS_VER_MAJOR).$(PLUS_VER_MINOR).$(PLUS_VER_PATCH) -> $(PLUS_PTF)"
+	@echo "Mini     (IMX) : $(EDITION_NAME) $(MINI_VER_MAJOR).$(MINI_VER_MINOR).$(MINI_VER_PATCH) -> $(MINI_PTF)"
 
 TARGET ?= all
 

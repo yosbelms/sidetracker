@@ -40,7 +40,9 @@ enum class InstrumentTypeId
     kDrumSynth,
     kShapingSynth,
     kChiptuneSynth,
-    kLastSynth = kChiptuneSynth,
+    kMiniSynth = 9,
+    kOberSynth = 10,
+    kLastSynth = kOberSynth,
     kDelay = 1000,
     kReverb,
 };

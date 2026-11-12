@@ -8,10 +8,10 @@
 
 **ST Character**, **ST Movement**, **ST Diffusion**, and **ST Texture** are native effects in the Effects browser. Each has six algorithms under **Type**. Add a category, choose a Type, then adjust **Amount**, **Macro**, or **Drift**. **Sync** and **Tail** appear for Types that use them.
 
-## Presets
+## Patches
 
-Use **Effects → Actions → Save Preset** or **Load Preset** to reuse a chain. A preset stores the source choice, stage order, settings, and Mix. A preset that uses the current sample works with whichever sample is open. Presets live on the SD card in `/Effects/Presets/` as `.ptpreset` files.
+Use **Effects → Actions → Save Patch** or **Load Patch** to reuse a chain. A patch stores the source choice, stage order, settings, and Mix. A patch that uses the current sample works with whichever sample is open. Patches live on the SD card in `/Effects/Patches/` as `.patch` files.
 
-Run `python3 tools/generate_stpalette_presets.py` from the repository root to write 20 showcase presets to `build/STPaletteShowcase/Effects/Presets/` and package them in `build/STPaletteShowcase.zip`. Copy the generated `Effects` folder to the root of the Tracker SD card or desktop virtual SD card. Load a preset by name, such as **Worn Cassette** or **Granular Warp**.
+Run `make sd` from the repository root to stage 20 showcase patches in `build/SD/Effects/Patches/` and create `build/STPaletteShowcase.zip`. Copy the generated `Effects` folder to the root of the Tracker SD card or desktop virtual SD card. Load a patch by name, such as **Worn Cassette** or **Granular Warp**.
 
-[Showcase preset list](../presets/stpalette/README.md#presets) · [Detailed chain guide](sample_editor_fx_chain.md) · [Live and sequenced Perf FX](perf_fx.md)
+[Showcase patch list](../patches/stpalette/README.md#patches) · [Detailed chain guide](sample_editor_fx_chain.md) · [Live and sequenced Perf FX](perf_fx.md)

@@ -117,7 +117,7 @@ Full details in [`docs/custom_synth_sdk.md`](custom_synth_sdk.md).
 * **Checklist When Adding a New Synth Engine**:
   1. Add a new enumerator to `InstrumentTypeId` (before `kLastSynth`, and update `kLastSynth`) in [`synth/include/PolySynth/config.h`](../synth/include/PolySynth/config.h), and register its factory in `InstrumentTypeRegistry::registerInstrumentTypes()` in [`core/synth/registry.cpp`](../core/synth/registry.cpp).
   2. Add the engine's `InstrumentTypeId` entry to `Synth::kSynthTypes` in [`core/synth/Synth.h`](../core/synth/Synth.h).
-  3. Add the display name and `enDisplayBitmaps` mini icon ID to `synthModelNames[]` and `synthModelListImages[]` in [`core/interface/instrumentEditor/SynthEditor.cpp`](../core/interface/instrumentEditor/SynthEditor.cpp), and add the medium icon ID to `synthModelListImages[]` in [`core/interface/instrumentEditor/SynthPatchEditor.cpp`](../core/interface/instrumentEditor/SynthPatchEditor.cpp).
+  3. Set the display name in the registered `InstrumentType`. Add the `enDisplayBitmaps` mini icon ID to `synthModelListImages[]` in [`core/interface/instrumentEditor/SynthEditor.cpp`](../core/interface/instrumentEditor/SynthEditor.cpp), and add the medium icon ID to `synthModelListImages[]` in [`core/interface/instrumentEditor/SynthPatchEditor.cpp`](../core/interface/instrumentEditor/SynthPatchEditor.cpp).
   4. Register the enum IDs in `enDisplayBitmaps` in [`core/libs/NewDisplay/displayStructs.h`](../core/libs/NewDisplay/displayStructs.h) and add the `80×28` (`L2`) mini and `108×40` (`L2`) medium pill bitmaps to `bitmaps[]` in [`core/libs/NewDisplay/display.cpp`](../core/libs/NewDisplay/display.cpp).
 
 ---

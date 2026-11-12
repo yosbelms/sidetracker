@@ -24,12 +24,13 @@ CORE_SOURCES := $(addprefix libs/Audio/,AudioStream.cpp filter_variable.cpp ampl
     source/wavHeaderReader.cpp source/SdStream.cpp source/util_string.cpp source/scales.cpp \
     source/mtEnvelopeGenerator.cpp source/mtWavetableEnvelopes.cpp source/util_math.cpp \
     libs/ElapsedMillis/elapsedMillis.cpp AudioEngine/padToBeatNoteConverter.cpp AudioEngine/SampleFxPreview.cpp AudioEngine/PerfFx/PerfFx.cpp \
-    FileManager/instrumentFileValidation.cpp effector/SampleFxChain.cpp effector/SampleFxPreset.cpp effector/SampleFxRealtime.cpp effector/ptfx_validation.cpp \
+    FileManager/instrumentFileValidation.cpp effector/SampleFxChain.cpp effector/SampleFxPatch.cpp effector/SampleFxRealtime.cpp effector/ptfx_validation.cpp \
     $(addprefix effector/,mtDataCopyier.cpp mtEffectModular.cpp mtEffectAmplifier.cpp mtEffectNormalizer.cpp \
     mtEffectDelay.cpp mtEffectEQ.cpp mtEffectChorus.cpp mtEffectFlanger.cpp \
     mtEffectBitcrusher.cpp mtEffectFadeIn.cpp mtEffectFadeOut.cpp mtEffectCompresor.cpp \
     mtEffectLimiter.cpp mtEffectOverdrive.cpp)
 CORE_SOURCES += $(patsubst $(CORE)/%,%,$(shell find $(CORE)/effector/stpalette -name '*.cpp'))
+CORE_SOURCES += synth/engines/AnalogVoice.cpp synth/engines/AnalogSynthVoice.cpp
 CORE_OBJECTS := $(addprefix $(OUT)/core/,$(CORE_SOURCES:.cpp=.o))
 TEST_SOURCES := $(wildcard *_test.cpp)
 TEST_BINS := $(patsubst %.cpp,$(OUT)/%,$(TEST_SOURCES))
@@ -118,6 +119,8 @@ perf-gate: $(BENCH_OUT)/audio_bench
 -include $(CORE_OBJECTS:.o=.d) $(COMMON_OBJECTS:.o=.d) $(patsubst %.cpp,$(OUT)/%.d,$(TEST_SOURCES))
 
 CPPFLAGS += -I$(CORE)/effector/stpalette/vendor/clouds
+CPPFLAGS += -I$(CORE)/synth/engines
+$(OUT)/core/synth/engines/AnalogSynthVoice.o $(OUT)/analog_synth_sdk_test.o: CPPFLAGS += -I$(ROOT)/synth/include -DFEATURE_SYNTH -DFMT_HEADER_ONLY -include analog_synth_host_compat.h
 
 STPALETTE_SOURCES := $(shell find $(CORE)/effector/stpalette -name '*.cpp')
 STPALETTE_HEADERS := $(shell find $(CORE)/effector/stpalette -name '*.h')

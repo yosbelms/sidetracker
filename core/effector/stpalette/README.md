@@ -19,7 +19,7 @@ Up/Down move to the preceding/following item in Type and Sync lists, while the
 encoder keeps its normal list direction.
 
 Parameters have stable indices Type, Amount, Macro, Drift, Sync, Tail. Hidden
-Sync/Tail values remain in the chain and are saved in presets. Type and Sync changes rebuild live processing
+Sync/Tail values remain in the chain and are saved in patches. Type and Sync changes rebuild live processing
 after a short fade, outside the audio callback; ordinary controls are smoothed.
 Changing project tempo updates sync without reallocating. Reverse Delay is an
 audio effect; the destructive Reverse tool remains separate.
@@ -58,14 +58,14 @@ the main loop, never allocate from an interrupt, and do not upgrade during
 playback. If no supported lower profile fits, preview stops and Render remains
 available. These safeguards do not constitute timing certification.
 
-Presets use PTPR v1. They store STPalette category IDs, the six stage parameters,
+Patches use PTPR v1. They store STPalette category IDs, the six stage parameters,
 each node’s quality, a resolved-quality flag, and the chain’s Mix. Render honors
 the last resolved preview quality. The host blends Mix after the chain and
 compensates for known profile latency.
 
-The [STPalette showcase pack](../../../presets/stpalette/README.md) covers all 24
-algorithms in twenty presets. Its guide documents the settings, installation and
-`python3 tools/generate_stpalette_presets.py` command for rebuilding the files and ZIP.
+The [STPalette showcase pack](../../../patches/stpalette/README.md) covers all 24
+algorithms in twenty patches. Its guide documents the settings, installation and
+`python3 tools/generate_stpalette_patches.py` command for rebuilding the files and ZIP.
 
 ## Profiling and verification
 

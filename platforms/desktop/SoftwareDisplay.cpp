@@ -16,6 +16,16 @@ int signedVertex(uint32_t value)
     const int coordinate = value & 0x7fff;
     return coordinate >= 0x4000 ? coordinate - 0x8000 : coordinate;
 }
+
+int pixelsPerByte(int format)
+{
+    switch (format)
+    {
+        case L2: return 4;
+        case L4: return 2;
+        default: return 1;
+    }
+}
 }
 
 SoftwareDisplay::SoftwareDisplay(SDL_Renderer& renderer)
@@ -102,7 +112,7 @@ void SoftwareDisplay::BitmapTransform::rotate(uint16_t angle)
 void SoftwareDisplay::bitmap(int x, int y, int handle, int cell)
 {
     const auto& b = bitmaps[handle];
-    if (b.format != L4 && b.format != L8)
+    if (b.format != L2 && b.format != L4 && b.format != L8)
         return;
     if (b.font)
     {
@@ -116,7 +126,7 @@ void SoftwareDisplay::bitmap(int x, int y, int handle, int cell)
     const size_t start = b.source + size_t(cell) * b.stride * b.height;
     if (start + size_t(b.stride) * b.height > ram.size())
         return;
-    const int sourceWidth = b.stride * (b.format == L4 ? 2 : 1);
+    const int sourceWidth = b.stride * pixelsPerByte(b.format);
     const auto& transform = state.transform;
     // FT812 transforms map output pixel centres back into the source bitmap.
     for (int dy = 0; dy < b.drawHeight; ++dy)
@@ -129,8 +139,13 @@ void SoftwareDisplay::bitmap(int x, int y, int handle, int cell)
             if (sx < 0 || sx >= sourceWidth || sy < 0 || sy >= b.height)
                 continue;
             const auto* row = ram.data() + start + size_t(sy) * b.stride;
-            const int level = b.format == L8 ? row[sx] :
-                17 * (sx % 2 ? row[sx / 2] & 15 : row[sx / 2] >> 4);
+            int level;
+            switch (b.format)
+            {
+                case L2: level = 85 * ((row[sx / 4] >> (6 - 2 * (sx % 4))) & 3); break;
+                case L4: level = 17 * (sx % 2 ? row[sx / 2] & 15 : row[sx / 2] >> 4); break;
+                default: level = row[sx]; break; // L8
+            }
             if (level)
             {
                 color(state.color, level * state.alpha / 255);
@@ -344,7 +359,8 @@ void SoftwareDisplay::endCoProList()
                 b.format = formatWidth & 65535;
                 b.drawWidth = formatWidth >> 16;
                 b.height = b.drawHeight = bitmapHeight & 65535;
-                b.stride = b.format == L4 ? (b.drawWidth + 1) / 2 : b.drawWidth;
+                const int pixels = pixelsPerByte(b.format);
+                b.stride = (b.drawWidth + pixels - 1) / pixels;
                 b.font = false;
                 break;
             }

@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include "stpalette/STPaletteEffects.h"
-#include "SampleFxPreset.h"
+#include "SampleFxPatch.h"
 #include "SampleFxRealtime.h"
 #include <vector>
 #include <cmath>
@@ -84,17 +84,17 @@ TEST(STPalette, TypeChangesRequirePreparationAndOrdinaryParametersPublish) {
     n.params[0]=2; EXPECT_FALSE(p.parameters(n));
     n.params[0]=0; n.quality=1; EXPECT_FALSE(p.parameters(n));
 }
-TEST(STPalette, PresetPreservesCategoryTypeAndResolvedQuality) {
+TEST(STPalette, PatchPreservesCategoryTypeAndResolvedQuality) {
     ChainDefinition r; auto n=stpalette::defaults(32);n.params[0]=2;n.quality=2;
     r.add(n);r.qualityResolved=true;r.mix=35;
-    uint8_t bytes[kPresetFileBytes]; ASSERT_TRUE(encodePreset(r,bytes,sizeof(bytes))); EXPECT_EQ(bytes[4],1);
-    ChainDefinition decoded;ASSERT_TRUE(decodePreset(bytes,sizeof(bytes),decoded));
+    uint8_t bytes[kPatchFileBytes]; ASSERT_TRUE(encodePatch(r,bytes,sizeof(bytes))); EXPECT_EQ(bytes[4],1);
+    ChainDefinition decoded;ASSERT_TRUE(decodePatch(bytes,sizeof(bytes),decoded));
     EXPECT_EQ(decoded.stages[0].effect,32); EXPECT_EQ(decoded.stages[0].params[0],2);
     EXPECT_EQ(decoded.stages[0].quality,2); EXPECT_TRUE(decoded.qualityResolved);
     EXPECT_EQ(decoded.mix,35);
     r={}; n={};n.effect=3;n.count=1;n.params[0]=1;r.add(n);
-    ASSERT_TRUE(encodePreset(r,bytes,sizeof(bytes))); EXPECT_EQ(bytes[4],1);
-    ASSERT_TRUE(decodePreset(bytes,sizeof(bytes),decoded));
+    ASSERT_TRUE(encodePatch(r,bytes,sizeof(bytes))); EXPECT_EQ(bytes[4],1);
+    ASSERT_TRUE(decodePatch(bytes,sizeof(bytes),decoded));
     EXPECT_EQ(decoded.stages[0].effect,3); EXPECT_FALSE(decoded.qualityResolved);
 }
 TEST(STPalette, EconomyAdmissionIsDeterministicAndRespectsMinimumAndBypass) {

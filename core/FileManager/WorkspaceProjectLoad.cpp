@@ -167,6 +167,11 @@ void WorkspaceProjectLoad::loadProjectFromWorkspaceFinish()
     newFileManager.getPatternsMetadata()->loadPatternsMetadata();
 
 #if FILEMANAGER_HANDLE_SYNTH == 1
+#ifdef TRACKER_DESKTOP_PLUS
+    // Older desktop workspaces and hardware projects can contain unavailable synth models.
+    for (int part = 0; part < kSynthParts; ++part)
+        newFileManager.getSynth()->validateSynthPartSettings(part, mtProject.values.synthPart[part]);
+#endif
     newFileManager.getSynth()->updateToSettings(mtProject.values, true);
     for (int part = 0; part < kSynthParts; part++)
     {

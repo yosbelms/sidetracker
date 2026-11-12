@@ -246,12 +246,18 @@ int run(const Options& options)
         card = options.card;
     else
     {
+#ifdef TRACKER_DESKTOP_ORIGINAL
+        std::unique_ptr<char, decltype(&SDL_free)> path(SDL_GetPrefPath("TrackerCE", "DesktopOriginal"), SDL_free);
+#else
         std::unique_ptr<char, decltype(&SDL_free)> path(SDL_GetPrefPath("TrackerCE", "Desktop"), SDL_free);
+#endif
         check(bool(path));
         card = std::filesystem::path(path.get()) / "SD";
+#ifndef TRACKER_DESKTOP_ORIGINAL
         const auto previousCard = card.parent_path().parent_path() / "Simulator" / "SD";
         if (!std::filesystem::exists(card) && std::filesystem::is_directory(previousCard))
             std::filesystem::rename(previousCard, card);
+#endif
     }
 
     const int width = panel ? panelWidth : SoftwareDisplay::width;
@@ -270,7 +276,11 @@ int run(const Options& options)
     tracker.getStartDisplayFunc()(&platform);
     tracker.init(&platform);
 
+#ifdef TRACKER_DESKTOP_PLUS
+    constexpr int sampleRate = 44100;
+#else
     constexpr int sampleRate = 44118;
+#endif
     constexpr size_t frames = AUDIO_BLOCK_SAMPLES;
     SDL_AudioDeviceID audio = 0;
     if (!headless && options.audio && SDL_InitSubSystem(SDL_INIT_AUDIO) == 0)
@@ -289,6 +299,7 @@ int run(const Options& options)
     constexpr uint32_t queueTarget = sampleRate * 60 / 1000 * 2 * sizeof(int16_t);
     uint64_t audioTime = platform.timer.timeUs();
     bool audioStarted = false;
+    int headlessPeak = 0;
     const auto pumpAudio = [&]
     {
         const uint64_t now = platform.timer.timeUs();
@@ -302,6 +313,9 @@ int run(const Options& options)
             tracker.updateAudioBuffers(left, right, frames);
             if (!audio)
             {
+                if (options.script)
+                    for (size_t i = 0; i < frames; ++i)
+                        headlessPeak = std::max({headlessPeak, std::abs(int(left[i])), std::abs(int(right[i]))});
                 audioTime += frames * 1000000 / sampleRate;
                 continue;
             }
@@ -381,6 +395,14 @@ int run(const Options& options)
                 { unsigned ms = 0; fields >> ms; advance(std::min(ms, 60000u)); }
                 else if (command == "encoder")
                 { int value = 0; fields >> value; onPotChange(0, value); advance(50); }
+                else if (command == "reset-audio-peak")
+                    headlessPeak = 0;
+                else if (command == "assert-audio-peak")
+                {
+                    int minimum = 0;
+                    if (!(fields >> minimum) || headlessPeak < minimum)
+                        throw std::runtime_error("Unexpected audio peak: " + std::to_string(headlessPeak));
+                }
                 else if (command == "import")
                 {
                     std::string path; unsigned slot = 0; fields >> slot >> path;
@@ -502,8 +524,13 @@ int run(const Options& options)
         return 0;
     }
 
+#ifdef TRACKER_DESKTOP_PLUS
+    constexpr const char* title = FW_EDITION_NAME " Desktop Plus";
+#else
+    constexpr const char* title = FW_EDITION_NAME " Desktop";
+#endif
     SdlPtr<SDL_Window, SDL_DestroyWindow> window(
-        SDL_CreateWindow(FW_EDITION_NAME " Desktop", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+        SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                          width, height, SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI), SDL_DestroyWindow);
     check(bool(window));
 
@@ -682,7 +709,7 @@ int main(int argc, char** argv)
     }
     catch (const std::exception& error)
     {
-        std::fprintf(stderr, "tracker-ce-desktop: %s\n", error.what());
+        std::fprintf(stderr, "%s: %s\n", argv[0], error.what());
         return 1;
     }
 }

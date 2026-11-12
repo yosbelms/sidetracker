@@ -14,12 +14,13 @@
 #include <algorithm>
 #include <vector>
 
-// extern uint32_t _estack;
+#if defined(PLATFORM_IMX) && !defined(TRACKER_DESKTOP)
 extern "C"
 {
     extern void _vStackTop(void); // symbols from linker script
     extern void _vStackBase(void);
 }
+#endif
 Profiler* Profiler::instance = nullptr;
 
 void Profiler::init()
@@ -68,7 +69,7 @@ size_t Profiler::freeRamBytes()
 
 size_t Profiler::maxStackBytes()
 {
-#ifdef PLATFORM_IMX
+#if defined(PLATFORM_IMX) && !defined(TRACKER_DESKTOP)
     const uint8_t* base = (uint8_t*)&_vStackBase;
     const uint8_t* top = (uint8_t*)&_vStackTop;
 

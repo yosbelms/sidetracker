@@ -2,7 +2,7 @@
   "format": "PTPR v1",
   "quality": "Automatic at preview; unresolved in the supplied files",
   "source": "Current sample",
-  "presets": [
+  "patches": [
     {
       "slot": 1,
       "name": "Worn Cassette",

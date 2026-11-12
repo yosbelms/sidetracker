@@ -1,6 +1,6 @@
 #include "SampleEditorChain.h"
 #include "sampleEditor.h"
-#include "SampleFxPreset.h"
+#include "SampleFxPatch.h"
 #include "SampleFxRealtime.h"
 #include "interruptsControl.h"
 #include "ptfx_manager.h"
@@ -36,8 +36,8 @@ constexpr unsigned kActionsButton = 4;
 constexpr unsigned kMixButton = 5;
 constexpr unsigned kValueButton = 7;
 constexpr char kTempDir[] = "Workspace/FxChainTemp";
-constexpr char kPresetDir[] = "/Effects/Presets";
-constexpr char kPresetExtension[] = ".ptpreset";
+constexpr char kPatchDir[] = "/Effects/Patches";
+constexpr char kPatchExtension[] = ".patch";
 
 bool supported(uint8_t effect)
 {
@@ -235,7 +235,7 @@ class LivePluginLoader : public RealtimePluginLoader
 class ChainScreen
 {
   public:
-    enum Page { Chain, Actions, SavedPresets, Destinations };
+    enum Page { Chain, Actions, SavedPatches, Destinations };
     enum Work { Idle, Loading, Snapshot, Reading, Processing, CapturingDry, Mixing, Restoring, Writing, Applying };
     enum Output { Audition, Apply, NewSlot };
     cSampleEditor* editor = nullptr;
@@ -252,8 +252,8 @@ class ChainScreen
     }
     ChainDefinition definition;
     ChainDefinition lastUsed;
-    char presetName[kMaxPresetNameBytes + 1] = {};
-    char lastUsedPresetName[kMaxPresetNameBytes + 1] = {};
+    char patchName[kMaxPatchNameBytes + 1] = {};
+    char lastUsedPatchName[kMaxPatchNameBytes + 1] = {};
     bool haveLast = false;
     bool open = false;
     bool visible = false;
@@ -273,10 +273,10 @@ class ChainScreen
     uint32_t generatorDryFrames = 0;
     uint8_t generatorDryChannels = 1;
     char mixText[12] = {};
-    bool savingPreset = false;
-    static constexpr unsigned kSavedPresetLimit = 32;
-    static constexpr unsigned kPresetFilenameBytes = kMaxPresetNameBytes + sizeof(kPresetExtension);
-    unsigned savedPresetCount = 0;
+    bool savingPatch = false;
+    static constexpr unsigned kSavedPatchLimit = 32;
+    static constexpr unsigned kPatchFilenameBytes = kMaxPatchNameBytes + sizeof(kPatchExtension);
+    unsigned savedPatchCount = 0;
     bool committed = false;
     Page page = Chain;
     unsigned focus = 0;
@@ -305,7 +305,7 @@ class ChainScreen
     static constexpr unsigned kMenuRows = kSampleInstrumentsCount + 16;
     unsigned menuCount = 0, boundMenuCount = 0;
     unsigned menuEntries[kMenuRows] = {};
-    char menuRows[kMenuRows][kPresetFilenameBytes] = {};
+    char menuRows[kMenuRows][kPatchFilenameBytes] = {};
     char* menuPointers[kMenuRows] = {};
     strList menuList = {};
     hControl menuControl = -1;
@@ -484,8 +484,8 @@ class ChainScreen
     void removeOrReset();
     void finishRestore();
     bool pluginNode(unsigned index, Node& n);
-    void presetFile(unsigned slot, bool save);
-    void scanSavedPresets();
+    void patchFile(unsigned slot, bool save);
+    void scanSavedPatches();
     void render(unsigned slot);
     void finishRender();
     void measureCpu();
@@ -522,22 +522,22 @@ bool ChainScreen::pluginNode(unsigned index, Node& n)
     return true;
 }
 
-void ChainScreen::scanSavedPresets()
+void ChainScreen::scanSavedPatches()
 {
     menuCount = 0;
-    if (!savingPreset && haveLast) addMenuRow("Last Used", 0);
+    if (!savingPatch && haveLast) addMenuRow("Last Used", 0);
     const unsigned first = menuCount;
-    static_assert(kMenuRows > kSavedPresetLimit);
-    constexpr size_t suffixLength = sizeof(kPresetExtension) - 1;
-    int found = kSavedPresetLimit;
-    fs->listDirContents(kPresetDir, FileSystem::kFiles, [](const char* name) {
+    static_assert(kMenuRows > kSavedPatchLimit);
+    constexpr size_t suffixLength = sizeof(kPatchExtension) - 1;
+    int found = kSavedPatchLimit;
+    fs->listDirContents(kPatchDir, FileSystem::kFiles, [](const char* name) {
         const size_t length = strlen(name);
-        return length > suffixLength && length - suffixLength <= kMaxPresetNameBytes &&
+        return length > suffixLength && length - suffixLength <= kMaxPatchNameBytes &&
             !strchr(name, '/') && !strchr(name, '\\') &&
-            !strcasecmp(name + length - suffixLength, kPresetExtension);
-    }, menuRows[first], (kMenuRows - first) * kPresetFilenameBytes,
-       kPresetFilenameBytes, found, menuPointers + first);
-    menuCount = first + std::clamp(found, 0, int(kSavedPresetLimit));
+            !strcasecmp(name + length - suffixLength, kPatchExtension);
+    }, menuRows[first], (kMenuRows - first) * kPatchFilenameBytes,
+       kPatchFilenameBytes, found, menuPointers + first);
+    menuCount = first + std::clamp(found, 0, int(kSavedPatchLimit));
     // Firmware sorts the pointers, so recover buffer order before expanding in place.
     std::sort(menuPointers + first, menuPointers + menuCount, std::less<const char*>{});
     for (unsigned i = menuCount; i-- > first;)
@@ -550,26 +550,26 @@ void ChainScreen::scanSavedPresets()
     std::sort(menuPointers + first, menuPointers + menuCount,
               [](const char* a, const char* b) { return strcmp(a, b) < 0; });
     for (unsigned i = first; i < menuCount; ++i) menuEntries[i] = i + 1;
-    // Keep numbered destinations for new unnamed presets, while existing named
+    // Keep numbered destinations for new unnamed patches, while existing named
     // files are replaced directly under their own filenames.
-    for (unsigned slot = 1; savingPreset && menuCount < kSavedPresetLimit && slot <= 16; ++slot)
+    for (unsigned slot = 1; savingPatch && menuCount < kSavedPatchLimit && slot <= 16; ++slot)
     {
         char name[16];
-        snprintf(name, sizeof(name), "Preset%02u", slot);
+        snprintf(name, sizeof(name), "Patch%02u", slot);
         bool exists = false;
         for (unsigned i = 0; i < menuCount; ++i) exists |= !strcasecmp(menuPointers[i], name);
         if (exists) continue;
-        snprintf(menuRows[menuCount], sizeof(menuRows[menuCount]), "%s%s", name, kPresetExtension);
+        snprintf(menuRows[menuCount], sizeof(menuRows[menuCount]), "%s%s", name, kPatchExtension);
         menuRows[menuCount][strlen(name)] = 0;
         menuPointers[menuCount] = menuRows[menuCount];
         menuEntries[menuCount] = menuCount + 1;
         ++menuCount;
     }
-    if (!menuCount) addMenuRow("No saved presets", 255);
-    if (savingPreset && presetName[0])
+    if (!menuCount) addMenuRow("No saved patches", 255);
+    if (savingPatch && patchName[0])
         for (unsigned i = 0; i < menuCount; ++i)
-            if (!strcmp(menuPointers[i], presetName)) selected = i;
-    savedPresetCount = menuCount;
+            if (!strcmp(menuPointers[i], patchName)) selected = i;
+    savedPatchCount = menuCount;
 }
 
 void ChainScreen::show(Page next)
@@ -608,14 +608,14 @@ void ChainScreen::show(Page next)
             addMenuRow("Duplicate"); addMenuRow("Remove"); addMenuRow("Replace Effect", 20);
         }
         else addMenuRow("Choose Generator");
-        addMenuRow("Load Preset", 10); addMenuRow("Save Preset", 11);
+        addMenuRow("Load Patch", 10); addMenuRow("Save Patch", 11);
         if(stpalette::contains(node().effect)) addMenuRow("Measure CPU",12);
         addMenuRow("Render to new slot", 13);
     }
-    else if (page == SavedPresets)
+    else if (page == SavedPatches)
     {
-        if (pageChanged) scanSavedPresets();
-        else menuCount = savedPresetCount;
+        if (pageChanged) scanSavedPatches();
+        else menuCount = savedPatchCount;
     }
     else if (page == Destinations)
     {
@@ -630,7 +630,7 @@ void ChainScreen::show(Page next)
         bool economy=false;
         for(unsigned i=0;i<definition.count;++i) economy |= !definition.stages[i].bypass && stpalette::contains(definition.stages[i].effect) && definition.stages[i].quality;
         snprintf(title, sizeof(title), "FX Chain %u/8%s%s%s%s", definition.count,
-                  presetName[0] ? " - " : "", presetName,
+                  patchName[0] ? " - " : "", patchName,
                   busy() ? " - Preparing" : livePlaying ? " - Live" : "", economy ? " - Economy" : "");
     }
     if (!visible)
@@ -907,7 +907,7 @@ void ChainScreen::drawColumns(bool pageChanged, unsigned previousCount)
     display.refreshControl(valueBar);
     valueName = available ? (param < n.count ? d.labelsText[param] : lengthLabel) : "";
 
-    const char* titles[4] = {"Effects", page == Actions ? "Actions" : page == SavedPresets ? (savingPreset ? "Save Preset" : "Load Preset") :
+    const char* titles[4] = {"Effects", page == Actions ? "Actions" : page == SavedPatches ? (savingPatch ? "Save Patch" : "Load Patch") :
         page == Destinations ? "Render to" : "Chain", "Parameter", "Value"};
     for (unsigned i = 0; i < 4; ++i)
     {
@@ -1089,7 +1089,7 @@ void ChainScreen::choose()
             show(Chain); return;
         }
         if (action >= 10)
-        { savingPreset = action == 11; selected = 0; show(SavedPresets); return; }
+        { savingPatch = action == 11; selected = 0; show(SavedPatches); return; }
         if (!selectedNode) { browseSource(); return; }
         changed();
         unsigned i = selectedNode - 1;
@@ -1103,7 +1103,7 @@ void ChainScreen::choose()
         focus = 1;
         show(Chain);
     }
-    else if (page == SavedPresets && menuEntries[selected] != 255) presetFile(menuEntries[selected], savingPreset);
+    else if (page == SavedPatches && menuEntries[selected] != 255) patchFile(menuEntries[selected], savingPatch);
     else if (page == Destinations && menuEntries[selected] != 255) render(menuEntries[selected]);
 }
 
@@ -1375,14 +1375,14 @@ void ChainScreen::preview(Output action)
     show(Chain);
 }
 
-void ChainScreen::presetFile(unsigned slot, bool save)
+void ChainScreen::patchFile(unsigned slot, bool save)
 {
     stopAudio();
     if (!slot && !save && haveLast)
     {
         changed();
         definition = lastUsed;
-        memcpy(presetName, lastUsedPresetName, sizeof(presetName));
+        memcpy(patchName, lastUsedPatchName, sizeof(patchName));
         stageSelection = 0;
         schemaReady = false;
         focus = 1;
@@ -1390,46 +1390,46 @@ void ChainScreen::presetFile(unsigned slot, bool save)
         show(Chain);
         return;
     }
-    if (!slot || slot > savedPresetCount) { error("Choose a saved preset"); return; }
+    if (!slot || slot > savedPatchCount) { error("Choose a saved patch"); return; }
     char path[80], temp[84], backup[84];
     const char* filename = menuPointers[slot - 1];
     const char* extension = filename + strlen(filename) + 1;
     if (save)
     {
         fs->mkdir(0, "/Effects");
-        fs->mkdir(0, kPresetDir);
+        fs->mkdir(0, kPatchDir);
     }
-    snprintf(path, sizeof(path), "%s/%s.%s", kPresetDir, filename, extension);
+    snprintf(path, sizeof(path), "%s/%s.%s", kPatchDir, filename, extension);
     snprintf(temp, sizeof(temp), "%s.tmp", path);
     snprintf(backup, sizeof(backup), "%s.bak", path);
     // Recover an interrupted replacement before attempting another read/write.
     if (!fs->exists(path) && fs->exists(backup)) fs->rename(backup, path);
-    uint8_t bytes[kPresetFileBytes];
+    uint8_t bytes[kPatchFileBytes];
     if (save)
     {
-        if (!encodePreset(definition, bytes, sizeof(bytes)) || !openIo(temp, FileSystem::kWriteCreateNew))
-        { error("Cannot save preset"); return; }
+        if (!encodePatch(definition, bytes, sizeof(bytes)) || !openIo(temp, FileSystem::kWriteCreateNew))
+        { error("Cannot save patch"); return; }
         bool ok = fs->writeFile(bytes, sizeof(bytes), io) == int32_t(sizeof(bytes));
         closeIo();
-        if (!ok) { fs->remove(temp); error("Preset write failed"); return; }
+        if (!ok) { fs->remove(temp); error("Patch write failed"); return; }
         fs->remove(backup);
         bool previous = fs->exists(path);
         if ((previous && !fs->rename(path, backup)) || !fs->rename(temp, path))
-        { if (previous && !fs->exists(path)) fs->rename(backup, path); fs->remove(temp); error("Preset save failed"); return; }
+        { if (previous && !fs->exists(path)) fs->rename(backup, path); fs->remove(temp); error("Patch save failed"); return; }
         fs->remove(backup);
         snprintf(notice, sizeof(notice), "Saved %s", filename);
     }
     else
     {
-        if (!openIo(path, FileSystem::kRead)) { error("Preset not found"); return; }
+        if (!openIo(path, FileSystem::kRead)) { error("Patch not found"); return; }
         ChainDefinition loaded;
-        bool ok = fs->getFileSize(io) == sizeof(bytes) && fs->readFile(bytes, sizeof(bytes), io) == int32_t(sizeof(bytes)) && decodePreset(bytes, sizeof(bytes), loaded);
+        bool ok = fs->getFileSize(io) == sizeof(bytes) && fs->readFile(bytes, sizeof(bytes), io) == int32_t(sizeof(bytes)) && decodePatch(bytes, sizeof(bytes), loaded);
         closeIo();
-        if (!ok) { error("Invalid or unsupported preset"); return; }
+        if (!ok) { error("Invalid or unsupported patch"); return; }
         changed(); definition = loaded; stageSelection = 0; schemaReady = false; focus = 1;
         snprintf(notice, sizeof(notice), "Loaded %s", filename);
     }
-    snprintf(presetName, sizeof(presetName), "%s", filename);
+    snprintf(patchName, sizeof(patchName), "%s", filename);
     selected = 0;
     show(Chain);
 }
@@ -1547,7 +1547,7 @@ void ChainScreen::finishRender()
     newFileManager.setInstrumentStructChanged(destinationSlot);
     newFileManager.setProjectStructChanged();
     lastUsed = definition;
-    memcpy(lastUsedPresetName, presetName, sizeof(lastUsedPresetName));
+    memcpy(lastUsedPatchName, patchName, sizeof(lastUsedPatchName));
     haveLast = true;
     // Restore current editor data before it is saved or another instrument is selected.
     work = Idle;
@@ -1701,7 +1701,7 @@ void ChainScreen::update()
         else if (status == fmImportSampleFromSampleEditorEnd)
         {
             lastUsed = definition;
-            memcpy(lastUsedPresetName, presetName, sizeof(lastUsedPresetName));
+            memcpy(lastUsedPatchName, patchName, sizeof(lastUsedPatchName));
             haveLast = true;
             haveDraft = false;
             // The editor reopens the committed slot on its next update.
@@ -1850,7 +1850,7 @@ static void openChainSession(cSampleEditor* editor, bool visible)
     if (!screen.haveDraft || screen.draftSlot != screen.sourceSlot)
     {
         screen.definition = {};
-        screen.presetName[0] = 0;
+        screen.patchName[0] = 0;
     }
     screen.runner.invalidate();
     screen.notice[0] = 0;

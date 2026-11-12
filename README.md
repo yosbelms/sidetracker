@@ -1,6 +1,6 @@
 # SideTracker
 
-An experimental, rolling-release firmware fork of Polyend Tracker Community Edition.
+A fork of Polyend Tracker Community Edition. With new performance, synth engines, smaple editor
 
 This unified codebase powers all three hardware instruments in the Tracker family:
 * **Original Polyend Tracker** (`NXP Kinetis MK66FX1M0`, Cortex-M4F @ 180 MHz)
@@ -74,7 +74,7 @@ From bug fixes and workflow improvements to new open-source synth engines and `.
     * **macOS (`x86_64` / Apple Silicon via Rosetta)**: [`gcc-arm-none-eabi-10.3-2021.10-mac.tar.bz2`](https://developer.arm.com/-/media/Files/downloads/gnu-rm/10.3-2021.10/gcc-arm-none-eabi-10.3-2021.10-mac.tar.bz2)
     * **Windows (ZIP)**: [`gcc-arm-none-eabi-10.3-2021.10-win32.zip`](https://developer.arm.com/-/media/Files/downloads/gnu-rm/10.3-2021.10/gcc-arm-none-eabi-10.3-2021.10-win32.zip)
   * Ensure `arm-none-eabi-gcc` is on your `PATH`, extract the toolchain into `./agt/10.3/`, or pass `TOOLCHAIN=/path/to/arm-none-eabi-` to `make`.
-* `make` (for building firmware) and `python3` (used by `make ptfx` to package `.ptfx` Sample Editor plugins and by the `make bump-*` version helpers; standard library only).
+* `make`, `python3`, and a host C++20 compiler for building firmware and generating SD patches.
 
 ### 2. Build Commands
 From the repository root:
@@ -84,16 +84,25 @@ From the repository root:
 make all
 
 # Or build a single target:
-make original   # -> build/PolyendTracker_SideTracker_1.0.0.ptf
-make plus       # -> build/TrackerPlus_SideTracker_1.0.0.ptf
-make mini       # -> build/TrackerMini_SideTracker_1.0.0.ptf
+make original   # -> build/SideTracker_1.0.0.ptf
+make plus       # -> build/SideTrackerPlus_1.0.0.ptf
+make mini       # -> build/SideTrackerMini_1.0.0.ptf
 
-# Build reference .ptfx Sample Editor effects into editor-fx-sdk/build/Effects/:
+# Build reference .ptfx Sample Editor effects:
 make ptfx
+
+# Generate SD patches without compiling firmware:
+make sd
 
 # Clean all build directories:
 make clean
 ```
+
+Builds stage files for the SD card in `build/SD/`. Merge its `Effects/` and
+`Patches/` folders into the SD card root. Effects patches go in `Effects/Patches/`,
+and `make ptfx` stages the plugins directly in `Effects/`. MINI and OBER
+patches go in `Patches/MINI/` and `Patches/OBER/` when the donor sources
+described in the [Custom Synth SDK guide](docs/custom_synth_sdk.md) are available.
 
 ### 3. Version Management (`version.mk`)
 All firmware version numbers are defined in [`version.mk`](version.mk). The **Build** identifier displayed on the hardware under **Config > Firmware > Build** is automatically populated from the short Git commit hash (`git rev-parse --short=7 HEAD`):
@@ -111,8 +120,7 @@ make bump-minor TARGET=all        # or TARGET=original | TARGET=plus | TARGET=mi
 
 ### 4. Flashing on Hardware & Emergency Recovery
 
-1. Copy the generated `.ptf` file from `build/` (`PolyendTracker_*.ptf`, `TrackerPlus_*.ptf`, or `TrackerMini_*.ptf`) to the `/Firmware/` folder on your Tracker's microSD card.
-   * *Note*: Keep `.ptf` filenames at **31 characters or fewer** so the Original Tracker's 32-byte `/Firmware/_fwinfo` bootloader buffer remains null-terminated.
+1. Copy the matching file from `build/SD/Firmware/` to the `/Firmware/` folder on your Tracker's microSD card. Use `PolyendTracker.ptf`, `TrackerPlus.ptf`, or `TrackerMini.ptf` for your model. If you downloaded a SideTracker `.ptf`, give it the corresponding filename when you copy it to the card.
 2. On the device, open **Config > Firmware > Firmware update**, select the `.ptf` file, and confirm.
 
 > **Bootloader Resilience & Emergency Firmware Recovery**:
@@ -126,10 +134,10 @@ make bump-minor TARGET=all        # or TARGET=original | TARGET=plus | TARGET=mi
 
 ---
 
-## Tracker CE Desktop
+## SideTracker Desktop
 
-Run `make desktop` and launch `./build/desktop/tracker-ce-desktop` to run the Original
-Tracker CE application on desktop. See the [desktop guide](platforms/desktop/README.md)
+Run `make desktop` and launch `./build/desktop/sidetracker-desktop` to run SideTracker
+as Tracker+ with MINI, OBER, and CHIP. See the [desktop guide](platforms/desktop/README.md)
 for the controls, SD card setup, and headless check.
 
 Run `make host-test` for the sanitized core tests and `make perf-gate` for audio
@@ -142,7 +150,7 @@ Full user and developer documentation is available in [`docs/`](docs/Home.md) an
 
 * **User Guides**:
   * [Perf FX](docs/perf_fx.md)
-  * [Sample Editor, ST effects, and presets](docs/sample_editor.md)
+  * [Sample Editor, ST effects, and patches](docs/sample_editor.md)
   * [Custom Themes & Fonts](docs/custom_themes_and_fonts.md) + [Live Web Editor](https://polyend.github.io/tracker-theme-editor/) ([`polyend/tracker-theme-editor`](https://github.com/polyend/tracker-theme-editor))
   * [Wavetable Envelopes, LFOs & Step FX](docs/wavetable_envelopes.md)
   * [SD Card Image Viewer](docs/image_viewer.md)

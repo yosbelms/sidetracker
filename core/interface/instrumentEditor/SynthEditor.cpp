@@ -21,15 +21,12 @@ static const uint16_t framesPlacesSynth[1][4] = {
     { (800 / 8) * 6 + 1, 31, 800 / 4 - 3, 391 },
 };
 
-const char* const synthModelNames[Synth::kSynthTypes.size()] = {
-    "ACD", "FAT", "VAP", "WTFM", "PERC", "DIRT", "CHIP",
-};
-
 static const int synthModelListImages[Synth::kSynthTypes.size()] = {
     enDisplayBitmaps::kBitmapMiniACD,  enDisplayBitmaps::kBitmapMiniFAT,
     enDisplayBitmaps::kBitmapMiniVAP,  enDisplayBitmaps::kBitmapMiniWTFM,
     enDisplayBitmaps::kBitmapMiniPERC, enDisplayBitmaps::kBitmapMiniDIRT,
-    enDisplayBitmaps::kBitmapMiniCHIP
+    enDisplayBitmaps::kBitmapMiniCHIP, enDisplayBitmaps::kBitmapMiniSynthSmall,
+    enDisplayBitmaps::kBitmapMiniOBER
 };
 
 static cInstrumentEditor* IE = &instrumentEditor;
@@ -403,12 +400,13 @@ void cInstrumentEditor::changeSynthModel(int16_t value)
     if (IE->rollListOver &&
         mtProject.values.synthPart[syntPartIdx].synthType + value > modelMaxValue)
     {
-        mtProject.values.synthPart[syntPartIdx].synthType = 0;
+        mtProject.values.synthPart[syntPartIdx].synthType = Synth::kFirstAvailableType;
     }
     else
     {
         mtProject.values.synthPart[syntPartIdx].synthType =
-          clamp<int>(mtProject.values.synthPart[syntPartIdx].synthType + value, 0, modelMaxValue);
+          clamp<int>(mtProject.values.synthPart[syntPartIdx].synthType + value,
+                     Synth::kFirstAvailableType, modelMaxValue);
     }
 
     if (previousSynthType == mtProject.values.synthPart[syntPartIdx].synthType)
@@ -704,6 +702,8 @@ int cInstrumentEditor::loadPatchList()
     char* destHead = patchfileNamesBuffer;
     for (auto& patchName : patchList)
     {
+        if (idx >= kMaxFilesListLength) break;
+        if (patchName.size() > kMaxFileNameLen) continue;
         patchListDataName[idx] = destHead;
         const auto len = patchName.length() + 1;
         polystrncpy(destHead, patchName.data(), len);
@@ -719,7 +719,7 @@ int cInstrumentEditor::loadPatchList()
 
     list2Data.start = previousPatchIdx;
     list2Data.data = patchListDataName;
-    list2Data.length = patchList.size();
+    list2Data.length = idx;
 
     return previousPatchIdx;
 }
@@ -815,12 +815,12 @@ void cInstrumentEditor::showSynthParamsScreen()
     display.setControlPosition(noteLabel, 625, 45);
     display.setControlSize(noteLabel, 170, 30);
 
-    modelListData.start = mtProject.values.synthPart[syntPartIdx].synthType;
-    modelListData.length = Synth::kSynthTypes.size();
-    modelListData.linesCount = std::min<uint16_t>(Synth::kSynthTypes.size(), 7);
+    modelListData.start = mtProject.values.synthPart[syntPartIdx].synthType - Synth::kFirstAvailableType;
+    modelListData.length = Synth::kSynthTypes.size() - Synth::kFirstAvailableType;
+    modelListData.linesCount = std::min<uint16_t>(modelListData.length, 7);
     modelListData.rowHeight = 50;
     modelListData.params = nullptr;
-    modelListData.imageIds = synthModelListImages;
+    modelListData.imageIds = synthModelListImages + Synth::kFirstAvailableType;
     modelListData.scrollText = true;
 
     display.setControlData(modelListControl, &modelListData);
@@ -904,7 +904,8 @@ void cInstrumentEditor::showSynthParamsScreen()
 
 void cInstrumentEditor::showSynthModel(uint8_t synthPart)
 {
-    display.setControlValue(modelListControl, mtProject.values.synthPart[synthPart].synthType);
+    display.setControlValue(modelListControl,
+                            mtProject.values.synthPart[synthPart].synthType - Synth::kFirstAvailableType);
     display.refreshControl(modelListControl);
     titleBar->showCurrentInstrumentOnRightLabel();
 }
@@ -914,7 +915,8 @@ void cInstrumentEditor::showSynthPolyphony(uint8_t synthPart)
     int value = mtProject.values.synthPart[synthPart].voiceCount;
     int valueMax = synth->getMaxVoiceCount(synthPart);
 
-    snprintf(labelText[1], sizeof(labelText[1]), "%d", value > 0 && valueMax > 0 ? value : 0);
+    value = std::min(value, valueMax);
+    snprintf(labelText[1], sizeof(labelText[1]), "%d", value);
 
     display.setControlText2(label[1], labelText[1]);
     display.refreshControl(label[1]);

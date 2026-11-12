@@ -4,6 +4,17 @@ The **Polyend Tracker Custom Synth Engine SDK** ([`synth/include/PolySynth/sdk/`
 
 ---
 
+SideTracker adds **MINI**, a three-oscillator ladder monosynth with low-note priority, and **OBER**, a two-oscillator polysynth with PWM, hard sync, cross-modulation, and SEM morphing. OBER offers up to four voices or **Mono Legato** in its Voice section. Both share the Tracker's eight-voice pool. Each has three built-in patches in **Synth → Load**.
+
+`make desktop` builds the Tracker+ simulator with MINI, OBER, and CHIP. The
+[desktop guide](../platforms/desktop/README.md) covers synth selection and patch storage.
+
+Run `python3 tools/port_analog_synth_presets.py` with the donor source folders under `temp/` to generate `build/SideTrackerAnalogPresets.zip`. The pack contains 200 FMini-1 presets for MINI and 100 presets for OBER, including 70 converted OberVave sounds and 30 original SideTracker sounds. The archive contains individual Tracker `.patch` files under `Patches/MINI/` and `Patches/OBER/`. Copy the `Patches` folder to the SD-card root, select the synth, and open **Load**. The conversion maps supported synth controls. Donor arpeggiators, FX sends, and voice stacking are omitted. The archive includes the donor licenses.
+
+`make sd` stages both collections in `build/SD/Patches/` when the donor folders
+are present. `make desktop` stages the same files and the simulator lists them
+alongside each synth’s three built-in SideTracker patches.
+
 ## Table of Contents
 
 1. [Architecture Overview](#1-architecture-overview)
@@ -670,9 +681,9 @@ To expose the new engine in the Tracker's Synth model selector and Patch Editor:
    - **Medium Badge (`108x40` pixels, `1080` bytes, stride `27`)**: Displayed in the Patch Editor (`SynthPatchEditor`). See [`chip_med_108x40_L2.h`](../core/libs/images/chip_med_108x40_L2.h).
    - Register the bitmap enum IDs in [`core/libs/NewDisplay/displayStructs.h`](../core/libs/NewDisplay/displayStructs.h#L51-L85) (`enDisplayBitmaps`) and add their FT812 `RAM_G` entries in [`core/libs/NewDisplay/display.cpp`](../core/libs/NewDisplay/display.cpp#L172-L211) (`bitmaps[]`).
 
-3. **Add Name & Bitmap Entries to the Synth Editors**:
+3. **Add Bitmap Entries to the Synth Editors**:
    - In [`core/interface/instrumentEditor/SynthEditor.cpp`](../core/interface/instrumentEditor/SynthEditor.cpp#L24-L33):
-     Append your engine's short name to `synthModelNames` and its mini bitmap ID to `synthModelListImages`.
+     Append your engine's mini bitmap ID to `synthModelListImages`. The model name comes from the registered `InstrumentType`.
    - In [`core/interface/instrumentEditor/SynthPatchEditor.cpp`](../core/interface/instrumentEditor/SynthPatchEditor.cpp#L19-L22):
      Append its medium bitmap ID to `synthModelListImages`.
 
@@ -691,11 +702,11 @@ make plus
 make mini
 ```
 
-The flashable `.ptf` files are generated in `build/`:
-- `build/TrackerPlus_SideTracker_1.0.0.ptf`
-- `build/TrackerMini_SideTracker_1.0.0.ptf`
+The firmware files are generated in `build/`:
+- `build/SideTrackerPlus_1.0.0.ptf`
+- `build/SideTrackerMini_1.0.0.ptf`
 
-Copy the `.ptf` file to the `/Firmware/` directory on your Tracker's SD card and flash via **Config → Firmware → Firmware update**.
+Copy the matching `TrackerPlus.ptf` or `TrackerMini.ptf` from `build/SD/Firmware/` to the `/Firmware/` directory on your Tracker's SD card and flash via **Config → Firmware → Firmware update**.
 
 ---
 

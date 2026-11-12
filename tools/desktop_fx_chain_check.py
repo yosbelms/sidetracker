@@ -6,9 +6,13 @@ import json
 from pathlib import Path
 import struct
 import subprocess
-import sys
 import tempfile
 import wave
+
+
+def desktop_args(binary: Path):
+    # Test in firmware coordinates to keep software rendering time bounded.
+    return [str(binary.resolve()), "--scale", "1"]
 
 
 def waveform_center(path: Path):
@@ -38,20 +42,20 @@ def check_chain_frames(path: Path):
             frames[-1].append((int(x), int(y), value))
     headers = {text for frame in frames for x, y, text in frame
                if 300 <= x < 500 and 31 <= y < 60}
-    if not {"Chain", "Save Preset", "Load Preset"} <= headers:
-        raise AssertionError("Chain or Save/Load Preset heading was missing")
+    if not {"Chain", "Save Patch", "Load Patch"} <= headers:
+        raise AssertionError("Chain or Save/Load Patch heading was missing")
     checked = 0
     values = {"Low": "0.000 dB", "Low freq": "90 Hz", "Low Width": "1.000",
               "Mid": "0.000 dB", "Mid freq": "800 Hz", "Mid Width": "1.000",
               "High": "0.000 dB", "High freq": "12000 Hz", "High Width": "1.000"}
     for frame in frames:
         menu = any(300 <= x < 500 and 31 <= y < 60 and text in
-                   {"Actions", "Save Preset", "Load Preset", "Render to"} for x, y, text in frame)
+                   {"Actions", "Save Patch", "Load Patch", "Render to"} for x, y, text in frame)
         if menu:
             if any(x >= 500 and 31 <= y < 424 and text for x, y, text in frame):
-                raise AssertionError("Parameter/Value columns remained visible over the preset menu")
+                raise AssertionError("Parameter/Value columns remained visible over the patch menu")
             if any(x == 750 and 424 <= y < 480 and text for x, y, text in frame):
-                raise AssertionError("Value footer remained visible over the preset menu")
+                raise AssertionError("Value footer remained visible over the patch menu")
             continue
         if not any(y < 31 and text.startswith("FX Chain") for x, y, text in frame):
             continue
@@ -63,7 +67,7 @@ def check_chain_frames(path: Path):
             if 424 <= y < 480 and text:
                 toolbar.setdefault(x, []).append(text)
         if toolbar.get(150) == ["Select"]:
-            continue  # Context/saved-preset/destination menu.
+            continue  # Context/saved-patch/destination menu.
         for x, choices in [(50, {"Preview", "Stop"}), (150, {"Add", "Use src", "Replace"}),
                            (250, {"Back"}), (350, {"Apply"}), (450, {"Actions"}), (550, {"Mix"})]:
             if not toolbar.get(x) or toolbar[x][0] not in choices:
@@ -162,19 +166,19 @@ assert-chain closed
 """.replace("PLUGIN_AUDIT", str(audit.resolve()))
             .replace("PLUGIN_SCREEN", str((output / "sample-fx-plugin-params.bmp").resolve())))
         result = subprocess.run(
-            [str(binary.resolve()), "--sd", str(card), "--script", str(script),
+            [*desktop_args(binary), "--sd", str(card), "--script", str(script),
              "--screenshot", str((output / "sample-fx-plugins.bmp").resolve())],
             capture_output=True, text=True, timeout=90)
         if result.returncode:
             raise RuntimeError(result.stdout + result.stderr)
-        saved = (card / "Effects/Presets/Preset01.ptpreset").read_bytes()
+        saved = (card / "Effects/Patches/Patch01.patch").read_bytes()
         if saved[5] != 2:
             raise AssertionError("Desktop could not add repeated PTFX stages")
         for index, expected in [(1, (1.0, 0.0)), (2, (1.5, 1.0))]:
             node = 16 + index * 100
             if saved[node] != 255 or struct.unpack_from("<ff", saved, node + 51) != expected:
                 raise AssertionError("PTFX parameter/list edits were not preserved independently")
-        generated = (card / "Effects/Presets/Preset02.ptpreset").read_bytes()
+        generated = (card / "Effects/Patches/Patch02.patch").read_bytes()
         if generated[16] != 255 or generated[19] != 1 or struct.unpack_from("<I", generated, 8)[0] != 48510:
             raise AssertionError("Desktop could not select/configure a PTFX generator")
         frames = audit.read_text()
@@ -221,7 +225,7 @@ assert-view Master
 """
             script.write_text(commands.replace("TOOLS_SCREEN", str((output / "sample-editor-tools.bmp").resolve())))
             result = subprocess.run(
-                [str(binary.resolve()), "--sd", str(card), "--script", str(script),
+                [*desktop_args(binary), "--sd", str(card), "--script", str(script),
                  "--screenshot", str((output / f"sample-tool-{name}.bmp").resolve())],
                 capture_output=True, text=True, timeout=90)
             if result.returncode:
@@ -255,7 +259,7 @@ def check_apply_to_current_slot(binary: Path, output: Path):
                 # Create a valid workspace before obstructing the edit's staging file.
                 script.write_text(imports)
                 setup = subprocess.run(
-                    [str(binary.resolve()), "--sd", str(card), "--script", str(script),
+                    [*desktop_args(binary), "--sd", str(card), "--script", str(script),
                      "--screenshot", str(card / "setup.bmp")],
                     capture_output=True, text=True, timeout=90)
                 if setup.returncode:
@@ -297,7 +301,7 @@ assert-sample 0 100 2000
 assert-sample 1 100 2000
 """))
             result = subprocess.run(
-                [str(binary.resolve()), "--sd", str(card), "--script", str(script),
+                [*desktop_args(binary), "--sd", str(card), "--script", str(script),
                  "--screenshot", str((output / f"sample-apply-{'failed' if blocked else 'undo'}.bmp").resolve())],
                 capture_output=True, text=True, timeout=90)
             if result.returncode:
@@ -364,14 +368,14 @@ button Insert
 wait 2000
 assert-chain closed
 """)
-        result = subprocess.run([str(binary.resolve()), "--sd", str(card), "--script", str(script),
+        result = subprocess.run([*desktop_args(binary), "--sd", str(card), "--script", str(script),
                                  "--screenshot", str((output / "sample-stpalette-render.bmp").resolve())],
                                 capture_output=True, text=True, timeout=90)
         if result.returncode:
             raise RuntimeError(result.stdout + result.stderr)
-        saved = (card / "Effects/Presets/Preset01.ptpreset").read_bytes()
+        saved = (card / "Effects/Patches/Patch01.patch").read_bytes()
         if saved[:5] != b"PTPR\x01" or saved[5] != 2 or saved[116] != 35 or saved[216] != 32:
-            raise AssertionError("Native category/Type preset was not saved as PTPR v1")
+            raise AssertionError("Native category/Type patch was not saved as PTPR v1")
         with (card / "Effects/STPaletteCPU.csv").open() as report:
             rows = list(csv.DictReader(report))
         if len(rows) != 3 or any(row["category"] != "Character" or int(row["max_ticks"]) <= 0 for row in rows):
@@ -397,83 +401,82 @@ assert-chain closed
             raise AssertionError(f"Type arrows moved in the wrong direction: {values}")
 
 
-def check_named_presets(binary: Path, output: Path):
+def check_named_patches(binary: Path, output: Path):
     root = Path(__file__).resolve().parents[1]
-    subprocess.run([sys.executable, str(root / "tools/generate_stpalette_presets.py")], check=True)
-    pack = root / "build/STPaletteShowcase"
-    settings = json.loads((pack / "presets.json").read_text())
-    presets = {preset["name"]: preset for preset in settings["presets"]}
-    with tempfile.TemporaryDirectory(prefix="ce-named-presets-") as directory:
+    staged = root / "build/SD/Effects/Patches"
+    settings = json.loads((root / "patches/stpalette/patches.json").read_text())
+    patches = {patch["name"]: patch for patch in settings["patches"]}
+    with tempfile.TemporaryDirectory(prefix="ce-named-patches-") as directory:
         card = Path(directory)
-        saved = card / "Effects/Presets"
+        saved = card / "Effects/Patches"
         saved.mkdir(parents=True)
-        for name in presets:
-            (saved / f"{name}.ptpreset").write_bytes((pack / f"Effects/Presets/{name}.ptpreset").read_bytes())
-        legacy_dir = card / "Effects/Chains"
+        for name in patches:
+            (saved / f"{name}.patch").write_bytes((staged / f"{name}.patch").read_bytes())
+        legacy_dir = card / "Effects/Presets"
         legacy_dir.mkdir()
-        names = sorted(presets)
+        names = sorted(patches)
         edited = names[-1]
-        original = (saved / f"{edited}.ptpreset").read_bytes()
-        (legacy_dir / "Old Folder.ptchain").write_bytes(original)
-        (saved / "Old Extension.ptchain").write_bytes(original)
-        (saved / "Ignored.ptpreset").mkdir()
-        (saved / "notes.txt").write_text("not a preset")
+        original = (saved / f"{edited}.patch").read_bytes()
+        (legacy_dir / "Old Folder.patch").write_bytes(original)
+        (saved / "Old Extension.ptpreset").write_bytes(original)
+        (saved / "Ignored.patch").mkdir()
+        (saved / "notes.txt").write_text("not a patch")
         with wave.open(str(card / "input.wav"), "wb") as wav:
             wav.setparams((1, 2, 44100, 44100 * 4, "NONE", "not compressed"))
             wav.writeframes(struct.pack("<h", 2000) * (44100 * 4))
-        audit = output / "sample-named-presets.tsv"
+        audit = output / "sample-named-patches.tsv"
         commands = [f"audit-frames {audit.resolve()}", "import 0 /input.wav",
                     "button S. Editor", "button 5", "button Right"]
         for index, name in enumerate(names):
-            stages = presets[name]["stages"]
+            stages = patches[name]["stages"]
             commands += ["button Insert", f"encoder {1 if index == 0 else 6}", "button Insert",
                          f"encoder {index}", "button Insert", f"assert-chain-size {len(stages)}",
                          "button 0", "wait 100", "assert-preview live", "button 0", "wait 50"]
-        # Edit the last loaded chain and replace its named preset.
-        amount = presets[edited]["stages"][0]["amount"]
+        # Edit the last loaded chain and replace its named patch.
+        amount = patches[edited]["stages"][0]["amount"]
         delta = -1 if amount == 100 else 1
         commands += ["button Right", "button Down", "button Right", f"encoder {delta}",
                      "button Left", "button Left", "button Insert", "encoder 7", "button Insert",
                      "button Insert"]
-        # The installed pack still leaves room to save the chain as a new preset.
+        # The installed pack still leaves room to save the chain as a new patch.
         commands += ["button Insert", "encoder 7", "button Insert", "encoder 1", "button Insert",
                      "button Master", "assert-chain closed", "assert-view Master"]
         script = card / "named.txt"
         script.write_text("\n".join(commands) + "\n")
-        result = subprocess.run([str(binary.resolve()), "--sd", str(card), "--script", str(script),
-                                 "--screenshot", str((output / "sample-named-presets.bmp").resolve())],
+        result = subprocess.run([*desktop_args(binary), "--sd", str(card), "--script", str(script),
+                                 "--screenshot", str((output / "sample-named-patches.bmp").resolve())],
                                 capture_output=True, text=True, timeout=120)
         if result.returncode:
             raise RuntimeError(result.stdout + result.stderr)
         frames = audit.read_text()
         for name in names:
             if f"\t{name}\n" not in frames:
-                raise AssertionError(f"Saved preset name was not displayed: {name}")
+                raise AssertionError(f"Saved patch name was not displayed: {name}")
         for ignored in ("Ignored", "notes", "Old Folder", "Old Extension"):
             if f"\t{ignored}\n" in frames:
-                raise AssertionError(f"Saved-preset browser included {ignored}")
-        actual = (saved / f"{edited}.ptpreset").read_bytes()
+                raise AssertionError(f"Saved-patch browser included {ignored}")
+        actual = (saved / f"{edited}.patch").read_bytes()
         if struct.unpack_from("<f", actual, 16 + 100 + 51 + 4)[0] != amount + delta:
-            raise AssertionError("Named preset parameter edit was not saved")
-        expected_files = {f"{name}.ptpreset" for name in [*names, "Preset01"]}
-        if {path.name for path in saved.glob("*.ptpreset") if path.is_file()} != expected_files:
-            raise AssertionError("Save Preset did not add exactly one numbered destination")
-        if (saved / "Preset01.ptpreset").read_bytes() != actual:
-            raise AssertionError("The numbered preset did not store the edited chain")
-        for name in presets:
-            if name != edited and (saved / f"{name}.ptpreset").read_bytes() != (pack / f"Effects/Presets/{name}.ptpreset").read_bytes():
-                raise AssertionError("Saving a named preset replaced a different preset")
+            raise AssertionError("Named patch parameter edit was not saved")
+        expected_files = {f"{name}.patch" for name in [*names, "Patch01"]}
+        if {path.name for path in saved.glob("*.patch") if path.is_file()} != expected_files:
+            raise AssertionError("Save Patch did not add exactly one numbered destination")
+        if (saved / "Patch01.patch").read_bytes() != actual:
+            raise AssertionError("The numbered patch did not store the edited chain")
+        for name in patches:
+            if name != edited and (saved / f"{name}.patch").read_bytes() != (staged / f"{name}.patch").read_bytes():
+                raise AssertionError("Saving a named patch replaced a different patch")
 
 
 def check_chain_mix(binary: Path, output: Path):
     for percent in (0, 50, 100):
-        with tempfile.TemporaryDirectory(prefix="ce-preset-mix-") as directory:
+        with tempfile.TemporaryDirectory(prefix="ce-patch-mix-") as directory:
             card = Path(directory)
             pcm = struct.pack("<h", 2000) * (44100 * 4)
             with wave.open(str(card / "input.wav"), "wb") as wav:
                 wav.setparams((1, 2, 44100, 44100 * 4, "NONE", "not compressed"))
                 wav.writeframes(pcm)
-            audit = output / f"sample-preset-mix-{percent}.tsv"
+            audit = output / f"sample-patch-mix-{percent}.tsv"
             delta = -1 if percent == 100 else 1
             arrows = ["Down", "Up", "Left", "Right"] if percent == 100 else ["Up", "Down", "Right", "Left"]
             commands = [f"audit-frames {audit.resolve()}", "import 0 /input.wav", "button S. Editor", "button 5",
@@ -486,10 +489,10 @@ def check_chain_mix(binary: Path, output: Path):
                 commands += ["button Left", "button Left", "button 4", "encoder 7", "button Insert",
                              "button Insert", "press 5", "encoder -50", "release 5", "button 4", "encoder 6",
                              "button Insert", "button Insert", "button 5"]
-            commands += [f"snapshot {(output / f'sample-preset-mix-{percent}-control.bmp').resolve()}", "button 4", "encoder 100", "button Insert", "wait 20000", "button Insert", "wait 20000", "assert-chain closed"]
+            commands += [f"snapshot {(output / f'sample-patch-mix-{percent}-control.bmp').resolve()}", "button 4", "encoder 100", "button Insert", "wait 20000", "button Insert", "wait 20000", "assert-chain closed"]
             script = card / "mix.txt"; script.write_text("\n".join(commands) + "\n")
-            result = subprocess.run([str(binary.resolve()), "--sd", str(card), "--script", str(script),
-                                     "--screenshot", str((output / f"sample-preset-mix-{percent}.bmp").resolve())],
+            result = subprocess.run([*desktop_args(binary), "--sd", str(card), "--script", str(script),
+                                     "--screenshot", str((output / f"sample-patch-mix-{percent}.bmp").resolve())],
                                     capture_output=True, text=True, timeout=120)
             if result.returncode: raise RuntimeError(result.stdout + result.stderr)
             rendered = (card / "Workspace/instruments/instrument_02.pti").read_bytes()
@@ -498,8 +501,8 @@ def check_chain_mix(binary: Path, output: Path):
                 raise AssertionError(f"Global {percent}% Mix did not blend the entire two-stage chain")
             if (card / "Workspace/instruments/instrument_01.pti").read_bytes()[-len(pcm):] != pcm:
                 raise AssertionError("Chain Mix changed the source sample")
-            if percent == 50 and (card / "Effects/Presets/Preset01.ptpreset").read_bytes()[7] != 50:
-                raise AssertionError("Preset Mix was not saved")
+            if percent == 50 and (card / "Effects/Patches/Patch01.patch").read_bytes()[7] != 50:
+                raise AssertionError("Patch Mix was not saved")
             frames = audit.read_text()
             if f"\t{percent}%\n" not in frames:
                 raise AssertionError("Chain Mix percentage was not displayed")
@@ -511,7 +514,7 @@ def check_chain_mix(binary: Path, output: Path):
                     if len(fields) == 3 and (fields[2] == "Mix" or fields[2].endswith("%")) and fields[0] != "550":
                         raise AssertionError("Mix appeared outside its toolbar button")
             if percent == 50:
-                saved = (card / "Effects/Presets/Preset01.ptpreset").read_bytes()
+                saved = (card / "Effects/Patches/Patch01.patch").read_bytes()
                 for index in (1, 2):
                     if struct.unpack_from("<f", saved, 16 + index * 100 + 51)[0] != 2:
                         raise AssertionError("Holding Mix changed an effect parameter")
@@ -519,7 +522,7 @@ def check_chain_mix(binary: Path, output: Path):
     # the cached wet audio and original snapshot, without blending twice.
     for kind in ("normalize", "latency"):
         with tempfile.TemporaryDirectory(prefix="ce-prepared-mix-") as directory:
-            card = Path(directory); saved = card / "Effects/Presets"; saved.mkdir(parents=True)
+            card = Path(directory); saved = card / "Effects/Patches"; saved.mkdir(parents=True)
             blob = bytearray(916); blob[:5] = b"PTPR\x01"; blob[5] = 1; blob[7] = 100
             struct.pack_into("<I", blob, 8, 44100)
             for index in range(9): blob[16 + index * 100] = 254
@@ -533,7 +536,7 @@ def check_chain_mix(binary: Path, output: Path):
             checksum = 2166136261
             for byte in blob[:12] + blob[16:]: checksum = ((checksum ^ byte) * 16777619) & 0xffffffff
             struct.pack_into("<I", blob, 12, checksum)
-            (saved / f"{kind}.ptpreset").write_bytes(blob)
+            (saved / f"{kind}.patch").write_bytes(blob)
             pcm = struct.pack("<h", 2000) * 16001
             with wave.open(str(card / "input.wav"), "wb") as wav:
                 wav.setparams((1, 2, 44100, 16001, "NONE", "not compressed")); wav.writeframes(pcm)
@@ -567,7 +570,7 @@ button Insert
 wait 5000
 assert-chain closed
 """)
-            result = subprocess.run([str(binary.resolve()), "--sd", str(card), "--script", str(script),
+            result = subprocess.run([*desktop_args(binary), "--sd", str(card), "--script", str(script),
                                      "--screenshot", str((output / f"sample-prepared-{kind}-mix.bmp").resolve())],
                                     capture_output=True, text=True, timeout=90)
             if result.returncode: raise RuntimeError(result.stdout + result.stderr)
@@ -586,7 +589,7 @@ assert-chain closed
 def check(binary: Path, output: Path):
     output.mkdir(parents=True, exist_ok=True)
     check_native_stpalette(binary, output)
-    check_named_presets(binary, output)
+    check_named_patches(binary, output)
     check_chain_mix(binary, output)
     with tempfile.TemporaryDirectory(prefix="ce-fx-chain-") as directory:
         card = Path(directory)
@@ -607,7 +610,7 @@ def check(binary: Path, output: Path):
         # Reverse twice through Tools, append two effects from the independent
         # browser, and edit only the second. Browsing the generator must not
         # replace either stage or the source. Then save/load, bypass, and render.
-        script = card / "preset.txt"
+        script = card / "patch.txt"
         script.write_text("""audit-frames FRAME_AUDIT
 import 0 /input.wav
 button S. Editor
@@ -741,7 +744,7 @@ assert-chain closed
             .replace("COLUMNS_SCREEN", str((output / "sample-fx-columns.bmp").resolve()))
             .replace("ACTIONS_SCREEN", str((output / "sample-fx-actions.bmp").resolve())))
         result = subprocess.run(
-            [str(binary.resolve()), "--sd", str(card), "--script", str(script),
+            [*desktop_args(binary), "--sd", str(card), "--script", str(script),
              "--screenshot", str((output / "sample-fx-chain.bmp").resolve())],
             capture_output=True, text=True, timeout=90)
         if result.returncode:
@@ -752,9 +755,9 @@ assert-chain closed
             actual = (instruments / f"instrument_{index:02d}.pti").read_bytes()
             if actual[-len(expected):] != expected:
                 raise AssertionError(f"Instrument {index} audio differs")
-        definition = card / "Effects/Presets/Preset01.ptpreset"
+        definition = card / "Effects/Patches/Patch01.patch"
         if not definition.is_file():
-            raise AssertionError("Preset was not saved")
+            raise AssertionError("Patch was not saved")
         saved = definition.read_bytes()
         if saved[5] != 2:
             raise AssertionError("Repeated Add did not append two stages")
@@ -855,7 +858,7 @@ assert-chain closed
                 .replace("FIRST_PLAIN_PREVIEW", str((output / "sample-editor-first-preview.bmp").resolve()))
                 .replace("SECOND_PLAIN_PREVIEW", str((output / "sample-editor-second-preview.bmp").resolve())))
             live_result = subprocess.run(
-                [str(binary.resolve()), "--sd", str(live_card), "--script", str(live_script),
+                [*desktop_args(binary), "--sd", str(live_card), "--script", str(live_script),
                  "--screenshot", str((output / "sample-fx-live-closed.bmp").resolve())],
                 capture_output=True, text=True, timeout=90)
             if live_result.returncode:
@@ -889,7 +892,7 @@ wait 100
 assert-chain closed
 """)
             failure = subprocess.run(
-                [str(binary.resolve()), "--sd", str(failing), "--script", str(failure_script),
+                [*desktop_args(binary), "--sd", str(failing), "--script", str(failure_script),
                  "--screenshot", str((output / "sample-fx-chain-failure.bmp").resolve())],
                 capture_output=True, text=True, timeout=90)
             if failure.returncode:
@@ -899,7 +902,7 @@ assert-chain closed
                 raise AssertionError("Snapshot failure changed the source")
             if (failing / "Workspace/instruments/instrument_02.pti").exists():
                 raise AssertionError("Snapshot failure created an instrument")
-        print("Sample FX chain: independent browser, repeated Add, exact render, presets, Actions toolbar/menu, whole-chain Mix, bypass, persistent main-view preview, physical view switching, live parameter editing, startup while playing, and failure recovery passed")
+        print("Sample FX chain: independent browser, repeated Add, exact render, patches, Actions toolbar/menu, whole-chain Mix, bypass, persistent main-view preview, physical view switching, live parameter editing, startup while playing, and failure recovery passed")
 
 
 if __name__ == "__main__":

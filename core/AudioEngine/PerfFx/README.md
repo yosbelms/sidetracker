@@ -14,7 +14,7 @@ See the [Perf FX user guide](../../../docs/perf_fx.md) for pattern commands, Lin
 make -C tests test
 make -C tests STEREO=1 test
 make desktop
-python3 tools/desktop_perf_fx_check.py build/desktop/tracker-ce-desktop
+python3 tools/desktop_perf_fx_check.py build/desktop/sidetracker-desktop
 make all
 ```
 

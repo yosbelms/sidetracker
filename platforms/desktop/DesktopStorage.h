@@ -49,6 +49,9 @@ public:
 private:
     struct OpenFile { FILE* stream = nullptr; };
     std::filesystem::path resolve(const char*) const;
+    std::filesystem::path resolveForRead(const char*) const;
+    std::filesystem::path resolvePackagedPatchFolder(const std::filesystem::path&) const;
+    std::filesystem::path packagedPatches;
     std::filesystem::path root;
     std::unordered_set<OpenFile*> handles;
 };

@@ -5,6 +5,10 @@
 #include <strings.h>
 #include <stdexcept>
 #include <vector>
+#ifdef TRACKER_DESKTOP_PLUS
+#include <SDL.h>
+#include <memory>
+#endif
 
 namespace fs = std::filesystem;
 
@@ -12,6 +16,11 @@ DesktopStorage::DesktopStorage(fs::path path) : root(fs::absolute(path).lexicall
 {
     fs::create_directories(root);
     root = fs::canonical(root);
+#ifdef TRACKER_DESKTOP_PLUS
+    const std::unique_ptr<char, decltype(&SDL_free)> basePath(SDL_GetBasePath(), SDL_free);
+    if (basePath)
+        packagedPatches = fs::path(basePath.get()) / "../SD/Patches";
+#endif
 }
 
 DesktopStorage::~DesktopStorage()
@@ -38,7 +47,32 @@ fs::path DesktopStorage::resolve(const char* path) const
 bool DesktopStorage::exists(const char* path)
 {
     std::error_code ec;
-    return fs::exists(resolve(path), ec);
+    return fs::exists(resolveForRead(path), ec);
+}
+
+fs::path DesktopStorage::resolveForRead(const char* path) const
+{
+    auto local = resolve(path);
+    if (local.empty() || local.extension() != ".patch")
+        return local;
+
+    const auto bundledFolder = resolvePackagedPatchFolder(local.parent_path());
+    std::error_code ec;
+    if (bundledFolder.empty() || fs::exists(local, ec) || ec)
+        return local;
+    const char* legacyFolder = local.parent_path().filename() == "MINI" ? "9" : "10";
+    const auto legacy = resolve((fs::path("Patches") / legacyFolder / local.filename()).c_str());
+    if (fs::is_regular_file(legacy, ec))
+        return legacy;
+    return bundledFolder / local.filename();
+}
+
+fs::path DesktopStorage::resolvePackagedPatchFolder(const fs::path& local) const
+{
+    if (packagedPatches.empty() || local.parent_path() != root / "Patches")
+        return {};
+    const auto name = local.filename();
+    return name == "MINI" || name == "OBER" ? packagedPatches / name : fs::path{};
 }
 
 bool DesktopStorage::rename(const char* oldPath, const char* newPath)
@@ -86,7 +120,7 @@ bool DesktopStorage::removeOnlyDirFiles(const char* path)
 size_t DesktopStorage::getFileSize(const char* path)
 {
     std::error_code ec;
-    const auto size = fs::file_size(resolve(path), ec);
+    const auto size = fs::file_size(resolveForRead(path), ec);
     return ec ? 0 : size;
 }
 
@@ -115,7 +149,7 @@ size_t DesktopStorage::getFileAvailable(FileHandle file)
 std::tuple<bool, FileSystem::FileHandle> DesktopStorage::openFile(const char* path, FileOpenMode mode,
                                                                  FileHandle* reuse)
 {
-    const auto filename = resolve(path);
+    const auto filename = mode == kRead ? resolveForRead(path) : resolve(path);
     if (filename.empty())
         return {false, nullptr};
     auto* file = reuse ? static_cast<OpenFile*>(*reuse) : nullptr;
@@ -335,12 +369,25 @@ void DesktopStorage::listDirContents(const char* path, DirContentType type,
 {
     const int maxEntries = count;
     count = 0;
-    for (const auto& name : entries(resolve(path), [&](const auto& entry)
-         {
-             std::error_code ec;
-             return entry.is_directory(ec) == (type == kFolders) && !ec &&
-                    (!filter || filter(entry.path().filename().c_str()));
-         }))
+    const auto local = resolve(path);
+    const auto matchesType = [&](const auto& entry) {
+        std::error_code ec;
+        return entry.is_directory(ec) == (type == kFolders) && !ec &&
+               (!filter || filter(entry.path().filename().c_str()));
+    };
+    auto names = entries(local, matchesType);
+    if (type == kFiles)
+    {
+        const auto bundled = resolvePackagedPatchFolder(local);
+        if (!bundled.empty())
+        {
+            const auto localCount = names.size();
+            for (auto& name : entries(bundled, matchesType))
+                if (!std::binary_search(names.begin(), names.begin() + localCount, name))
+                    names.push_back(std::move(name));
+        }
+    }
+    for (const auto& name : names)
     {
         const int size = name.size() + 1;
         if (size > maxName)

@@ -1,11 +1,11 @@
-#include "SampleFxPreset.h"
+#include "SampleFxPatch.h"
 
 #include <cstring>
 
 namespace samplefx
 {
-constexpr char kPresetMagic[] = "PTPR";
-constexpr uint8_t kPresetVersion = 1;
+constexpr char kPatchMagic[] = "PTPR";
+constexpr uint8_t kPatchVersion = 1;
 
 static void put32(uint8_t* p, uint32_t v)
 {
@@ -15,12 +15,12 @@ static uint32_t get32(const uint8_t* p)
 {
     return uint32_t(p[0]) | uint32_t(p[1]) << 8 | uint32_t(p[2]) << 16 | uint32_t(p[3]) << 24;
 }
-bool encodePreset(const ChainDefinition& r, uint8_t* bytes, size_t size)
+bool encodePatch(const ChainDefinition& r, uint8_t* bytes, size_t size)
 {
-    if (size != kPresetFileBytes || !validChain(r)) return false;
+    if (size != kPatchFileBytes || !validChain(r)) return false;
     memset(bytes, 0, size);
-    memcpy(bytes, kPresetMagic, sizeof(kPresetMagic) - 1);
-    bytes[4] = kPresetVersion;
+    memcpy(bytes, kPatchMagic, sizeof(kPatchMagic) - 1);
+    bytes[4] = kPatchVersion;
     bytes[5] = r.count;
     bytes[6] = r.qualityResolved;
     bytes[7] = r.mix;
@@ -45,10 +45,10 @@ bool encodePreset(const ChainDefinition& r, uint8_t* bytes, size_t size)
                                  fingerprint(bytes, 12)));
     return true;
 }
-bool decodePreset(const uint8_t* bytes, size_t size, ChainDefinition& r)
+bool decodePatch(const uint8_t* bytes, size_t size, ChainDefinition& r)
 {
-    if (size != kPresetFileBytes || memcmp(bytes, kPresetMagic, sizeof(kPresetMagic) - 1) ||
-        bytes[4] != kPresetVersion || bytes[6] > 1 || bytes[7] > 100 ||
+    if (size != kPatchFileBytes || memcmp(bytes, kPatchMagic, sizeof(kPatchMagic) - 1) ||
+        bytes[4] != kPatchVersion || bytes[6] > 1 || bytes[7] > 100 ||
         get32(bytes + 12) != fingerprint(bytes + 16, size - 16, fingerprint(bytes, 12))) return false;
     ChainDefinition candidate;
     candidate.count = bytes[5];

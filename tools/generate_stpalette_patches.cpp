@@ -1,6 +1,6 @@
-// Native encoder for generate_stpalette_presets.py. Uses the firmware's registry
-// and serializer so presets follow the same validation and file format as CE.
-#include "SampleFxPreset.h"
+// Native encoder for generate_stpalette_patches.py. Uses the firmware's registry
+// and serializer so patches follow the same validation and file format as CE.
+#include "SampleFxPatch.h"
 #include "stpalette/STPaletteEffects.h"
 #include <array>
 #include <algorithm>
@@ -17,10 +17,10 @@
 using namespace samplefx;
 namespace fs = std::filesystem;
 
-struct SavedPreset {
+struct SavedPatch {
     unsigned slot;
     std::string name;
-    std::array<uint8_t, kPresetFileBytes> bytes;
+    std::array<uint8_t, kPatchFileBytes> bytes;
 };
 
 int main(int argc, char** argv)
@@ -29,27 +29,27 @@ int main(int argc, char** argv)
         if (argc != 2) throw std::runtime_error("Expected output directory");
         unsigned count;
         if (!(std::cin >> count) || !count || count > 32)
-            throw std::runtime_error("Expected 1–32 presets");
-        std::vector<SavedPreset> presets;
+            throw std::runtime_error("Expected 1–32 patches");
+        std::vector<SavedPatch> patches;
         std::set<unsigned> slots;
         std::set<std::string> filenames;
         for (unsigned index = 0; index < count; ++index) {
-            SavedPreset saved{};
+            SavedPatch saved{};
             unsigned stages, mix;
             if (!(std::cin >> saved.slot >> std::quoted(saved.name) >> stages >> mix) ||
                 saved.slot < 1 || saved.slot > 32 || !slots.insert(saved.slot).second ||
                 !stages || stages > kMaxStages || mix > 100)
-                throw std::runtime_error("Invalid or duplicate preset slot/stage count");
-            if (saved.name.empty() || saved.name.size() > kMaxPresetNameBytes ||
+                throw std::runtime_error("Invalid or duplicate patch slot/stage count");
+            if (saved.name.empty() || saved.name.size() > kMaxPatchNameBytes ||
                 saved.name.front() == '.' || saved.name.back() == '.' || saved.name.back() == ' ' ||
                 saved.name.find_first_of("/\\<>:\"|?*") != std::string::npos ||
                 std::any_of(saved.name.begin(), saved.name.end(), [](unsigned char c) { return c < 32 || c == 127; }))
-                throw std::runtime_error("Invalid preset filename: " + saved.name);
+                throw std::runtime_error("Invalid patch filename: " + saved.name);
             std::string filename = saved.name;
             std::transform(filename.begin(), filename.end(), filename.begin(),
                            [](unsigned char c) { return std::tolower(c); });
             if (!filenames.insert(filename).second)
-                throw std::runtime_error("Duplicate preset filename: " + saved.name);
+                throw std::runtime_error("Duplicate patch filename: " + saved.name);
             ChainDefinition definition;
             definition.mix = mix;
             for (unsigned stage = 0; stage < stages; ++stage) {
@@ -76,17 +76,17 @@ int main(int argc, char** argv)
                 if (!stpalette::valid(node) || !definition.add(node))
                     throw std::runtime_error("Invalid parameters in " + saved.name);
             }
-            if (!encodePreset(definition, saved.bytes.data(), saved.bytes.size()))
+            if (!encodePatch(definition, saved.bytes.data(), saved.bytes.size()))
                 throw std::runtime_error("Cannot encode " + saved.name);
-            presets.push_back(saved);
+            patches.push_back(saved);
         }
         std::cin >> std::ws;
         if (!std::cin.eof()) throw std::runtime_error("Unexpected trailing settings");
-        // Validate the entire input before replacing any preset files.
+        // Validate the entire input before replacing any patch files.
         const fs::path directory = argv[1];
         fs::create_directories(directory);
-        for (const auto& saved : presets) {
-            const std::string filename = saved.name + ".ptpreset";
+        for (const auto& saved : patches) {
+            const std::string filename = saved.name + ".patch";
             const fs::path destination = directory / filename;
             const fs::path temporary = directory / (filename + ".tmp");
             {
@@ -99,7 +99,7 @@ int main(int argc, char** argv)
             std::cout << filename << " — " << saved.name << '\n';
         }
     } catch (const std::exception& error) {
-        std::cerr << "Preset generation failed: " << error.what() << '\n';
+        std::cerr << "Patch generation failed: " << error.what() << '\n';
         return 1;
     }
 }

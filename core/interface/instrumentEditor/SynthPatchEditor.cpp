@@ -18,7 +18,8 @@
 const char* const OffOnNames[] = { "Off", "On" };
 static const int synthModelListImages[Synth::kSynthTypes.size()] = {
     enDisplayBitmaps::kBitmapACD,  enDisplayBitmaps::kBitmapFAT,  enDisplayBitmaps::kBitmapVAP,
-    enDisplayBitmaps::kBitmapWTFM, enDisplayBitmaps::kBitmapPERC, enDisplayBitmaps::kBitmapDIRT, enDisplayBitmaps::kBitmapCHIP
+    enDisplayBitmaps::kBitmapWTFM, enDisplayBitmaps::kBitmapPERC, enDisplayBitmaps::kBitmapDIRT, enDisplayBitmaps::kBitmapCHIP,
+    enDisplayBitmaps::kBitmapMiniSynth, enDisplayBitmaps::kBitmapOBER
 };
 
 static cInstrumentEditor* IE = &instrumentEditor;
@@ -645,6 +646,7 @@ void cInstrumentEditor::setSynthPatchParamDefault()
         int paramIdx = sectionParamsIds[paramListPos];
         if (paramIdx >= 0 && paramIdx < std::ssize(metadata.params))
         {
+            const bool updatesVoiceLimit = metadata.params[paramIdx].invalidatesOtherMetadata;
             if (paramValueMode == kList)
             {
                 if (!metadata.params[paramIdx].defaultValue.has_value())
@@ -675,6 +677,8 @@ void cInstrumentEditor::setSynthPatchParamDefault()
                                     polysynth::Patch::ParamChangeSource::kKnob);
                 ENABLE_AUDIO_INTERRUPTS();
             }
+            if (updatesVoiceLimit)
+                getSynth()->setVoiceCount(syntPartIdx, mtProject.values.synthPart[syntPartIdx].voiceCount);
         }
     }
 
@@ -775,6 +779,7 @@ void cInstrumentEditor::changeSynthPatchParamValue(int16_t value)
         int paramIdx = sectionParamsIds[paramListPos];
         if (paramIdx >= 0 && paramIdx < std::ssize(metadata.params))
         {
+            const bool updatesVoiceLimit = metadata.params[paramIdx].invalidatesOtherMetadata;
             if (paramValueMode == kList)
             {
                 paramValueListPos = clamp(paramValueListPos + value,
@@ -820,6 +825,8 @@ void cInstrumentEditor::changeSynthPatchParamValue(int16_t value)
                   paramIdx, paramValue / precision, polysynth::Patch::ParamChangeSource::kKnob);
                 ENABLE_AUDIO_INTERRUPTS();
             }
+            if (updatesVoiceLimit)
+                getSynth()->setVoiceCount(syntPartIdx, mtProject.values.synthPart[syntPartIdx].voiceCount);
         }
     }
 
@@ -1028,7 +1035,7 @@ void cInstrumentEditor::showSynthPatchEditorScreen()
     display.setControlSize(modelListControl, 800 / 8 - 3, -1);
 
     uint8_t syntPartIdx = mtProject.values.lastUsedInstrument - SYNTH_INSTRUMENTS_START_IDX;
-    assert(mtProject.values.synthPart[syntPartIdx].synthType < sizeof(synthModelListImages));
+    assert(mtProject.values.synthPart[syntPartIdx].synthType < std::size(synthModelListImages));
     labelImage.bitmaps[0].bitmapIndex =
       synthModelListImages[mtProject.values.synthPart[syntPartIdx].synthType];
     labelImage.bitmaps[0].xValue = 116;

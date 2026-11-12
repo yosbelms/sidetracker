@@ -69,6 +69,7 @@
 #include "images/dirt_med_108x40_L2.h"
 #include "images/dirt_mini_nomark_80x28_L2.h"
 #include "images/synth_shaper_18x18_L4.h"
+#include "images/analog_synth_badges.h"
 #include "images/chip_med_108x40_L2.h"
 #include "images/chip_mini_nomark_80x28_L2.h"
 
@@ -184,6 +185,10 @@ const strBitmap bitmaps[displayBitmapsCount] = {
     { synth_shaper_18x18_L4, 126900, 162, 18, 18, L4, 9 },
     { chip_mini_nomark_80x28_L2, 127100, 560, 80, 28, L2, 20 },
     { chip_med_108x40_L2, 127700, 1080, 108, 40, L2, 27 },
+    { synthbadges::miniSynthSmall.data(), 128800, 560, 80, 28, L2, 20 },
+    { synthbadges::miniSynthMedium.data(), 129400, 1080, 108, 40, L2, 27 },
+    { synthbadges::miniOber.data(), 130500, 560, 80, 28, L2, 20 },
+    { synthbadges::mediumOber.data(), 131100, 1080, 108, 40, L2, 27 },
 
 #endif
     { kSideTrackerMonogram, 80000, sizeof(kSideTrackerMonogram), kSideTrackerMonogramWidth,

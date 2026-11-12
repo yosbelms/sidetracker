@@ -85,14 +85,16 @@ jobs:
         run: make version
 
       - name: Build Original Tracker, Tracker+, and Tracker Mini firmware
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -o pipefail
-          POSTFIX_ARGS=""
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            SHORT_SHA=$(git rev-parse --short=7 HEAD)
-            POSTFIX_ARGS="ORIGINAL_POSTFIX=SideTracker_${SHORT_SHA} PLUS_POSTFIX=SideTracker_${SHORT_SHA} MINI_POSTFIX=SideTracker_${SHORT_SHA}"
+          POSTFIX_ARGS=()
+          if [ -n "$PR_HEAD_SHA" ]; then
+            SHORT_SHA=${PR_HEAD_SHA:0:7}
+            POSTFIX_ARGS=("ORIGINAL_POSTFIX=$SHORT_SHA" "PLUS_POSTFIX=$SHORT_SHA" "MINI_POSTFIX=$SHORT_SHA" "BUILD_TAG=$SHORT_SHA")
           fi
-          make all $POSTFIX_ARGS 2>&1 | tee build_output.log
+          make all "${POSTFIX_ARGS[@]}" 2>&1 | tee build_output.log
 
       - name: Build reference .ptfx Sample Editor plugins (Releases Only)
         if: startsWith(github.ref, 'refs/tags/v')
@@ -173,10 +175,10 @@ jobs:
               '',
               '### 1. Flashing the Firmware (`.ptf`)',
               `1. Download and unzip **[polyend-tracker-ce-firmware.zip](${fwUrl})**.`,
-              '2. Copy the `.ptf` file matching your hardware to the **`/Firmware/`** folder on your Tracker\'s microSD card:',
-              `   * **Original Polyend Tracker**: \`PolyendTracker_SideTracker_${shortSha}.ptf\``,
-              `   * **Polyend Tracker+**: \`TrackerPlus_SideTracker_${shortSha}.ptf\``,
-              `   * **Polyend Tracker Mini**: \`TrackerMini_SideTracker_${shortSha}.ptf\``,
+              '2. Copy the file for your model to **`/Firmware/`** on the microSD card using the filename on the right:',
+              `   * **Original Polyend Tracker**: \`SideTracker_${shortSha}.ptf\` → \`PolyendTracker.ptf\``,
+              `   * **Polyend Tracker+**: \`SideTrackerPlus_${shortSha}.ptf\` → \`TrackerPlus.ptf\``,
+              `   * **Polyend Tracker Mini**: \`SideTrackerMini_${shortSha}.ptf\` → \`TrackerMini.ptf\``,
               '3. Insert the microSD card into your Tracker, navigate to **Config → Firmware → Firmware update**, select the `.ptf` file, and confirm.',
               `4. Once rebooted, you can verify you are running this PR build under **Config → Firmware** (\`Build: ${shortSha}\`).`,
               '',

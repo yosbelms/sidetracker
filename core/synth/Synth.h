@@ -39,7 +39,15 @@ class Synth
                                                 polysynth::InstrumentTypeId::kVASynth,
                                                 polysynth::InstrumentTypeId::kFMSynth,
                                                 polysynth::InstrumentTypeId::kDrumSynth,
-                                                polysynth::InstrumentTypeId::kShapingSynth, polysynth::InstrumentTypeId::kChiptuneSynth };
+                                                polysynth::InstrumentTypeId::kShapingSynth,
+                                                polysynth::InstrumentTypeId::kChiptuneSynth,
+                                                polysynth::InstrumentTypeId::kMiniSynth,
+                                                polysynth::InstrumentTypeId::kOberSynth };
+#ifdef TRACKER_DESKTOP_PLUS
+    static constexpr int kFirstAvailableType = 6; // Keep the firmware's stored model indexes.
+#else
+    static constexpr int kFirstAvailableType = 0;
+#endif
     static constexpr auto kInitPatchName = "Init";
 
     Synth();

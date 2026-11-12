@@ -72,7 +72,7 @@ void drawSideTrackerLogo()
 {
     constexpr int center = 400;
     constexpr int badgeY = 139;
-    constexpr int badgeRadius = 46;
+    constexpr int badgeRadius = 51;
     constexpr uint32_t logoGray = 0x313131; // Solid fill in both original startup bitmaps.
 
     API_SAVE_CONTEXT();
@@ -85,16 +85,42 @@ void drawSideTrackerLogo()
     API_VERTEX2F(center, badgeY);
     API_END();
 
-    const auto& monogram = bitmaps[displaySideTrackerMonogram];
+    // Logo coordinates use the circle center as Y=0 and the top as Y=10.
+    constexpr int lineHeights[] = {0, -2, -5, -9};
+    constexpr int lineHalfThickness = 1;
     API_COLOR(0x000000);
+    API_LINE_WIDTH(8);
+    API_BEGIN(LINES);
+    for (const int height : lineHeights)
+    {
+        const int lineY = badgeY - height * badgeRadius / 10;
+        for (int y = lineY - lineHalfThickness; y <= lineY + lineHalfThickness; ++y)
+        {
+            const int offset = y - badgeY;
+            const int chordRadiusSquared = badgeRadius * badgeRadius - offset * offset;
+            // Round outward to reach the visible edge of the antialiased circle.
+            int halfWidth = badgeRadius;
+            while (halfWidth > 0 && (halfWidth - 1) * (halfWidth - 1) >= chordRadiusSquared)
+                --halfWidth;
+
+            API_VERTEX2F(center - halfWidth, y);
+            API_VERTEX2F(center + halfWidth, y);
+        }
+    }
+    API_END();
+
+    const auto& monogram = bitmaps[displaySideTrackerMonogram];
+    const int monogramX = center - monogram.width / 2;
+    const int monogramY = badgeY - monogram.height / 2;
     API_BITMAP_HANDLE(0);
     API_BITMAP_SOURCE(monogram.address);
     API_BITMAP_LAYOUT(monogram.format, monogram.linestride, monogram.height);
     API_BITMAP_SIZE(NEAREST, BORDER, BORDER, monogram.width, monogram.height);
     API_BEGIN(BITMAPS);
-    API_VERTEX2F(center - monogram.width / 2, badgeY - monogram.height / 2);
+    API_VERTEX2F(monogramX, monogramY);
     API_END();
 
+    API_LINE_WIDTH(16);
     API_COLOR(logoGray);
     drawWordmark(center, 213, 7);
     API_RESTORE_CONTEXT();
