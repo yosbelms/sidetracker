@@ -30,9 +30,12 @@ ORIGINAL_PTF := $(EDITION_NAME)_$(ORIGINAL_POSTFIX).ptf
 PLUS_PTF     := $(EDITION_NAME)Plus_$(PLUS_POSTFIX).ptf
 MINI_PTF     := $(EDITION_NAME)Mini_$(MINI_POSTFIX).ptf
 
+RELEASE_VERSION ?= $(ORIGINAL_VER_MAJOR).$(ORIGINAL_VER_MINOR).$(ORIGINAL_VER_PATCH)
+RELEASE_ZIP := $(EDITION_NAME)_$(RELEASE_VERSION).zip
+
 .DEFAULT_GOAL := all
 
-.PHONY: all original plus mini desktop desktop-check sd test host-test bench bench-m4 perf-gate ptfx clean version bump-patch bump-minor
+.PHONY: all original plus mini desktop desktop-check sd test host-test bench bench-m4 perf-gate ptfx release-zip clean version bump-patch bump-minor
 
 all: original plus mini
 
@@ -130,6 +133,29 @@ ptfx: sd
 		python3 "$(ROOT_DIR)/editor-fx-sdk/ptfx_builder.py" "$$src" -o "$(ROOT_DIR)/editor-fx-sdk/build/Effects/$$base.ptfx" --toolchain "$(TOOLCHAIN)"; \
 		cp "$(ROOT_DIR)/editor-fx-sdk/build/Effects/$$base.ptfx" "$(SD_DIR)/Effects/"; \
 	done
+
+release-zip:
+	@test "$(RELEASE_VERSION)" = "$(ORIGINAL_VER_MAJOR).$(ORIGINAL_VER_MINOR).$(ORIGINAL_VER_PATCH)" && \
+	      test "$(RELEASE_VERSION)" = "$(PLUS_VER_MAJOR).$(PLUS_VER_MINOR).$(PLUS_VER_PATCH)" && \
+	      test "$(RELEASE_VERSION)" = "$(MINI_VER_MAJOR).$(MINI_VER_MINOR).$(MINI_VER_PATCH)" && \
+	      test "$(ORIGINAL_POSTFIX):$(PLUS_POSTFIX):$(MINI_POSTFIX)" = "$(RELEASE_VERSION):$(RELEASE_VERSION):$(RELEASE_VERSION)" || \
+	      { echo "Release version, model versions, and firmware filename suffixes must match." >&2; exit 1; }
+	@mkdir -p "$(OUT_DIR)"
+	@set -eu; stage=$$(mktemp -d "$(OUT_DIR)/release-stage.XXXXXX"); \
+		trap 'rm -rf "$$stage"' EXIT; \
+		$(MAKE) all OUT_DIR="$$stage" SD_DIR="$$stage/SD"; \
+		cmp "$$stage/$(ORIGINAL_PTF)" "$$stage/SD/Firmware/PolyendTracker.ptf"; \
+		cmp "$$stage/$(PLUS_PTF)" "$$stage/SD/Firmware/TrackerPlus.ptf"; \
+		cmp "$$stage/$(MINI_PTF)" "$$stage/SD/Firmware/TrackerMini.ptf"; \
+		mkdir "$$stage/Licenses"; \
+		cp "$(ROOT_DIR)/LICENSE" "$(ROOT_DIR)/NOTICE.md" "$(SYNTH_DIR)/lib/LICENSE-PROPRIETARY.txt" "$$stage/Licenses/"; \
+		if test -d "$$stage/SD/Patches/MINI"; then \
+			cp "$(ROOT_DIR)/build/SideTrackerAnalogPresets/"*-LICENSE.txt "$$stage/Licenses/"; \
+			cp "$(ROOT_DIR)/build/SideTrackerAnalogPresets/README.txt" "$$stage/Licenses/AnalogPresets.txt"; \
+		fi; \
+		(cd "$$stage" && zip -q -r "$(RELEASE_ZIP)" "$(ORIGINAL_PTF)" "$(PLUS_PTF)" "$(MINI_PTF)" SD Licenses); \
+		mv "$$stage/$(RELEASE_ZIP)" "$(OUT_DIR)/$(RELEASE_ZIP)"
+	@echo "-> Output: $(OUT_DIR)/$(RELEASE_ZIP)"
 
 clean:
 	$(MAKE) -C "$(CORE_DIR)" clean PLATFORM=MK66 PRODUCT=ORIGINAL

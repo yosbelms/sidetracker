@@ -86,9 +86,9 @@ From the repository root:
 make all
 
 # Or build a single target:
-make original   # -> build/SideTracker_1.0.0.ptf
-make plus       # -> build/SideTrackerPlus_1.0.0.ptf
-make mini       # -> build/SideTrackerMini_1.0.0.ptf
+make original   # -> build/SideTracker_0.0.1.ptf
+make plus       # -> build/SideTrackerPlus_0.0.1.ptf
+make mini       # -> build/SideTrackerMini_0.0.1.ptf
 
 # Build reference .ptfx Sample Editor effects:
 make ptfx
@@ -105,6 +105,8 @@ Builds stage files for the SD card in `build/SD/`. Merge its `Effects/` and
 and `make ptfx` stages the plugins directly in `Effects/`. MINI and OBER
 patches go in `Patches/MINI/` and `Patches/OBER/` when the donor sources
 described in the [Custom Synth SDK guide](docs/custom_synth_sdk.md) are available.
+
+Build the complete release ZIP with `make release-zip`. It contains the three model-specific firmware files and a fresh `SD/` folder. Copy the contents of `SD/` to your card, using the matching file from `SD/Firmware/` for your model. The ZIP is published as an asset on [GitHub Releases](https://github.com/yosbelms/sidetracker/releases).
 
 ### 3. Version Management (`version.mk`)
 All firmware version numbers are defined in [`version.mk`](version.mk). The **Build** identifier displayed on the hardware under **Config > Firmware > Build** is automatically populated from the short Git commit hash (`git rev-parse --short=7 HEAD`):

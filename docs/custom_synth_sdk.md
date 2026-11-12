@@ -703,8 +703,8 @@ make mini
 ```
 
 The firmware files are generated in `build/`:
-- `build/SideTrackerPlus_1.0.0.ptf`
-- `build/SideTrackerMini_1.0.0.ptf`
+- `build/SideTrackerPlus_0.0.1.ptf`
+- `build/SideTrackerMini_0.0.1.ptf`
 
 Copy the matching `TrackerPlus.ptf` or `TrackerMini.ptf` from `build/SD/Firmware/` to the `/Firmware/` directory on your Tracker's SD card and flash via **Config → Firmware → Firmware update**.
 

@@ -4,15 +4,11 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 class cDisplayControl;
 class cDebugLog;
 class cDisplay;
-
-extern "C"
-{
-    extern void* memcpy(void* dst, const void* src, size_t count);
-}
 
 // #########################################################################
 //							DEFINICJE

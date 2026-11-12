@@ -85,6 +85,7 @@ jobs:
         run: make version
 
       - name: Build Original Tracker, Tracker+, and Tracker Mini firmware
+        id: firmware
         env:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
@@ -94,27 +95,25 @@ jobs:
             SHORT_SHA=${PR_HEAD_SHA:0:7}
             POSTFIX_ARGS=("ORIGINAL_POSTFIX=$SHORT_SHA" "PLUS_POSTFIX=$SHORT_SHA" "MINI_POSTFIX=$SHORT_SHA" "BUILD_TAG=$SHORT_SHA")
           fi
-          make all "${POSTFIX_ARGS[@]}" 2>&1 | tee build_output.log
-
-      - name: Build reference .ptfx Sample Editor plugins (Releases Only)
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          make ptfx
-          printf "Copy the Effects/ folder to the root directory of your Polyend Tracker microSD card.\n" > editor-fx-sdk/build/README.txt
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            release_version="${GITHUB_REF_NAME#v}"
+            make release-zip RELEASE_VERSION="$release_version" 2>&1 | tee build_output.log
+            echo "release_zip=build/SideTracker_${release_version}.zip" >> "$GITHUB_OUTPUT"
+          else
+            make all "${POSTFIX_ARGS[@]}" 2>&1 | tee build_output.log
+          fi
 
       - name: Publish Firmware Size & Memory Summary
         if: always()
         run: |
           {
-            echo "### Generated \`.ptf\` Firmware Files"
-            echo "\`\`\`text"
-            ls -lh build/*.ptf || true
-            echo "\`\`\`"
-            if [ -d "editor-fx-sdk/build/Effects" ]; then
-              echo ""
-              echo "### Generated \`.ptfx\` Sample Editor Effects (\`/Effects\`)"
+            if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+              echo "### Release archive"
+              ls -lh build/SideTracker_*.zip || true
+            else
+              echo "### Generated \`.ptf\` Firmware Files"
               echo "\`\`\`text"
-              ls -lh editor-fx-sdk/build/Effects/*.ptfx || true
+              ls -lh build/*.ptf || true
               echo "\`\`\`"
             fi
             echo ""
@@ -129,8 +128,10 @@ jobs:
             echo ""
             cat pr_summary.md
             echo ""
-            echo "> **Downloads (Bottom of Summary Page)**:"
-            echo "> * **\`polyend-tracker-ce-firmware\`**: Ready-to-flash \`.ptf\` firmware files for **Original Tracker**, **Tracker+**, and **Tracker Mini**."
+            if [[ "$GITHUB_REF" != refs/tags/v* ]]; then
+              echo "> **Downloads (Bottom of Summary Page)**:"
+              echo "> * **\`polyend-tracker-ce-firmware\`**: Ready-to-flash \`.ptf\` firmware files for **Original Tracker**, **Tracker+**, and **Tracker Mini**."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
           if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -139,6 +140,7 @@ jobs:
           fi
 
       - name: Upload Firmware Artifacts (.ptf)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         uses: actions/upload-artifact@v4
         with:
           name: polyend-tracker-ce-firmware
@@ -221,18 +223,12 @@ jobs:
               });
             }
 
-      - name: Package .ptfx Effects for GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          cd editor-fx-sdk/build
-          zip -r ../../build/PolyendTracker_CE_Effects.zip Effects README.txt
-
       - name: Publish GitHub Release on Version Tag
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
-          name: Polyend Tracker CE ${{ github.ref_name }}
+          name: SideTracker ${{ github.ref_name }}
           generate_release_notes: true
-          files: |
-            build/*.ptf
-            build/PolyendTracker_CE_Effects.zip
+          fail_on_unmatched_files: true
+          overwrite_files: false
+          files: ${{ steps.firmware.outputs.release_zip }}
