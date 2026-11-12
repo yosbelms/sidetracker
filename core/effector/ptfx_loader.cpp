@@ -81,6 +81,7 @@ const PtfxHostApi* PtfxLoader::getHostApi()
     return &s_ptfxHostApi;
 }
 
+#ifndef TRACKER_DESKTOP
 void PtfxLoader::syncInstructionCache([[maybe_unused]] void* addr, [[maybe_unused]] uint32_t size)
 {
     asm volatile("dsb 0xf" ::: "memory");
@@ -117,6 +118,7 @@ void PtfxLoader::syncInstructionCache([[maybe_unused]] void* addr, [[maybe_unuse
     asm volatile("isb 0xf" ::: "memory");
 #endif
 }
+#endif
 
 bool PtfxLoader::readHeader(const char* filepath, PtfxHeader& outHeader)
 {
@@ -250,8 +252,7 @@ bool PtfxLoader::loadPluginInto(const char* filepath, uint8_t* codeBuf, uint32_t
 #ifdef TRACKER_DESKTOP
     // ARM plugin binaries cannot execute in the native desktop process.
     return false;
-#endif
-
+#else
     if (!readImage(filepath, outHeader, codeBuf, codeCapacity)) return false;
     const uint32_t totalCodeSize = outHeader.code_size + outHeader.bss_size;
 
@@ -265,4 +266,5 @@ bool PtfxLoader::loadPluginInto(const char* filepath, uint8_t* codeBuf, uint32_t
     outProcessBlock = reinterpret_cast<PtfxProcessBlockFunc>((base + outHeader.process_block_offset) | 0x1);
 
     return true;
+#endif
 }
