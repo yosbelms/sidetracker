@@ -1025,6 +1025,8 @@ class Sequencer
 
     void updatePatternManagment();
 
+    void stopForMissingNextPattern();
+
     strPattern* currentPattern;
     strPattern* bufferPattern;
 

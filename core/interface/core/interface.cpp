@@ -29,7 +29,9 @@
 #include "mtTest.h"
 
 #include "Platform.h"
+#include "VoiceStreamManager.h"
 #include "config.h"
+#include "log.h"
 #include "mtHardware.h"
 #include "mtSleep.h"
 
@@ -386,16 +388,69 @@ void Interface::handleFileTransferMode(uint8_t state)
 
     if (state)
     {
+        // The host is about to own the card: playback must not keep streaming
+        // samples from it, and live recording must not leave changes behind
+        // for autosave to write to it. The armed state covers the pre-roll.
+        if (sequencer.getSeqState() != Sequencer::SEQ_STATE_STOP || sequencer.isRec())
+        {
+            sequencer.stop();
+        }
+        sequencer.stopManualNotes();
+
+        // Also the check that no other file operation is using the card.
+        if (!newFileManager.flushWorkspaceSave())
+        {
+            return;
+        }
+
         activateFileTransferModeScreen();
+
+        // Closing the module above may have queued more to save. After this
+        // the device must not use the card until the mode ends: not for
+        // saving, and not for streaming the notes that are still sounding or
+        // that MIDI input starts.
+        updateConfig(true);
+        newFileManager.flushWorkspaceSave();
+        newFileManager.setWorkspaceSaveSuspended(true);
+        voiceStreamManager.setSuspended(true);
+        LOG("USB storage mode on");
     }
     else
     {
+        LOG("USB storage mode off");
+
+        // The host may have changed the card, so what the filesystem driver
+        // and sample streaming remember about it can be wrong. When the mode
+        // ends because the card was ejected, there is nothing to mount.
+        if (fileSystem->remount())
+        {
+            voiceStreamManager.rebindAllInstrumentStreamFiles();
+        }
+        voiceStreamManager.setSuspended(false);
+        newFileManager.setWorkspaceSaveSuspended(false);
         activateInterface();
     }
 
     Usb* usb = mtInterface.getPlatform()->getUsb();
     usb->setClassState(Usb::ClassType::kStorage, state == 1 ? true : false);
     usb->reset();
+}
+
+bool Interface::setFileTransferMode(bool enable)
+{
+    bool active = specialScreenMode == usbStorageScreenMode;
+
+    if (enable != active)
+    {
+        if (!enable)
+        {
+            ip->unblockAllInputs();
+        }
+
+        handleFileTransferMode(enable ? 1 : 0);
+    }
+
+    return specialScreenMode == usbStorageScreenMode;
 }
 
 void Interface::refreshInterfaceControlsColors()
@@ -512,6 +567,11 @@ void Interface::toggleActiveModule(uint8_t state)
                 uint32_t prevModuleOptions = previousModuleOptions;
 
                 activateModule(prevModule, prevModuleOptions);
+
+                // Hiding the module recorded it as its own predecessor. Put back the one
+                // it had, or it can no longer switch back to the previous module.
+                previousModule = moduleBeforeToggle;
+                previousModuleOptions = moduleBeforeToggleOptions;
                 return;
             }
         }
@@ -520,6 +580,9 @@ void Interface::toggleActiveModule(uint8_t state)
     {
         if (onScreenModule != nullptr)
         {
+            moduleBeforeToggle = previousModule;
+            moduleBeforeToggleOptions = previousModuleOptions;
+
             mtInterface.deactivateModule(onScreenModule);
             toggledState = 1;
         }

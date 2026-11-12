@@ -286,9 +286,9 @@ bool RealtimeChain::prepare(const ChainDefinition& definition, const Audio& audi
             const bool generator = !i && (stage.node.flags & PTFX_FLAG_GENERATOR);
             if (!i && !generator) return fail("Source must be a generator");
             if (i && (stage.node.flags & PTFX_FLAG_GENERATOR)) return fail("Generator belongs in Source");
-            if (generator) channels = (stage.node.flags & PTFX_FLAG_STEREO) ? mtEffect::kChannels : 1;
-            stage.channels = channels;
-            if (channels == 2 && !(stage.node.flags & PTFX_FLAG_STEREO)) return fail("Plugin requires a mono source");
+            const bool stereoPlugin = stage.node.flags & PTFX_FLAG_STEREO;
+            if (!generator && channels == 2 && !stereoPlugin) return fail("Plugin requires a mono source");
+            stage.channels = stereoPlugin ? mtEffect::kChannels : generator ? 1 : channels;
             activePlugin = &plugin;
             plugin.init(plugin.scratch, plugin.header.scratch_size, &liveApi);
             for (unsigned p = 0; p < stage.node.count; ++p)
@@ -300,7 +300,7 @@ bool RealtimeChain::prepare(const ChainDefinition& definition, const Audio& audi
             activePlugin = nullptr;
             // Prepending changes the upstream timeline and needs a prepared pass.
             if (plugin.prepend) return fail("Prepared preview: plugin inserts audio before source");
-            stage.outputChannels = (stage.node.flags & PTFX_FLAG_CONVERT_TO_MONO) ? 1 : channels;
+            stage.outputChannels = (stage.node.flags & PTFX_FLAG_CONVERT_TO_MONO) ? 1 : stage.channels;
         }
         else if (!stage.builtin.prepare(stage.node, frames, channels, arena, i, tempo))
             return fail(stage.node.effect == editorEffectNormalizer ? "Prepared preview: normalization needs analysis" :
@@ -405,7 +405,8 @@ unsigned RealtimeChain::process(int16_t* left, int16_t* right, unsigned requeste
         if (position < s.outputFrames)
         {
             unsigned count = std::min<uint32_t>(frames, s.outputFrames - position);
-            int16_t* in[2] = {work[current][0], work[current][s.channels == 2 ? 1 : 0]};
+            const uint8_t inputChannels = i ? stages[i - 1].outputChannels : source.channels;
+            int16_t* in[2] = {work[current][0], work[current][inputChannels == 2 ? 1 : 0]};
             int16_t* out[2] = {work[next][0], work[next][1]};
             if (s.node.effect == kPlugin)
             {

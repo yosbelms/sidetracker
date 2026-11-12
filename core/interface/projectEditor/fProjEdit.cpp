@@ -66,6 +66,7 @@ static void functSaveAsOverwriteYes();
 // Open
 static void functEnterBrowser();
 static void functCloseBrowser();
+static void functCancelBrowser();
 static void functSaveChangesCancelOpen();
 static void functSaveChangesDontSaveOpenBrowser();
 static void functSaveChangesSaveOpen();
@@ -232,6 +233,8 @@ void cProjectEditor::stop()
 {
     cleanupListsData();
     cleanupAfterSaveData();
+    // The path and name of a pending open are freed above; it must not run without them.
+    afterSaveOperation = noOperationAfterSave;
 
     sequencer.stopManualNotes();
     mtPopups.hideInfoPopup();
@@ -644,7 +647,7 @@ void cProjectEditor::setProjectBrowserFunct()
     PE->ip->setButtonObj(interfaceButton0, buttonPress, functEnterBrowser);
     PE->ip->setButtonObj(interfaceButton2, buttonPress, functDeleteFileFolder);
     PE->ip->setButtonObj(interfaceButton3, buttonPress, functCreateNewFolder);
-    PE->ip->setButtonObj(interfaceButton6, buttonPress, functCloseBrowser);
+    PE->ip->setButtonObj(interfaceButton6, buttonPress, functCancelBrowser);
 
     if (PE->currentBrowserMode == cProjectEditor::kSaveAsProject)
     {
@@ -957,8 +960,7 @@ static void functSaveAsOverwriteYes()
         PE->ip->unblockAllInputs();
     }
 
-    PE->showDefaultScreen();
-    PE->setDefaultScreenFunct();
+    functCloseBrowser();
     display.processDisplayUpdateImmediate();
 }
 
@@ -1076,10 +1078,18 @@ static void functCloseBrowser()
 {
     PE->currentBrowserMode = cProjectEditor::kNone;
 
-    PE->cleanupListsData();
-
+    // The browser lists are not freed here: the list control is only hidden and can
+    // still be refreshed. stop() and the next openBrowser() free them.
     PE->showDefaultScreen();
     PE->setDefaultScreenFunct();
+}
+
+static void functCancelBrowser()
+{
+    // Cancelling Save As abandons the save, and with it whatever was to follow the save.
+    PE->afterSaveOperation = cProjectEditor::AfterSaveOperation::noOperationAfterSave;
+
+    functCloseBrowser();
 }
 
 bool cProjectEditor::browserEnter()
@@ -1261,8 +1271,7 @@ static void functSaveChangesSaveOpen()
     }
 
     PE->ip->unblockAllInputs();
-    PE->showDefaultScreen();
-    PE->setDefaultScreenFunct();
+    functCloseBrowser();
 
     PE->saveProject();
 }
@@ -1599,6 +1608,12 @@ static void makeMoveOnActiveList(int16_t moveDir)
         PE->currentBrowserMode == cProjectEditor::kOpenMod ||
         PE->currentBrowserMode == cProjectEditor::kSaveAsProject)
     {
+        // An empty list has no entry to move to; the clamp below would give position -1.
+        if (PE->fileBrowserData.browserListLength <= 0)
+        {
+            return;
+        }
+
         PE->fileBrowserData.browserListPosition =
           clamp<int>(PE->fileBrowserData.browserListPosition + moveDir,
                      0,

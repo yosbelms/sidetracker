@@ -61,6 +61,8 @@ class Interface
     void handleCardSlotAction(bool state);
     void handlePowerButtonAction(uint8_t state);
     void handleFileTransferMode(uint8_t state);
+    // Enters or leaves USB storage mode without the UI; returns the resulting state.
+    bool setFileTransferMode(bool enable);
 
     void refreshInterfaceControlsColors();
 
@@ -147,6 +149,9 @@ class Interface
 
     hModule previousModule = nullptr;
     uint32_t previousModuleOptions = 0;
+
+    hModule moduleBeforeToggle = nullptr;
+    uint32_t moduleBeforeToggleOptions = 0;
 
     SpecialScreensMode specialScreenMode = specialScreenModeDisabled;
 

@@ -641,6 +641,28 @@ TEST(SampleFxRealtime, MixRampsStayBoundedAcrossRapidChangesAndFullScaleSamples)
 }
 
 #ifdef PLATFORM_IMX
+TEST(SampleFxRealtime, StereoPluginReceivesMonoSourceOnBothChannels)
+{
+    int16_t sourceSamples[] = {100, -200, 300};
+    samplefx::Audio source{{sourceSamples, nullptr}, 3, 1};
+    NativeLiveLoader loader;
+    samplefx::RealtimeChain chain;
+    samplefx::ChainDefinition definition;
+    auto node = liveNode(samplefx::kPlugin, {2});
+    node.flags = PTFX_FLAG_STEREO;
+    definition.add(node);
+    uint8_t arena[1024];
+    ASSERT_TRUE(chain.prepare(definition, source, arena, sizeof(arena), loader, 1000)) << chain.error();
+    ASSERT_EQ(chain.channels(), 2);
+    int16_t left[3], right[3];
+    ASSERT_EQ(chain.process(left, right, 3), 3);
+    for (unsigned i = 0; i < 3; ++i)
+    {
+        EXPECT_EQ(left[i], sourceSamples[i] * 2);
+        EXPECT_EQ(right[i], left[i]);
+    }
+}
+
 TEST(SampleFxRealtime, MonoOutputMixDownmixesTheOriginalStereoDrySource)
 {
     for (unsigned percent : {0u, 50u, 100u})

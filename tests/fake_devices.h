@@ -59,6 +59,12 @@ class FakeFileSystem final : public FileSystem
 
     bool isSdCardInserted() override { return inserted; }
     void setMountEventCallback(CardStateChangeCallback) override {}
+    bool remount() override
+    {
+        for (auto& handle : handles)
+            handle->open = false;
+        return inserted;
+    }
     bool exists(const char* path) override { return files.count(path) || directories.count(path); }
     bool rename(const char* from, const char* to) override
     {

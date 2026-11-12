@@ -30,17 +30,18 @@ void backupPath(char* path, int slot, bool copy)
 constexpr char kEditTemp[] = "Workspace/instruments/edit.tmp";
 constexpr char kUndoTemp[] = "Workspace/instruments/undo.tmp";
 
-bool shouldStream(const strInstrument& instrument, bool stereo)
-{
-    return instrument.sample.length * (stereo ? 4 : 2) >= kStreamThresholdBytes &&
-           isPlayModeStreamable(instrument.playMode);
-}
-
 bool fits(int slot, uint32_t bytes)
 {
     const uint32_t current = newFileManager.getSampleMemorySize(slot, slot);
     return mtProject.used_memory - current + bytes <=
            std::min<uint32_t>(mtProject.max_memory, EDIT_BUFF_OFFSET);
+}
+
+bool shouldStream(int slot, const strInstrument& instrument, bool stereo)
+{
+    const uint32_t frames = instrument.sample.length;
+    return frames > kStreamPreCacheFrames && isPlayModeStreamable(instrument.playMode) &&
+           (instrument.isStreamPreferred() || !fits(slot, frames * (stereo ? 4 : 2)));
 }
 
 bool readInstrument(FileSystem* fs, const char* path, strInstrument& instrument,
@@ -67,7 +68,7 @@ bool install(int slot, const char* path, strInstrument& instrument, uint32_t off
              const int16_t* left, const int16_t* right)
 {
     const uint32_t frames = instrument.sample.length;
-    const bool stream = shouldStream(instrument, right != nullptr);
+    const bool stream = shouldStream(slot, instrument, right != nullptr);
     const uint32_t ramFrames = stream ? std::min<uint32_t>(frames, kStreamPreCacheFrames) : frames;
     const uint32_t bytes = ramFrames * (right ? 4 : 2);
     if (!fits(slot, bytes)) return false;
@@ -80,6 +81,7 @@ bool install(int slot, const char* path, strInstrument& instrument, uint32_t off
         return false;
     }
     newFileManager.moveSampleMemory(newFileManager.calcFirstSlotToMoveInMemory(slot + 1), delta);
+    instrument.setStreamPreferred(stream);
     mtProject.instrument[slot] = instrument;
     if (frames)
     {
@@ -183,7 +185,8 @@ bool SampleMemorySave::saveSampleFromSampleEditor(int16_t* left, int16_t* right,
     output.sample.length = frames;
     output.sample.address = nullptr;
     right = right == left ? nullptr : right;
-    const uint32_t ramFrames = shouldStream(output, right != nullptr) ?
+    output.setStreamPreferred(shouldStream(slot, output, right != nullptr));
+    const uint32_t ramFrames = output.isStreamPreferred() ?
       std::min<uint32_t>(frames, kStreamPreCacheFrames) : frames;
     if (!fits(slot, ramFrames * (right ? 4 : 2))) return false;
 

@@ -29,6 +29,14 @@ DesktopStorage::~DesktopStorage()
         closeFile(*handles.begin(), true);
 }
 
+bool DesktopStorage::remount()
+{
+    for (auto* handle : handles)
+        closeFile(handle, false);
+    std::error_code error;
+    return fs::is_directory(root, error);
+}
+
 fs::path DesktopStorage::resolve(const char* path) const
 {
     auto candidate = root;

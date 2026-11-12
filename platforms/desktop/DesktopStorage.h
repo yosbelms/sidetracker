@@ -13,6 +13,7 @@ public:
 
     bool isSdCardInserted() override { return true; }
     void setMountEventCallback(CardStateChangeCallback) override {}
+    bool remount() override;
     bool exists(const char* path) override;
     bool rename(const char* oldPath, const char* newPath) override;
     bool mkdir(uint8_t, const char* path, bool parents) override;

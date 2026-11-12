@@ -305,7 +305,10 @@ const char* const fxDescriptions[FX_COUNT] = {
     "\n05C: Open4  07C: Open5"
     "\n0379: Min6  037A: Min7"
     "\n0479: Maj6  047A: Maj7"
-    "\n047B: MajMaj7",
+    "\n047B: MajMaj7"
+    "\nAfter 057B, inversions:"
+    "\n038: Maj/1st  059: Maj/2nd"
+    "\n049: Min/1st  058: Min/2nd",
     // Sequencer::strFxConsts::enFxType::FX_TYPE_PERF_FX,
     "Destination: Master mix \n\n"
     "Select a Performance preset with the pads. The effect stays active on blank steps. "
@@ -580,7 +583,10 @@ const char* const fxDescriptions[FX_COUNT] = {
     "\n05C: Open4  07C: Open5"
     "\n0379: Min6  037A: Min7"
     "\n0479: Maj6  047A: Maj7"
-    "\n047B: MajMaj7",
+    "\n047B: MajMaj7"
+    "\nAfter 057B, inversions:"
+    "\n038: Maj/1st  059: Maj/2nd"
+    "\n049: Min/1st  058: Min/2nd",
     // Sequencer::strFxConsts::enFxType::FX_TYPE_PERF_FX,
     "Destination: Master mix \n\n"
     "Select a Performance preset with the pads. The effect stays active on blank steps. "

@@ -73,6 +73,8 @@ void cSamplePlayback::initDisplayControls()
     bgLabel = display.createControl<cBgLabel>(&prop2);
 
     playModeList.linesCount = 8;
+    // start() picks the instrument, and it runs after this on the first visit to the screen.
+    // showPlayModeList() sets the real position before the list is drawn.
     playModeList.start = editorInstrument ? editorInstrument->playMode : playModeSingleShot;
     playModeList.length = playModeCount;
     playModeList.data = playModeNames;

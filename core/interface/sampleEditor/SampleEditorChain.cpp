@@ -104,6 +104,7 @@ class EffectBackend : public Backend
     RealtimeArena nativeArena;
     Audio nativeInput;
     bool nativeActive = false;
+    bool checkMonoOutput = false;
     void setStageIndex(unsigned i) override { stageIndex=i; }
     const char* message = "Effect failed";
 
@@ -154,8 +155,8 @@ class EffectBackend : public Backend
         int16_t* src[2] = { input.channel[0], input.channels == 2 ? input.channel[1] : input.channel[0] };
         // Mono built-ins still visit the platform's second channel; its output is private.
         effect->bindOffline(src, out.channel, generator ? 0 : input.frames);
-        uint8_t channels = generator ? ((node.flags & PTFX_FLAG_STEREO) ? mtEffect::kChannels : 1)
-                                     : input.channels;
+        const uint8_t channels = node.effect == kPlugin && (node.flags & PTFX_FLAG_STEREO)
+                                   ? mtEffect::kChannels : generator ? 1 : input.channels;
         if (node.effect == kPlugin && channels == 2 && !(node.flags & PTFX_FLAG_STEREO))
         { message = "Plugin requires a mono source"; return false; }
         effect->setOfflineChannels(channels);
@@ -179,6 +180,8 @@ class EffectBackend : public Backend
         out.frames = effect->getExpectedProcessLength();
         if (stageIndex && node.effect == kPlugin) dryDelay += sampleEditorModular.getPrependSamples();
         out.channels = (node.flags & PTFX_FLAG_CONVERT_TO_MONO) ? 1 : channels;
+        // Let stereo plugins widen a mono source. Keep mono storage if both outputs match.
+        checkMonoOutput = node.effect == kPlugin && !generator && input.channels == 1 && out.channels == 2;
         if (!out.frames || out.frames > capacity)
         { message = "Effect output too long"; return false; }
         output = &out;
@@ -202,10 +205,14 @@ class EffectBackend : public Backend
         if (effect->hasProcessingError() || count < 0 ||
             uint32_t(count) > output->frames - completed)
         { message = "Effect returned invalid audio length"; return false; }
+        if (checkMonoOutput &&
+            memcmp(output->channel[0] + completed, output->channel[1] + completed, count * sizeof(int16_t)) != 0)
+            checkMonoOutput = false;
         completed += count;
         done = !effect->getProcessState();
         if (done && completed != output->frames)
         { message = "Effect ended before expected length"; return false; }
+        if (done && checkMonoOutput) output->channels = 1;
         return true;
     }
     const char* error() const override { return message; }
@@ -247,8 +254,16 @@ class ChainScreen
     bool livePlaying = false, liveRequested = false, resumeLive = false;
     bool waitingFade = false;
     float liveTempo=120;
-    unsigned chainChannels() const {
-        return definition.source.effect==kPlugin && (definition.source.flags&PTFX_FLAG_STEREO) ? mtEffect::kChannels : sourceStereo?2:1;
+    unsigned chainChannels() const
+    {
+        if (sourceStereo) return 2;
+        for (unsigned i = 0; i <= definition.count; ++i)
+        {
+            const auto& stage = i ? definition.stages[i - 1] : definition.source;
+            if (!stage.bypass && stage.effect == kPlugin && (stage.flags & PTFX_FLAG_STEREO))
+                return mtEffect::kChannels;
+        }
+        return 1;
     }
     ChainDefinition definition;
     ChainDefinition lastUsed;

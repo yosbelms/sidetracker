@@ -4,13 +4,13 @@ SideTracker is a fork of Polyend Tracker Community Edition (Tracker CE). [Upstre
 
 It adds a live Performance FX rack, Performance FX sequencing in patterns, and a redesigned Sample Editor with reusable effect chains. Tracker+ and Tracker Mini also gain the MINI and OBER synth engines.
 
-This unified codebase powers all three hardware instruments in the Tracker family:
-* **Original Polyend Tracker** (`NXP Kinetis MK66FX1M0`, Cortex-M4F @ 180 MHz)
-* **Polyend Tracker+ & Tracker Mini** (`NXP i.MX RT1051/RT1064`, Cortex-M7 @ 600 MHz)
+### Download SideTracker
 
-### What's New:
-See [`CHANGELOG.md`](CHANGELOG.md) for the full list of new features and improvements.
+Get the firmware and SD bundle on [SideTracker Releases](https://github.com/yosbelms/sidetracker/releases). See the [SideTracker site](https://yosbelms.github.io/sidetracker/) for feature guides.
 
+[Polyend Community Edition changes](CHANGELOG.md) · [Recent upstream changes](UPCOMING.md)
+
+---
 
 ## Notice: Official Support, Warranty & Hardware Disclaimer
 
@@ -26,11 +26,17 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full list of new features and improve
 
 ## Repository Structure
 
+This unified codebase powers all three hardware instruments in the Tracker family:
+* **Original Polyend Tracker** (`NXP Kinetis MK66FX1M0`, Cortex-M4F @ 180 MHz)
+* **Polyend Tracker+ & Tracker Mini** (`NXP i.MX RT1051/RT1064`, Cortex-M7 @ 600 MHz)
+
+
 ```text
 .
 ├── Makefile                # Unified top-level build & version management
 ├── version.mk              # Centralized version & build number configuration
-├── CHANGELOG.md            # Release history & feature highlights
+├── CHANGELOG.md            # Stable release history & feature highlights
+├── UPCOMING.md             # Unreleased changes currently in the beta builds
 ├── CONTRIBUTING.md         # Contribution rules & hardware testing workflow
 ├── LICENSE                 # MIT License (+ No Wholesale Commercial Clones & Precompiled Synth Terms)
 ├── NOTICE.md               # Third-party open-source attributions
