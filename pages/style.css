@@ -90,6 +90,15 @@ p, dd {
   font-size: 1.05rem;
 }
 
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .75rem 1rem;
+}
+
+.hero-jump { font-size: .85rem; }
+
 .hero-copy .hero-link {
   display: inline-flex;
   align-items: center;
