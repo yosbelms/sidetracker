@@ -703,10 +703,10 @@ make mini
 ```
 
 The firmware files are generated in `build/`:
-- `build/TrackerPlus_ST_0.0.2.ptf`
-- `build/TrackerMini_ST_0.0.2.ptf`
+- `build/TrackerPlus_ST_0.0.3.ptf`
+- `build/TrackerMini_ST_0.0.3.ptf`
 
-Copy the matching `TrackerPlus_ST_0.0.2.ptf` or `TrackerMini_ST_0.0.2.ptf` from `build/SD/Firmware/` to the `/Firmware/` directory on your Tracker's SD card and flash via **Config → Firmware → Firmware update**.
+Copy the matching `TrackerPlus_ST_0.0.3.ptf` or `TrackerMini_ST_0.0.3.ptf` from `build/SD/Firmware/` to the `/Firmware/` directory on your Tracker's SD card and flash via **Config → Firmware → Firmware update**.
 
 ---
 
