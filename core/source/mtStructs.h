@@ -1021,6 +1021,7 @@ struct strMtProject
     strSampleMemory sampleMemory[kSampleInstrumentsCount];
     uint32_t max_memory = SAMPLE_MEMORY_SIZE;
     uint32_t used_memory;
+    uint8_t bypassRenderTrackFaders = 0;
     uint16_t perfTracksPatterns[kMaxAllTracksInTrackers] = {
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
     };

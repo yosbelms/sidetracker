@@ -222,6 +222,11 @@ strong { color: #f2f2eb; }
 .guide-section li + li { margin-top: .6rem; }
 .guide-section p:last-child { margin-bottom: 0; }
 
+.guide-screens {
+  display: grid;
+  gap: 1rem;
+}
+
 .guide-section table {
   width: 100%;
   border-collapse: collapse;

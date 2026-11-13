@@ -18,6 +18,10 @@
 __NOINIT(EXTERNAL_RAM)
 static strRecentFile externalRamRecentProjectsList;
 
+// The unused project volume byte used to hold a value in the 0–100 range.
+// Store the render option outside that range to preserve the project layout.
+static constexpr uint8_t kRenderFaderBypassMarker = 0xA5;
+
 //------------------------------------------------------------------------------------------------------------------
 //-----------------------------------------     SAVE
 //-----------------------------------------------------------
@@ -139,6 +143,9 @@ bool cFileManager::loadProjectFileFormFileStruct(strMtProject* project, strProje
 
     memcpy(&project->song, &pFile->projectDataAndHeader.project.song, sizeof(strSong));
     memcpy(&project->values, &pFile->projectDataAndHeader.project.values, sizeof(strMtValues));
+    project->bypassRenderTrackFaders = project->values.oldVolume == kRenderFaderBypassMarker;
+    if (project->bypassRenderTrackFaders)
+        project->values.oldVolume = 0;
     //*proj=pFile.projectDataAndHeader.project;
     // mtProject.values=pFile.projectDataAndHeader.project.values;
     return true;
@@ -148,6 +155,8 @@ bool cFileManager::writeProjectFileToFileStruct(strMtProject* project, strProjec
 {
     memcpy(&pFile->projectDataAndHeader.project.song, &project->song, sizeof(strSong));
     memcpy(&pFile->projectDataAndHeader.project.values, &project->values, sizeof(strMtValues));
+    if (project->bypassRenderTrackFaders)
+        pFile->projectDataAndHeader.project.values.oldVolume = kRenderFaderBypassMarker;
     strcpy(pFile->projectDataAndHeader.project.projectName, currentProjectName);
     strcpy(pFile->projectDataAndHeader.project.projectPath, currentProjectPatch);
     pFile->projectDataAndHeader.project.projectName[PROJECT_NAME_SIZE - 1] = 0;
@@ -198,6 +207,7 @@ void cFileManager::getDefaultProject(struct strMtProject* source)
     source->patterns_count = 0;
     source->max_memory = SAMPLE_MEMORY_SIZE;
     source->used_memory = 0;
+    source->bypassRenderTrackFaders = 0;
 
     for (uint32_t i = 0; i < kSampleInstrumentsCount; i++)
     {

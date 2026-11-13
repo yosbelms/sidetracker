@@ -313,6 +313,11 @@ const char snapToZeroDesc[] = {
     "marker color."
 };
 
+const char renderFaderBypassDesc[] = {
+    "Use 0 dB sample-track faders in Render Pattern and Render Selection. "
+    "Saves with the project. Playback uses the mixer settings."
+};
+
 const char hexModeDesc[] = { "Enable the throwback hex goodness: pattern step numbers start with "
                              "00 and use sixteen digits (A means 10, B means 11, and so "
                              "on all the way to F which means 15). This allows for easy alignment "

@@ -65,6 +65,7 @@ class audioEngine
     void forceUsbGainOutsideTheRecorder();
 #endif
     void refreshTrackVolume();
+    void setRenderFaderBypass(bool enabled);
     void refreshReverbVolume();
     void refreshDelayVolume();
     void refreshAllSends();

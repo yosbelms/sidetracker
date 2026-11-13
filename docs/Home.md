@@ -10,6 +10,8 @@ Welcome to the official documentation for **Polyend Tracker Community Edition (C
 
 * **[Perf FX](perf_fx.md)**
   * Live pads, pattern commands, Line In, and master exports.
+* **[Pattern views, render fader bypass, and mixer meters](pattern_and_mixer.md)**
+  * Switch between FX and Micro-move/Volume, bounce at unity, and read the Master meters.
 * **[Sample Editor, ST effects, and presets](sample_editor.md)**
   * Waveform tools, effect chains, and installing the showcase pack.
 * **[Custom Themes & Fonts (`docs/custom_themes_and_fonts.md`)](custom_themes_and_fonts.md)**

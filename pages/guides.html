@@ -24,6 +24,7 @@
       <nav aria-label="On this page">
         <a href="#performance-fx">Performance FX</a>
         <a href="#performance-fx-sequencing">Performance FX sequencing</a>
+        <a href="#pattern-and-mixer">Pattern and mixer</a>
         <a href="#sample-editor">Sample Editor</a>
         <a href="#synth-engines">Synth engines</a>
       </nav>
@@ -69,6 +70,32 @@
         <img src="assets/performance-sequencing.webp" width="800" height="480" loading="lazy" alt="Pattern grid showing XLP3 and XDE2 together on the first step, XLP- on step 5, and XOFF on step 9.">
         <figcaption>Low Pass and Dub Echo sequenced in the same track</figcaption>
       </figure>
+    </section>
+
+    <section class="guide-section" id="pattern-and-mixer" aria-labelledby="pattern-mixer-title">
+      <div>
+        <h2 id="pattern-mixer-title">Pattern and mixer</h2>
+        <h3>Pattern view indicator</h3>
+        <p>In the four-track Pattern view, press <strong>Note</strong> while the Note column is selected. The title shows <code>[FX]</code> for FX1 and FX2 or <code>[mV]</code> for Micro-move and Volume/Velocity. Tracker CE already has the toggle. SideTracker adds the indicator when <strong>Config → General → Pattern info</strong> is set to <strong>Additional info</strong>.</p>
+        <h3>Render fader bypass</h3>
+        <p>Turn on <strong>Config → Project Settings → Render fader bypass</strong> to use 0 dB sample-track fader gain in <strong>Render Pattern</strong> and <strong>Render Selection</strong>. It also applies to post-fader delay and reverb sends. The setting is off by default and saves with the project. Playback, song exports, and stem exports use the saved mixer levels.</p>
+        <h3>Master and track meter readouts</h3>
+        <p>Read the final digital output peak in dBFS at the top right of <strong>Master</strong>. The numbers above the sample-track meters on <strong>Mixer 2/3</strong> show averaged signal levels. The dB values along the bottom show the fader gain settings.</p>
+      </div>
+      <div class="guide-screens">
+        <figure>
+          <img src="assets/pattern-view-indicator.webp" width="800" height="480" loading="lazy" alt="Pattern 1 with [mV] in the top-left title bar and m and V columns in the grid.">
+          <figcaption>The <code>[mV]</code> pattern view</figcaption>
+        </figure>
+        <figure>
+          <img src="assets/render-fader-bypass.webp" width="800" height="480" loading="lazy" alt="Config Project Settings with Render fader bypass open, showing Off, On, and help text.">
+          <figcaption>Render fader bypass in Project Settings</figcaption>
+        </figure>
+        <figure>
+          <img src="assets/mixer-meter-readouts.webp" width="800" height="480" loading="lazy" alt="Sample Track Mixer with a master peak of −15.2 dBFS, Track 1 reading −8.1 above its meter, and fader gains of 0.00 dB along the bottom.">
+          <figcaption>Master peak, track levels, and fader gains</figcaption>
+        </figure>
+      </div>
     </section>
 
     <section class="guide-section" id="sample-editor" aria-labelledby="sample-title">

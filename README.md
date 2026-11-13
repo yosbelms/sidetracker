@@ -160,6 +160,7 @@ Full user and developer documentation is available in [`docs/`](docs/Home.md) an
 
 * **User Guides**:
   * [Perf FX](docs/perf_fx.md)
+  * [Pattern views, render fader bypass, and mixer meters](docs/pattern_and_mixer.md)
   * [Sample Editor, ST effects, and patches](docs/sample_editor.md)
   * [Custom Themes & Fonts](docs/custom_themes_and_fonts.md) + [Live Web Editor](https://polyend.github.io/tracker-theme-editor/) ([`polyend/tracker-theme-editor`](https://github.com/polyend/tracker-theme-editor))
   * [Wavetable Envelopes, LFOs & Step FX](docs/wavetable_envelopes.md)

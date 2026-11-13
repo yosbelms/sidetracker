@@ -75,6 +75,8 @@ void mtAudioExport::setExternalSettings()
 
     engine.getAudioOutput()->getPerfFx().rack().reset();
     AudioStream::renderMode = 1;
+    const bool patternRender = selectedMode == exportPattern || selectedMode == exportPatternSelection;
+    engine.setRenderFaderBypass(patternRender && mtProject.bypassRenderTrackFaders);
     AudioPlayMemory::initNotesLookup(false);
 
     elapsedMillisAudio::enterVirtualTimeMode();
@@ -115,6 +117,7 @@ void mtAudioExport::callBackExternalSettings()
           ->end();
     }
 
+    engine.setRenderFaderBypass(false);
     AudioStream::renderMode = 0;
     AudioPlayMemory::initNotesLookup(true);
 

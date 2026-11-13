@@ -24,6 +24,8 @@ static_assert(kSdStreamBufferSize <= SHARED_SCRATCH_MEMORY_SIZE,
 playerEngine instrumentPlayer[audioEngine::kVoices];
 audioEngine engine;
 
+static bool renderFaderBypass = false;
+
 uint8_t isBlockedInstrument[48];
 uint8_t isBlockedNoteOn[48];
 
@@ -874,6 +876,14 @@ void audioEngine::refreshTrackVolume()
         instrumentPlayer[track].setRefreshBit(VOLUME_MASK);
     }
 }
+void audioEngine::setRenderFaderBypass(bool enabled)
+{
+    if (renderFaderBypass == enabled) return;
+    renderFaderBypass = enabled;
+    for (auto& player : instrumentPlayer)
+        player.setRefreshBit(VOLUME_MASK | DELAY_SEND_MASK | REVERB_SEND_MASK);
+}
+
 void audioEngine::refreshReverbVolume()
 {
     for (uint8_t track = 0; track < 8; track++)
@@ -1759,11 +1769,16 @@ AUDIO_CORE_RAM void playerEngine ::modPanning(int16_t value)
 #endif
 }
 
+static inline float sampleTrackFaderGain(unsigned track)
+{
+    return renderFaderBypass ? 1.0f : mixAmpLogValues[mtProject.values.trackVolume[track]];
+}
+
 AUDIO_CORE_RAM void playerEngine::modVolume(float value)
 {
     float gain = mtProject.values.dryMixMute
                    ? AMP_MUTED
-                   : value * mixAmpLogValues[mtProject.values.trackVolume[nChannel]] *
+                   : value * sampleTrackFaderGain(nChannel) *
                        mixAmpLogValues[mtProject.values.dryMixVolume];
 
     for (int channel = 0; channel < (int)ampPtr.size(); channel++)
@@ -1885,7 +1900,7 @@ AUDIO_CORE_RAM void playerEngine ::modDelaySend(uint8_t value)
           sendsAmpLogValues[value] * mixAmpLogValues[mtProject.values.delayVolume];
         float gainFromVolume = getMostSignificantAmount() *
                                ampLogValues[getMostSignificantVolume()] *
-                               mixAmpLogValues[mtProject.values.trackVolume[nChannel]];
+                               sampleTrackFaderGain(nChannel);
 
         float gain = isMute ? AMP_MUTED : gainFromDelay * gainFromVolume;
 #ifndef PLATFORM_IMX
@@ -1918,7 +1933,7 @@ AUDIO_CORE_RAM void playerEngine ::modReverbSend(uint8_t value)
           sendsAmpLogValues[value] * mixAmpLogValues[mtProject.values.reverbVolume];
         float gainFromVolume = getMostSignificantAmount() *
                                ampLogValues[getMostSignificantVolume()] *
-                               mixAmpLogValues[mtProject.values.trackVolume[nChannel]];
+                               sampleTrackFaderGain(nChannel);
 
         float gain = isMute ? AMP_MUTED : gainFromReverb * gainFromVolume;
 #ifndef PLATFORM_IMX

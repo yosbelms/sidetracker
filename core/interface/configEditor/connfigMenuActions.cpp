@@ -138,6 +138,11 @@ void setSnapToZeroMode()
     newFileManager.setProjectStructChanged();
 }
 
+void setRenderFaderBypass()
+{
+    newFileManager.setProjectStructChanged();
+}
+
 void setMetronomValues()
 {
     // wlaczenie wylaczenie metronomu
