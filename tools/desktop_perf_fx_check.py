@@ -369,9 +369,9 @@ wait 5100
         # Effect names use rotated glyphs, which are absent from the text
         # audit. Check the four visible value labels in all twelve columns.
         frames = audit.read_text()
-        assert "Perf FX" in frames
         assert "Global Mixer 3/3" in frames
         text_draws = [line.split("\t", 2) for line in frames.splitlines() if "\t" in line]
+        assert any(text == "Performance FX" for _, _, text in text_draws)
         for group, heading in enumerate(("Rhythm", "Turntable", "Tone")):
             assert [str(139 + group * 260), "50", heading] in text_draws
         values = [

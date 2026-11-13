@@ -124,7 +124,7 @@ void cPerformanceMode::initDisplayControls()
 void cPerformanceMode::showPerfFx()
 {
     titleBar->show();
-    titleBar->setTitle("Perf FX");
+    titleBar->setTitle("Performance FX");
     display.setControlShow(bgLabel);
     display.refreshControl(bgLabel);
     showTracks();
