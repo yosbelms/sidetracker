@@ -1,3 +1,4 @@
+#include "FT812.h"
 #include "ampLogarythmicValues.h"
 #include "mtMasterEnhancer.h"
 #include "mtAudioEngine.h"
@@ -12,6 +13,86 @@
 
 static constexpr uint32_t kMixerHeadingStyle = controlStyleShow | controlStyleBackground |
                                                 controlStyleCenterY | controlStyleCenterX;
+
+namespace
+{
+constexpr int kMasterBarTop = 29;
+constexpr int kMasterBarHeight = 394;
+// cBar draws the fader fill to 15 px above the bottom of its control.
+constexpr int kMasterFaderBottom = kMasterBarTop + kMasterBarHeight - 15;
+
+struct SpectrumTick
+{
+    uint16_t position;
+    const char* label;
+};
+
+// Positions in ten-thousandths of the logarithmic axis, from 44.1 kHz / 1024 to 20 kHz.
+constexpr SpectrumTick spectrumTicks[] = {
+    {243, "50"}, {1372, "100"}, {2501, "200"}, {3993, "500"}, {5122, "1k"},
+    {6250, "2k"}, {7742, "5k"}, {8871, "10k"}, {10000, "20k"},
+};
+
+class MasterSpectrumControl : public cDisplayControl
+{
+  public:
+    explicit MasterSpectrumControl(strControlProperties* properties)
+      : cDisplayControl(controlIdSpectrum, 1)
+    {
+        colorsCount = 2;
+        colors = properties->colors;
+        setData(properties->data);
+        posX = properties->x;
+        posY = properties->y;
+        width = properties->w;
+        height = properties->h;
+    }
+
+    void update() override
+    {
+        const auto tickX = [&](const SpectrumTick& tick) {
+            return posX + (tick.position * (width - 1) + 5000) / 10000;
+        };
+        const auto& scaleFont = fonts[4];
+        const int labelY = kMasterFaderBottom - scaleFont.height;
+        const int bottom = labelY - 12;
+        API_SAVE_CONTEXT();
+        API_COLOR(colors[0]);
+        API_LINE_WIDTH(8);
+        API_BEGIN(LINE_STRIP);
+        for (unsigned i = 0; i < masterSpectrum::kPoints; ++i)
+        {
+            const unsigned x = posX + i * (width - 1) / (masterSpectrum::kPoints - 1);
+            const int y = bottom - levels[i] * (bottom - posY) / 255;
+            API_VERTEX2F(x, y);
+        }
+        API_END();
+
+        API_COLOR(colors[1]);
+        API_BEGIN(LINES);
+        for (const auto& tick : spectrumTicks)
+        {
+            const auto x = tickX(tick);
+            API_VERTEX2F(x, labelY - 8);
+            API_VERTEX2F(x, labelY - 4);
+        }
+        API_END();
+        for (const auto& tick : spectrumTicks)
+            API_CMD_TEXT(tickX(tick), labelY, scaleFont.handle, OPT_CENTERX, tick.label);
+
+        API_RESTORE_CONTEXT();
+    }
+
+    void setStyle(uint32_t value) override { style = value; }
+    void setText(const char*) override {}
+    void setValue(int) override {}
+    void setColors(const uint32_t* value) override { colors = value; }
+    void setData(void* data) override { levels = static_cast<const uint8_t*>(data); }
+
+  private:
+    const uint8_t* levels;
+};
+}
 
 static const uint16_t framesPlaces[8][4] = {
     { 0 + 1, 31, 800 / 8 - 3, 391 },
@@ -43,6 +124,14 @@ void cMasterParams::initDisplayControls()
     prop.value = 0;
     prop.data = &frameData;
     frameControl = display.createControl<cFrame>(&prop);
+
+    strControlProperties spectrumProps;
+    spectrumProps.x = 116;
+    spectrumProps.y = 104;
+    spectrumProps.w = 368;
+    spectrumProps.colors = display.getTheme().waveformColors;
+    spectrumProps.data = spectrumLevels;
+    spectrumControl = display.createControl<MasterSpectrumControl>(&spectrumProps);
 
     strControlProperties prop2;
 
@@ -330,6 +419,8 @@ void cMasterParams::showMasterScreen()
     display.setControlHide(blankSpaceCover[1]);
     display.setControlHide(blankSpaceCover[2]);
 
+    showSpectrum(displayType == displayMode::masterValues && !isDelayScreen && !isReverbScreen &&
+                 !isLimiterScreen && !isEqualizerScreen);
     display.synchronizeRefresh();
 
     lightUpPadBoard();
@@ -337,6 +428,7 @@ void cMasterParams::showMasterScreen()
 
 void cMasterParams::showReverbScreen()
 {
+    showSpectrum(false);
     display.setControlHide(saturationList);
 
     for (uint8_t i = 0; i < 8; i++)
@@ -428,6 +520,7 @@ void cMasterParams::showReverbScreen()
 
 void cMasterParams::showDelayScreen()
 {
+    showSpectrum(false);
     display.setControlShow(delayPingpongEnableList);
     display.setControlShow(delaySyncEnableList);
     display.setControlShow(delaySyncRateList);
@@ -596,6 +689,7 @@ void cMasterParams::showReverbDiffusion()
 // limiter
 void cMasterParams::showLimiterScreen()
 {
+    showSpectrum(false);
     display.setControlHide(delayPingpongEnableList);
     display.setControlHide(delaySyncEnableList);
     display.setControlHide(delaySyncRateList);
@@ -782,6 +876,7 @@ void cMasterParams::showLimiterSidechain()
 
 void cMasterParams::showEqualizerScreen()
 {
+    showSpectrum(false);
     display.setControlHide(delayPingpongEnableList);
     display.setControlHide(delaySyncEnableList);
     display.setControlHide(delaySyncRateList);
@@ -1022,8 +1117,8 @@ void cMasterParams::resizeBarControl(displayMode val)
 
         for (uint8_t i = 0; i < 8; i++)
         {
-            display.setControlPosition(barControl[i], (800 / 8) * i + 2, 29);
-            display.setControlSize(barControl[i], 800 / 8 - 3, 394);
+            display.setControlPosition(barControl[i], (800 / 8) * i + 2, kMasterBarTop);
+            display.setControlSize(barControl[i], 800 / 8 - 3, kMasterBarHeight);
             display.refreshControl(barControl[i]);
         }
     }
@@ -1165,6 +1260,23 @@ void cMasterParams::showFinalOutputLevel()
         std::strcpy(finalOutputLevelText, text);
         titleBar->setRightLabel(finalOutputLevelText);
     }
+}
+
+void cMasterParams::showSpectrum(bool visible)
+{
+    if (spectrumVisible == visible) return;
+    spectrumVisible = visible;
+    masterSpectrum::setEnabled(visible);
+    if (visible)
+    {
+        std::memset(spectrumLevels, 0, sizeof(spectrumLevels));
+        display.setControlShow(spectrumControl);
+    }
+    else
+    {
+        display.setControlHide(spectrumControl);
+    }
+    display.refreshControl(spectrumControl);
 }
 
 void cMasterParams::showSaturationType()
@@ -1330,6 +1442,7 @@ void cMasterParams::showDelayFilterFrequency()
 // mixer
 void cMasterParams::showMixerScreen()
 {
+    showSpectrum(false);
     display.setControlHide(delayPingpongEnableList);
     display.setControlHide(delaySyncEnableList);
     display.setControlHide(delaySyncRateList);
@@ -1415,6 +1528,7 @@ void cMasterParams::showPerfFxMix()
 
 void cMasterParams::showMixerDelayReverbScreen()
 {
+    showSpectrum(false);
     display.setControlHide(delayPingpongEnableList);
     display.setControlHide(delaySyncEnableList);
     display.setControlHide(delaySyncRateList);

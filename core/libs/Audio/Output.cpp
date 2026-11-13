@@ -1,4 +1,5 @@
 #include "Output.h"
+#include "MasterSpectrum.h"
 #include <algorithm>
 
 void AudioOutputStream::begin(void)
@@ -44,6 +45,11 @@ AUDIO_CORE_RAM void AudioOutputStream::update()
     }
     if (blockPeak > peak)
         peak = blockPeak;
+
+    if (!renderMode && source[0] == 0 && source[1] == 0)
+        masterSpectrum::capture(blockLeft ? blockLeft->data : nullptr,
+                                blockRight ? blockRight->data : nullptr,
+                                AUDIO_BLOCK_SAMPLES);
 
     if (blockLeft)
         release(blockLeft);

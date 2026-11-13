@@ -179,6 +179,9 @@ void cMasterParams::update()
         showFinalOutputLevel();
     }
 
+    if (spectrumVisible && masterSpectrum::read(spectrumLevels))
+        display.refreshControl(spectrumControl);
+
     if (displayType == displayMode::mixer && !keyboardManager.getState())
     {
         for (uint8_t i = 0; i < 8; i++)
@@ -351,6 +354,7 @@ void cMasterParams::start(uint32_t options)
 
 void cMasterParams::stop()
 {
+    showSpectrum(false);
     engine.getAudioOutput()->getPerfFx().setMeterEnabled(false);
     sequencer.stopManualNotes();
     moduleRefresh = 0;
@@ -358,6 +362,7 @@ void cMasterParams::stop()
 
 void cMasterParams::hideControlsUnderMiniMenu()
 {
+    showSpectrum(false);
     hideControlUnderMenu();
 }
 

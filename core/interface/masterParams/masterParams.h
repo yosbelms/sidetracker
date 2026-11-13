@@ -2,6 +2,7 @@
 #define INTERFACE_MASTERPARAMS_H_
 
 #include "core/modulesBase.h"
+#include "MasterSpectrum.h"
 #include "mtKeyboardManager.h"
 
 #include "mtStructs.h"
@@ -393,6 +394,10 @@ class cMasterParams : public ModuleBase
     char volumeVal[12];
     char finalOutputLevelText[16]{};
     elapsedMillis finalOutputRefreshTimer;
+    hControl spectrumControl = -1;
+    uint8_t spectrumLevels[masterSpectrum::kPoints]{};
+    bool spectrumVisible = false;
+    void showSpectrum(bool visible);
     char delayFeedbackVal[4];
     char delayTimeVal[9];
     char delayFilterFreqVal[9];
