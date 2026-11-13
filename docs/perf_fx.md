@@ -6,6 +6,10 @@
 - **Line In and Mix** — In **Master → Global Mixer 3/3**, unmute and raise **Line In** to run it through the rack. Hold **F5** and turn the jog wheel or use the arrows to adjust **Perf FX Mix**. Delete while holding F5 resets it to 100%.
 - **Recording and export** — The master WAV includes sequenced Perf FX in pattern, selection, song, and stems exports. Individual stems and direct Line In recordings are captured before the rack. Offline export mutes Line In.
 
+- **Cassette** — Warm softens and saturates, Wow adds slow pitch drift, Worn adds flutter and hiss, and Chewed adds a brief pitch sag and level dip once per beat. Use `XCA1`–`XCA4` to sequence it and `XCA-` to release it. Saved `XPT` values now select the corresponding Cassette commands.
+- **Scratch** — Baby leaves a gap after a push and pull, Swing alternates short pushes with longer pulls, Cut punctuates the beat with two separated gestures, and Scribble follows quick strokes with a longer pull. Gaps pass the live mix through.
+- **Crush** — The four pads use 2×/12-bit, 4×/10-bit, 8×/8-bit, and 16×/6-bit settings. Saved `XCR` commands use the new settings for their original pad numbers.
+
 | FX1 | FX2 | Result |
 | --- | --- | --- |
 | `XLP3` | `XDE2` | Start Low Pass at 800 Hz and Dub Echo at 1/8 dotted |

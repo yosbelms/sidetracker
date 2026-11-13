@@ -50,7 +50,7 @@ TEST_F(PerfFxTest, PatternValuesDecodeEveryPresetAndRelease)
     using Effect = perffx::Effect;
     constexpr Effect order[] = {
         Effect::BeatRepeat, Effect::Stutter, Effect::Scatter, Effect::DubEcho,
-        Effect::Pitch, Effect::Reverse, Effect::Scratch, Effect::TapeStop,
+        Effect::Cassette, Effect::Reverse, Effect::Scratch, Effect::TapeStop,
         Effect::LowPass, Effect::HighPass, Effect::Crush, Effect::Unison,
     };
     for (unsigned effect = 0; effect < std::size(order); ++effect)
@@ -71,9 +71,69 @@ TEST_F(PerfFxTest, PatternValuesDecodeEveryPresetAndRelease)
         ASSERT_EQ(release.action, Action::Release);
         EXPECT_EQ(release.column->effect, order[effect]);
     }
+    EXPECT_STREQ(perffx::decodePatternCommand(17).mnemonic, "CA");
+    EXPECT_STREQ(perffx::decodePatternCommand(53).mnemonic, "CA");
     EXPECT_EQ(perffx::decodePatternCommand(0).action, Action::AllOff);
-    EXPECT_EQ(perffx::decodePatternCommand(61).action, Action::Invalid);
+    EXPECT_EQ(perffx::decodePatternCommand(perffx::kPatternMax + 1).action, Action::Invalid);
     EXPECT_EQ(perffx::decodePatternCommand(255).action, Action::Invalid);
+}
+
+TEST_F(PerfFxTest, CassetteWarmSoftensHighsAndRoundsPeaks)
+{
+    rack.sequence(17); // CA1
+    constexpr float radiansPerSample = 6.28318531f / 44100;
+    float dryBass = 0, dryTreble = 0, wetBass = 0, wetTreble = 0;
+    for (unsigned b = 0; b < 64; ++b)
+    {
+        for (unsigned i = 0; i < kBlock; ++i, ++cursor)
+        {
+            left[i] = static_cast<int16_t>(1200 * std::sin(cursor * 250 * radiansPerSample));
+            right[i] = static_cast<int16_t>(1200 * std::sin(cursor * 6500 * radiansPerSample));
+        }
+        rack.beginBlock(120, 44100, 100, true);
+        rack.process(left.data(), right.data(), outL.data(), outR.data(), kBlock);
+        if (b < 8) continue;
+        for (unsigned i = 0; i < kBlock; ++i)
+        {
+            dryBass += left[i] * left[i];
+            dryTreble += right[i] * right[i];
+            wetBass += outL[i] * outL[i];
+            wetTreble += outR[i] * outR[i];
+        }
+    }
+    EXPECT_GT(wetBass / dryBass, 0.93f);
+    EXPECT_LT(wetTreble / dryTreble, 0.25f);
+
+    left.fill(16384);
+    right.fill(-16384);
+    rack.beginBlock(120, 44100, 100, true);
+    rack.process(left.data(), right.data(), outL.data(), outR.data(), kBlock);
+    EXPECT_NEAR(outL.back(), 13435, 4);
+    EXPECT_NEAR(outR.back(), -13435, 4);
+}
+
+TEST_F(PerfFxTest, CassetteChewedHasABeatTimedDropout)
+{
+    // A constant signal isolates the sag's amplitude envelope. Fill one
+    // beat so the delay and rack fades are settled before comparing levels.
+    constexpr unsigned beat = 22050;
+    left.fill(8000);
+    right.fill(-4000);
+    rack.sequence(20); // CA4
+    std::array<int16_t, 2 * beat + kBlock> rendered{};
+    for (unsigned i = 0; i + kBlock <= rendered.size(); i += kBlock)
+    {
+        rack.beginBlock(120, 44100, 100, true);
+        rack.process(left.data(), right.data(), outL.data(), outR.data(), kBlock);
+        std::copy(outL.begin(), outL.end(), rendered.begin() + i);
+    }
+    EXPECT_GT(rendered[beat], 7500);
+    EXPECT_LT(rendered[beat + beat / 16], 5300);
+    EXPECT_GT(rendered[beat + beat / 4], 7500);
+    EXPECT_LT(outR.back(), 0);
+    rack.sequence(53); // CA-
+    advance(16);
+    EXPECT_EQ(outL, left);
 }
 
 TEST_F(PerfFxTest, PatternLatchesStackAndReleaseIndependentlyOfPads)
@@ -207,7 +267,7 @@ TEST_F(PerfFxTest, ZeroMixAndIdlePreservePcmAndResetClearsHistory)
 TEST_F(PerfFxTest, OwnerGroupsAndOverflowFailDry)
 {
     rack.press(pad(1), perffx::Effect::Stutter, 0);
-    rack.press(perffx::owner(perffx::Source::Sequencer, 1), perffx::Effect::PitchUp, 3);
+    rack.press(perffx::owner(perffx::Source::Sequencer, 1), perffx::Effect::Cassette, 3);
     advance(8);
     rack.releaseSource(perffx::Source::Pads);
     advance(16);
@@ -245,6 +305,54 @@ TEST_F(PerfFxTest, HistoryWrapAndExtremeTempoRemainBounded)
     rack.releaseSource(perffx::Source::Pads);
     advance(16, 5);
     EXPECT_FALSE(rack.wet());
+}
+
+TEST_F(PerfFxTest, ScratchPlaysDistinctPhrasesAndRepeatsExactlyOnTheBeat)
+{
+    constexpr unsigned rate = 44100;
+    constexpr float tempo = 120;
+    constexpr unsigned beat = 22050;
+    constexpr unsigned captured = 6000;
+    constexpr std::array<unsigned, perffx::kLevels> strokes[] = {
+        {6, 12, 16}, {3, 8, 11, 16}, {3, 5, 8, 10}, {2, 4, 5, 6},
+    };
+    for (uint8_t row = 0; row < perffx::kLevels; ++row)
+    {
+        SCOPED_TRACE(static_cast<unsigned>(row));
+        // A ramp makes output differences expose read speed. At full gain the
+        // position must stay within the captured stereo audio on every stroke.
+        std::array<int16_t, captured> ramp{}, inverted{};
+        for (unsigned i = 0; i < captured; ++i)
+        {
+            ramp[i] = 4 * i + 2000;
+            inverted[i] = -ramp[i];
+        }
+        rack.reset();
+        rack.beginBlock(tempo, rate, 100, true);
+        rack.process(ramp.data(), inverted.data(), nullptr, nullptr, captured);
+        rack.press(pad(6), perffx::Effect::Scratch, row);
+
+        std::array<int16_t, 2 * beat + kBlock> rendered{};
+        for (unsigned i = 0; i + kBlock <= rendered.size(); i += kBlock)
+        {
+            rack.beginBlock(tempo, rate, 100, true);
+            rack.process(nullptr, nullptr, outL.data(), outR.data(), kBlock);
+            std::copy(outL.begin(), outL.end(), rendered.begin() + i);
+            for (unsigned sample = 0; sample < kBlock; ++sample)
+            {
+                ASSERT_EQ(outL[sample], -outR[sample]);
+                ASSERT_GE(outL[sample], 0);
+                ASSERT_LE(outL[sample], ramp.back());
+            }
+        }
+        for (auto tick : strokes[row])
+            if (tick) EXPECT_LT(rendered[beat + (tick * beat + 8) / 16], 100) << "turn at tick " << tick;
+        EXPECT_EQ(rendered[beat], rendered[2 * beat]);
+        EXPECT_EQ(rendered[beat], 0);
+        EXPECT_GT(rendered[beat + beat / 32], 2000);
+        for (unsigned i = 512; i < beat; ++i)
+            ASSERT_EQ(rendered[i], rendered[beat + i]) << "frame " << i;
+    }
 }
 
 TEST_F(PerfFxTest, TapeStopSlowsAcrossHistoryWrapThenStaysSilentUntilRelease)
@@ -358,8 +466,8 @@ TEST_F(PerfFxTest, HighPassPresetsReachTheirCutoffsWithoutHighFrequencyBoost)
 
 TEST_F(PerfFxTest, CrushPresetsHoldAndQuantizeBothPolaritiesSymmetrically)
 {
-    constexpr unsigned periods[] = {4, 8, 16, 32};
-    constexpr int steps[] = {64, 256, 1024, 4096};
+    constexpr unsigned periods[] = {2, 4, 8, 16};
+    constexpr int steps[] = {16, 64, 256, 1024};
     for (uint8_t row = 0; row < perffx::kLevels; ++row)
     {
         SCOPED_TRACE(static_cast<unsigned>(row));
@@ -391,9 +499,11 @@ TEST_F(PerfFxTest, RetiredEffectIdsDoNotTriggerReplacementColumns)
     rack.press(pad(1), static_cast<perffx::Effect>(8), 0);
     rack.press(pad(2), static_cast<perffx::Effect>(10), 0);
     rack.press(pad(3), static_cast<perffx::Effect>(18), 0);
+    rack.press(pad(4), static_cast<perffx::Effect>(16), 0);
     block();
     EXPECT_FALSE(rack.wet());
     EXPECT_EQ(rack.soundingLevel(3), -1);
+    EXPECT_EQ(rack.soundingLevel(4), -1);
     EXPECT_EQ(rack.soundingLevel(7), -1);
     EXPECT_EQ(rack.soundingLevel(9), -1);
 }

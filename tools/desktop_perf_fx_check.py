@@ -126,9 +126,13 @@ button pad 45
 release FX 1
 button pad 32
 button Up
+button pad 40
+button Up
+button Down
 wait 12000
 """)
         assert "Low Pass / 800Hz" in audit.read_text()
+        assert "Cassette / Chewed" in audit.read_text()
         path = card / "Workspace/patterns/pattern_01.mtp"
         saved = path.read_bytes()
         assert len(saved) == 16432 and saved[8] == 6
@@ -140,7 +144,7 @@ wait 12000
                              note, 0, *fx2, *fx1, -1, -1)
 
         assert saved[33:35] == bytes((51, 1))  # XBR1, selected by type pad.
-        assert saved[41:43] == bytes((51, 35))  # XLP3, selected by value pad.
+        assert saved[41:43] == bytes((51, 20))  # XCA4, selected by value pad.
 
         def write_pattern(data, target=path):
             struct.pack_into("<I", data, len(data) - 4, zlib.crc32(data[:-4]))
@@ -229,6 +233,18 @@ wait 7000
             assert wet_params == dry_params, mode
             assert wet_pcm[:rate * frame_bytes // 10] != dry_pcm[:rate * frame_bytes // 10], mode
 
+        cassette = bytearray(dry)
+        step(cassette, 0, 0, note=60, fx1=(51, 20))  # CA4
+        step(cassette, 0, 4, fx1=(51, 53))  # CA-
+        write_pattern(cassette)
+        run(binary, card, """button Play
+assert-perf-fx 4 3
+wait 620
+assert-perf-fx 4 -1
+button Play
+assert-sequencer stopped
+""")
+
         # A blank second pattern clears the latch. A loop of the first pattern holds it.
         loop = bytearray(dry)
         for track in range(16):
@@ -293,6 +309,14 @@ assert-perf-fx 3 -1
 release pad 0
 release pad 2
 release pad 3
+press pad 4
+assert-perf-fx 4 0
+press pad 40
+assert-perf-fx 4 3
+release pad 40
+assert-perf-fx 4 0
+release pad 4
+assert-perf-fx 4 -1
 press pad 7
 assert-perf-fx 7 0
 press pad 43
@@ -355,13 +379,13 @@ wait 5100
             ("80%", "60%", "40%", "20%"),
             ("Skip", "Shuffle", "Flip", "Chop"),
             ("1/8", "1/8D", "1/4", "1/4D"),
-            ("-5 st", "+5 st", "-12 st", "+12 st"),
+            ("Warm", "Wow", "Worn", "Chewed"),
             ("1x", "1.1x", "1.2x", "1.3x"),
-            ("1x/2", "2x/4", "3.5x/6", "5x/8"),
+            ("Baby", "Swing", "Cut", "Scribble"),
             ("1/4", "1/8", "1/16", "1/32"),
             ("4kHz", "2kHz", "800Hz", "250Hz"),
             ("160Hz", "400Hz", "900Hz", "1.8kHz"),
-            ("4x/10b", "8x/8b", "16x/6b", "32x/4b"),
+            ("2x/12b", "4x/10b", "8x/8b", "16x/6b"),
             ("20%", "47%", "73%", "100%"),
         ]
         for column, expected in enumerate(values):

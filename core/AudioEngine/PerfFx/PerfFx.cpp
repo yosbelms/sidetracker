@@ -13,22 +13,55 @@ constexpr Column columns[kColumns] = {
     {Effect::Stutter, "Cutter", {"80%", "60%", "40%", "20%"}},
     {Effect::Scatter, "Scatter", {"Skip", "Shuffle", "Flip", "Chop"}},
     {Effect::DubEcho, "Dub Echo", {"1/8", "1/8D", "1/4", "1/4D"}},
-    {Effect::Pitch, "Pitch", {"-5 st", "+5 st", "-12 st", "+12 st"}},
+    {Effect::Cassette, "Cassette", {"Warm", "Wow", "Worn", "Chewed"}},
     {Effect::Reverse, "Reverse", {"1x", "1.1x", "1.2x", "1.3x"}},
-    {Effect::Scratch, "Scratch", {"1x/2", "2x/4", "3.5x/6", "5x/8"}},
+    {Effect::Scratch, "Scratch", {"Baby", "Swing", "Cut", "Scribble"}},
     {Effect::TapeStop, "Tape Stop", {"1/4", "1/8", "1/16", "1/32"}},
     {Effect::LowPass, "Low Pass", {"4kHz", "2kHz", "800Hz", "250Hz"}},
     {Effect::HighPass, "High Pass", {"160Hz", "400Hz", "900Hz", "1.8kHz"}},
-    {Effect::Crush, "Crush", {"4x/10b", "8x/8b", "16x/6b", "32x/4b"}},
+    {Effect::Crush, "Crush", {"2x/12b", "4x/10b", "8x/8b", "16x/6b"}},
     {Effect::Unison, "Unison", {"20%", "47%", "73%", "100%"}},
 };
 
 namespace
 {
 constexpr float kPcm = 1.0f / 32768.0f;
-constexpr unsigned kGrain = 768;
 constexpr unsigned kDelayMask = kDelayFrames - 1;
 constexpr unsigned kScatterSteps = 8;
+constexpr unsigned kScratchTicks = 16;
+constexpr unsigned kScratchStrokes = 8;
+struct ScratchStroke
+{
+    uint8_t ticks;
+    int8_t travel; // Percent of the capture excursion. Negative pulls back, zero passes dry.
+};
+constexpr ScratchStroke scratchPatterns[kLevels][kScratchStrokes] = {
+    {{6, 75}, {6, -75}, {4, 0}},
+    {{3, 65}, {5, -65}, {3, 90}, {5, -90}},
+    {{3, 80}, {2, -80}, {3, 0}, {2, 90}, {3, -90}, {3, 0}},
+    {{2, 30}, {2, -30}, {1, 24}, {1, -24}, {1, 30}, {1, -30}, {3, 80}, {5, -80}},
+};
+static_assert([] {
+    for (const auto& pattern : scratchPatterns)
+    {
+        unsigned ticks = 0;
+        for (const auto& stroke : pattern) ticks += stroke.ticks;
+        if (ticks != kScratchTicks) return false;
+    }
+    return true;
+}());
+
+struct CassettePreset
+{
+    float cutoff, drive, wowMs, flutterMs, hiss;
+};
+constexpr CassettePreset cassettePresets[kLevels] = {
+    {4300, 0.36f, 0, 0, 0},
+    {7500, 0.13f, 1.5f, 0.06f, 0},
+    {4700, 0.18f, 2.5f, 0.28f, 0.002f},
+    {3700, 0.22f, 2.8f, 0.36f, 0.0035f},
+};
+
 struct ScatterStep
 {
     uint8_t slice;
@@ -43,15 +76,13 @@ constexpr ScatterStep scatterPatterns[kLevels][kScatterSteps] = {
 };
 
 constexpr auto effectColumns = [] {
-    std::array<uint8_t, static_cast<unsigned>(Effect::HighPass) + 1> result{};
+    std::array<uint8_t, static_cast<unsigned>(Effect::Cassette) + 1> result{};
     result.fill(kColumns);
     for (unsigned i = 0; i < kColumns; ++i)
         result[static_cast<unsigned>(columns[i].effect)] = i;
-    // Preserve the command presets for the original split columns.
+    // Preserve the command presets for the original split loop columns.
     for (auto effect : {Effect::Loop, Effect::TripletLoop})
         result[static_cast<unsigned>(effect)] = result[static_cast<unsigned>(Effect::BeatRepeat)];
-    for (auto effect : {Effect::PitchUp, Effect::PitchDown})
-        result[static_cast<unsigned>(effect)] = result[static_cast<unsigned>(Effect::Pitch)];
     return result;
 }();
 
@@ -68,7 +99,7 @@ constexpr struct
     const char* mnemonic;
 } patternEffects[kColumns] = {
     {Effect::BeatRepeat, "BR"}, {Effect::Stutter, "CT"}, {Effect::Scatter, "SC"},
-    {Effect::DubEcho, "DE"}, {Effect::Pitch, "PT"}, {Effect::Reverse, "RV"},
+    {Effect::DubEcho, "DE"}, {Effect::Cassette, "CA"}, {Effect::Reverse, "RV"},
     {Effect::Scratch, "SK"}, {Effect::TapeStop, "TS"}, {Effect::LowPass, "LP"},
     {Effect::HighPass, "HP"}, {Effect::Crush, "CR"}, {Effect::Unison, "UN"},
 };
@@ -329,32 +360,20 @@ void Rack::activate(Lane& lane, const Held& entry, uint32_t order)
     }
     switch (lane.effect)
     {
-        case Effect::Pitch:
-        {
-            constexpr float ratios[] = {0.7491535f, 1.3348399f, 0.5f, 2.0f};
-            lane.step = ratios[level];
-            lane.headB = kGrain / 2;
-            break;
-        }
-        case Effect::PitchUp:
-        {
-            constexpr float ratios[] = {1.1892071f, 1.3348399f, 1.4983071f, 2.0f};
-            lane.step = ratios[level];
-            lane.headB = kGrain / 2;
-            break;
-        }
-        case Effect::PitchDown:
-        {
-            constexpr float ratios[] = {0.8408964f, 0.7491535f, 0.6674199f, 0.5f};
-            lane.step = ratios[level];
-            lane.headB = kGrain / 2;
-            break;
-        }
         case Effect::Scratch:
+            lane.beatLength = beatFrames;
+            lane.depth = 0.55f * (lane.length - 1);
+            setScratchStroke(lane);
+            break;
+        case Effect::Cassette:
         {
-            constexpr float speeds[] = {1, 2, 3.5f, 5};
-            lane.step = speeds[level];
-            lane.flipPeriod = std::max(256u, beatFrames / (2 * (level + 1)));
+            const auto& preset = cassettePresets[level];
+            lane.depth = preset.cutoff / (preset.cutoff + 0.15915494f * rate);
+            lane.phaseStep = 0.55f / rate;
+            lane.step = 7.3f / rate;
+            lane.edgeScale = preset.wowMs * (0.001f * rate);
+            lane.flutterDepth = preset.flutterMs * (0.001f * rate);
+            lane.echoFrames = 2 + static_cast<unsigned>(lane.edgeScale + lane.flutterDepth);
             break;
         }
         case Effect::Scatter:
@@ -380,8 +399,8 @@ void Rack::activate(Lane& lane, const Held& entry, uint32_t order)
         }
         case Effect::Crush:
         {
-            lane.crushPeriod = 4u << level;
-            lane.crushMask = static_cast<uint16_t>(0xffffu << (6 + 2 * level));
+            lane.crushPeriod = 2u << level;
+            lane.crushMask = static_cast<uint16_t>(0xffffu << (4 + 2 * level));
             break;
         }
         case Effect::Reverse:
@@ -399,6 +418,14 @@ void Rack::activate(Lane& lane, const Held& entry, uint32_t order)
         }
         default: break;
     }
+}
+
+void Rack::setScratchStroke(Lane& lane)
+{
+    const auto& stroke = scratchPatterns[lane.level][lane.chunk];
+    lane.chunkFrames = lane.beatLength * stroke.ticks;
+    lane.phaseStep = 1.0f / lane.chunkFrames;
+    lane.step = 0.01f * std::abs(stroke.travel) * lane.depth;
 }
 
 void Rack::admit()
@@ -492,6 +519,19 @@ void Rack::beginBlock(float tempo, float sampleRate, uint8_t percent, bool recor
                 break;
             }
             case Effect::LowPass: lane.phaseStep = 0.25f / beatFrames; break;
+            case Effect::Cassette:
+                if (lane.level == 3)
+                {
+                    lane.duty = 1.0f / beatFrames;
+                    lane.sagDepth = std::min(0.006f * rate, 0.025f * beatFrames);
+                    if (lane.beatLength != beatFrames)
+                    {
+                        if (lane.beatLength)
+                            lane.chunkOffset = lane.chunkOffset * (static_cast<float>(beatFrames) / lane.beatLength);
+                        lane.beatLength = beatFrames;
+                    }
+                }
+                break;
             default: break;
         }
     }
@@ -566,6 +606,34 @@ void Rack::processLane(Lane& lane, unsigned index, float& left, float& right)
             if (++lane.chunk == kScatterSteps) lane.chunk = 0;
         }
     }
+    else if (lane.effect == Effect::Scratch)
+    {
+        const auto travel = scratchPatterns[lane.level][lane.chunk].travel;
+        if (travel)
+        {
+            // The push peaks early. Read the curve backwards for a softer pull.
+            constexpr float peak = 0.375f;
+            float phase = lane.chunkOffset * lane.phaseStep;
+            if (travel < 0) phase = 1 - phase;
+            const bool beforePeak = phase < peak;
+            const float distance = beforePeak ? phase : 1 - phase;
+            const float speed = distance * (beforePeak ? 1 / peak : 1 / (1 - peak));
+            const float progress = distance * speed;
+            lane.position = lane.step * (beforePeak ? progress : 1 - progress);
+            const float gain = std::min(1.0f, 8 * speed);
+            l = blend(l, readHistory(lane, 0), gain);
+            r = blend(r, readHistory(lane, 1), gain);
+        }
+        // Carry the fraction into the next stroke so each phrase stays one beat.
+        lane.chunkOffset += kScratchTicks;
+        if (lane.chunkOffset >= lane.chunkFrames)
+        {
+            lane.chunkOffset -= lane.chunkFrames;
+            if (++lane.chunk == kScratchStrokes || !scratchPatterns[lane.level][lane.chunk].ticks)
+                lane.chunk = 0;
+            setScratchStroke(lane);
+        }
+    }
     else if (captures(lane.effect))
     {
         l = readHistory(lane, 0);
@@ -575,14 +643,6 @@ void Rack::processLane(Lane& lane, unsigned index, float& left, float& right)
             case Effect::BeatRepeat:
             case Effect::Loop:
             case Effect::TripletLoop: l *= 1.2f; r *= 1.2f; lane.position += 1; break;
-            case Effect::Scratch:
-                lane.position += lane.step * lane.direction;
-                if (++lane.timer >= lane.flipPeriod)
-                {
-                    lane.timer -= lane.flipPeriod;
-                    lane.direction = -lane.direction;
-                }
-                break;
             case Effect::Reverse: lane.position -= lane.step; break;
             default: break;
         }
@@ -641,12 +701,57 @@ void Rack::processLane(Lane& lane, unsigned index, float& left, float& right)
     }
     else
     {
-        memory.delay[index][lane.write][0] = pcm(l);
-        memory.delay[index][lane.write][1] = pcm(r);
-        lane.write = (lane.write + 1) & kDelayMask;
-        lane.valid = std::min(lane.valid + 1, kDelayFrames);
+        if (lane.effect != Effect::Cassette || lane.level)
+        {
+            memory.delay[index][lane.write][0] = pcm(l);
+            memory.delay[index][lane.write][1] = pcm(r);
+            lane.write = (lane.write + 1) & kDelayMask;
+            lane.valid = std::min(lane.valid + 1, kDelayFrames);
+        }
 
-        if (lane.effect == Effect::Unison)
+        if (lane.effect == Effect::Cassette)
+        {
+            float dip = 0;
+            if (lane.level)
+            {
+                lane.phase += lane.phaseStep;
+                lane.position += lane.step;
+                wrap(lane.phase, 1);
+                wrap(lane.position, 1);
+                float delay = lane.echoFrames + lane.edgeScale * sine(lane.phase) +
+                              lane.flutterDepth * sine(lane.position);
+                if (lane.level == 3)
+                {
+                    // Briefly stretch the tape, then return to speed over the next eighth of the beat.
+                    const float phase = lane.chunkOffset * lane.duty;
+                    const float bend = std::clamp(std::min(16 * phase, 1.5f - 8 * phase), 0.0f, 1.0f);
+                    dip = bend * bend * (3 - 2 * bend);
+                    delay += lane.sagDepth * dip;
+                    if (++lane.chunkOffset >= lane.beatLength) lane.chunkOffset = 0;
+                }
+                const float tap = lane.write - 1.0f - delay;
+                const float wet = std::clamp((lane.valid - delay - 1) * (1.0f / 64), 0.0f, 1.0f);
+                l = blend(l, readDelay(lane, index, tap, 0), wet);
+                r = blend(r, readDelay(lane, index, tap, 1), wet);
+            }
+            const auto& preset = cassettePresets[lane.level];
+            float hiss = 0;
+            if (preset.hiss)
+            {
+                lane.noise = lane.noise * 1664525u + 1013904223u;
+                hiss = (static_cast<int>(lane.noise >> 16) - 32768) * kPcm * preset.hiss;
+            }
+            const auto color = [&](float sample, unsigned channel) {
+                auto& tone = lane.filterState[channel][0];
+                tone = blend(tone, std::clamp(sample, -1.0f, 1.0f), lane.depth);
+                // Warm rounds off medium-level peaks as well as the loudest ones.
+                const float shape = lane.level ? tone * tone : std::abs(tone);
+                return tone * (1 - preset.drive * shape) * (1 - 0.38f * dip) + hiss;
+            };
+            l = color(l, 0);
+            r = color(r, 1);
+        }
+        else
         {
             lane.phase += lane.phaseStep;
             wrap(lane.phase, 1);
@@ -656,23 +761,6 @@ void Rack::processLane(Lane& lane, unsigned index, float& left, float& right)
                  readDelay(lane, index, center + modulation, 0)) * 0.667f;
             r = (r + readDelay(lane, index, center - modulation, 1) +
                  readDelay(lane, index, center + modulation, 1)) * 0.667f;
-        }
-        else
-        {
-            lane.position += lane.step;
-            lane.headB += lane.step;
-            if (++lane.phase >= kGrain)
-            {
-                lane.phase = 0;
-                lane.position = static_cast<float>(lane.write) - kDelayFrames / 2;
-            }
-            if (lane.phase == kGrain / 2)
-                lane.headB = static_cast<float>(lane.write) - kDelayFrames / 2;
-            wrap(lane.position, kDelayFrames);
-            wrap(lane.headB, kDelayFrames);
-            const float window = 0.5f * (1 - sine(lane.phase / kGrain + 0.25f));
-            l = blend(readDelay(lane, index, lane.headB, 0), readDelay(lane, index, lane.position, 0), window);
-            r = blend(readDelay(lane, index, lane.headB, 1), readDelay(lane, index, lane.position, 1), window);
         }
     }
     left = blend(left, l, lane.gate);

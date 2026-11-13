@@ -14,10 +14,10 @@ constexpr unsigned kMemoryBytes = 752 * 1024;
 
 enum class Effect : uint8_t
 {
-    // IDs 4, 8, 10 and 18 are reserved for retired effects.
-    None = 0, Loop = 1, TripletLoop = 2, Unison = 3, PitchUp = 5, PitchDown = 6,
+    // Retired effects leave gaps in the ID sequence.
+    None = 0, Loop = 1, TripletLoop = 2, Unison = 3,
     Stutter = 7, Scratch = 9, Scatter = 11, Reverse = 12, TapeStop = 13, LowPass = 14,
-    BeatRepeat = 15, Pitch = 16, DubEcho = 17, Crush = 19, HighPass = 20
+    BeatRepeat = 15, DubEcho = 17, Crush = 19, HighPass = 20, Cassette = 21
 };
 
 struct Column
@@ -104,15 +104,18 @@ class Rack
         float gate = 0;
         unsigned segment = 0, length = 0;
         unsigned write = 0, valid = 0;
-        float position = 0, headB = 0, phase = 0, step = 0;
+        float position = 0, phase = 0, step = 0;
         float phaseStep = 0, depth = 0, edgeScale = 0, duty = 0;
-        float direction = 1, timer = 0, flipPeriod = 0;
+        float timer = 0;
+        float flutterDepth = 0, sagDepth = 0;
+        unsigned beatLength = 0;
         float filterState[2][2] = {};
         unsigned chunkFrames = 0, chunk = 0, chunkOffset = 0;
         unsigned echoFrames = 0;
         unsigned crushPeriod = 0, crushRemaining = 0;
         uint16_t crushMask = 0;
         float heldSamples[2] = {};
+        uint32_t noise = 1;
     };
 
     void enqueue(Command command);
@@ -120,6 +123,7 @@ class Rack
     void clear();
     void admit();
     void activate(Lane& lane, const Held& held, uint32_t order);
+    void setScratchStroke(Lane& lane);
     void processLane(Lane& lane, unsigned index, float& left, float& right);
     float readHistory(const Lane& lane, unsigned channel) const;
     float readDelay(const Lane& lane, unsigned index, float position, unsigned channel) const;
