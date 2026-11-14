@@ -80,6 +80,18 @@ class DesktopInstrument final : public Instrument
         resizeVoices();
     }
 
+    void reset() override
+    {
+        for (auto& slot : activeSlots())
+        {
+            slot.voice->reset();
+            slot.order = 0;
+            slot.paramsDirty = true;
+            applyParams(slot);
+        }
+        noteOrder = 0;
+    }
+
     void render(AudioBufferStereoRef output, std::span<AudioBufferRef> aux)
     {
         const bool stereo = patch->getMetadata().outputChannels == Patch::Metadata::OutputChannels::kStereo;

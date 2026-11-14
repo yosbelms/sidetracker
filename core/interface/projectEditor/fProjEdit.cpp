@@ -12,7 +12,6 @@
 #include "mtPadBoard.h"
 #include "sampleRecorder/sampleRecorder.h"
 
-#include "performanceMode/performanceEngine.h"
 #include "performanceMode/performanceMode.h"
 
 #include "FileBrowser.h"
@@ -472,26 +471,7 @@ uint8_t cProjectEditor::loadProjectValues()
         }
     }
 
-    for (uint8_t i = 0; i < 12; i++)
-    {
-        if (mtProject.values.perfFxPlaces[i] > performance.getFxCount() - 1)
-        {
-            mtProject.values.perfFxPlaces[i] = (i + 1 < performance.getFxCount()) ? i + 1 : 0;
-        }
-        if (mtProject.values.perfSelectedValues[i] > 3)
-            mtProject.values.perfSelectedValues[i] = 0;
-
-        // if(mtProject.values.perfFxValues[place][0] > 255 ||
-        // mtProject.values.perfFxValues[place][0] < -255)
-        if (mtProject.values.perfFxValues[i][0] != 0)
-            mtProject.values.perfFxValues[i][0] = 0;
-        if (mtProject.values.perfFxValues[i][1] > 255 || mtProject.values.perfFxValues[i][1] < -255)
-            mtProject.values.perfFxValues[i][1] = 0;
-        if (mtProject.values.perfFxValues[i][2] > 255 || mtProject.values.perfFxValues[i][2] < -255)
-            mtProject.values.perfFxValues[i][2] = 0;
-        if (mtProject.values.perfFxValues[i][3] > 255 || mtProject.values.perfFxValues[i][3] < -255)
-            mtProject.values.perfFxValues[i][3] = 0;
-    }
+    // The legacy Performance assignments are kept in the project for other firmware.
     //----------------------------------------------------------------------------------------------------
     // song pattern
     if (mtProject.values.globalTempo > 1000)

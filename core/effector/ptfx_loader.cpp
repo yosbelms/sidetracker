@@ -15,6 +15,9 @@ extern uint8_t externalRamScratchBuff[];
 
 static uint32_t s_secondarySampleFrames = 0;
 static uint8_t s_secondarySampleChannels = 0;
+#if defined(PLATFORM_IMX) && !defined(TRACKER_DESKTOP)
+OCRAM_BSS_SECTION
+#endif
 static char s_selectedFilePaths[12][kMaxFilePathLen + 1]{};
 
 static FileSystem* getFileSystem()

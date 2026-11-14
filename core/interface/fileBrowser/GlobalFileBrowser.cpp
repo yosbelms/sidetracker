@@ -62,6 +62,9 @@ struct SavedContextEntry
 };
 
 static constexpr int kMaxSavedContexts = 10;
+#if defined(PLATFORM_IMX) && !defined(TRACKER_DESKTOP)
+OCRAM_BSS_SECTION
+#endif
 SavedContextEntry s_savedContexts[kMaxSavedContexts]{};
 uint32_t s_contextStampCounter = 1;
 

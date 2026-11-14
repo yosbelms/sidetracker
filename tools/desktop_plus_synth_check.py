@@ -82,7 +82,8 @@ release 2
 button 7
 """)
         frames = run(binary, card, f"{model}-collection", commands)
-        if missing := names - frames:
+        shown = {label.removesuffix(".patch") for label in frames}
+        if missing := names - shown:
             raise AssertionError(f"Missing {model} patches in browser: {sorted(missing)}")
 
 

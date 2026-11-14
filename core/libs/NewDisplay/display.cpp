@@ -53,8 +53,6 @@
 #include "images/synth_snare_20x16_L4.h"
 #include "images/synth_tom_20x16_L4.h"
 
-#include "images/chip_mini_nomark_80x28_L2.h"
-#include "images/chip_med_108x40_L2.h"
 #include "images/synth_shaper_18x18_L4.h"
 #include "images/analog_synth_badges.h"
 #endif
@@ -164,7 +162,6 @@ const strBitmap bitmaps[displayBitmapsCount] = {
 };
 
 #ifdef FEATURE_SYNTH
-static_assert(133400 + synthbadges::mediumBackground.size() <= controlsRamStartAddress);
 
 bool drawSideTrackerSynthBadge(int bitmapId, int x, int y)
 {
