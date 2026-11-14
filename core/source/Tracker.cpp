@@ -7,6 +7,7 @@
 #include "fileManager.h"
 #include "mtAudioEngine.h"
 #include "mtAudioExport.h"
+#include "PostCodecRecording.h"
 #include "mtConfig.h"
 #include "mtHardware.h"
 #include "mtMidi.h"
@@ -180,6 +181,9 @@ void TrackerImpl::update()
     engine.updateSdStream();
     padsBacklight.update();
     exporter.update();
+#ifndef TRACKER_DESKTOP
+    postCodecRecording.update();
+#endif
     sliceDetector.update();
     newFileManager.update();
     mtInterface.update();

@@ -11,9 +11,13 @@ Welcome to the official documentation for **Polyend Tracker Community Edition (C
 * **[Perf FX](perf_fx.md)**
   * Live pads, pattern commands, Line In, and master exports.
 * **[Pattern views, render fader bypass, and mixer meters](pattern_and_mixer.md)**
-  * Switch between FX and Micro-move/Volume, bounce at unity, and read the Master meters.
-* **[Sample Editor, ST effects, and presets](sample_editor.md)**
+  * Switch between FX and Micro-move/Volume, bounce at unity, and read the Master meters and spectrum.
+* **[Master audio and export routing](master_audio_routing.md)**
+  * Software and codec effects, master and stem capture points, and USB audio.
+* **[Sample Editor, ST effects, and patches](sample_editor.md)**
   * Waveform tools, effect chains, and installing the showcase pack.
+* **[MINI and OBER synths and patches](custom_synth_sdk.md)**
+  * Select the SideTracker synths and install their SD patch packs.
 * **[Custom Themes & Fonts (`docs/custom_themes_and_fonts.md`)](custom_themes_and_fonts.md)**
   * How to install and create custom JSON color themes (`/Themes/*.json`) and custom antialiased bitmap fonts (`/Fonts/*.ptfont`) using the [Web Theme & Font Editor](https://polyend.github.io/tracker-theme-editor/) ([`polyend/tracker-theme-editor`](https://github.com/polyend/tracker-theme-editor)), plus full color key reference tables.
 * **[Wavetable Envelopes, LFOs & Step FX (`docs/wavetable_envelopes.md`)](wavetable_envelopes.md)**

@@ -402,8 +402,8 @@ void cSampleEditor::showEffectParamsScreen()
     display.setControlValue(label[6], 0);
     display.setControlValue(label[7], 0);
 
-    display.setControlText(label[5], "Back");
-    display.setControlText2(label[5], "");
+    display.setControlText(label[kBackButton], "Back");
+    display.setControlText2(label[kBackButton], "");
 
     switch (previewState)
     {

@@ -33,14 +33,20 @@
 class AudioRecordQueue : public AudioStream
 {
   public:
-    AudioRecordQueue(void)
-      : AudioStream(1, inputQueueArray)
+    AudioRecordQueue() : AudioRecordQueue(1, inputQueueArray) {}
+
+  protected:
+    AudioRecordQueue(unsigned inputs, audio_block_t** inputQueue)
+      : AudioStream(inputs, inputQueue)
       , userblock(NULL)
       , head(0)
       , tail(0)
       , enabled(0)
     {
     }
+    void enqueue(audio_block_t* block);
+
+  public:
     void begin(void)
     {
         clear();

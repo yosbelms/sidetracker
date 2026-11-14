@@ -13,9 +13,20 @@ AUDIO_CORE_RAM void AudioOutputStream::update()
         return;
     }
 
-    audio_block_t* blockLeft = receiveReadOnly(kOutChannels * source[0]); // input 0 = left channel
-    audio_block_t* blockRight =
-      receiveReadOnly(kOutChannels * source[1] + 1); // input 1 = right channel
+#if defined(PLATFORM_IMX) && !defined(TRACKER_DESKTOP)
+    const bool regular = forceRegular;
+    const int leftSource = regular ? 0 : source[0];
+    const int rightSource = regular ? 0 : source[1];
+#else
+    const int leftSource = source[0];
+    const int rightSource = source[1];
+#endif
+    audio_block_t* blockLeft = receiveReadOnly(kOutChannels * leftSource);
+    audio_block_t* blockRight = receiveReadOnly(kOutChannels * rightSource + 1);
+#ifdef PLATFORM_IMX
+    if (auto* unusedLeft = receiveReadOnly(kOutChannels * (1 - leftSource))) release(unusedLeft);
+    if (auto* unusedRight = receiveReadOnly(kOutChannels * (1 - rightSource) + 1)) release(unusedRight);
+#endif
 
     if (blockLeft)
     {
@@ -46,7 +57,7 @@ AUDIO_CORE_RAM void AudioOutputStream::update()
     if (blockPeak > peak)
         peak = blockPeak;
 
-    if (!renderMode && source[0] == 0 && source[1] == 0)
+    if (!renderMode && leftSource == 0 && rightSource == 0)
         masterSpectrum::capture(blockLeft ? blockLeft->data : nullptr,
                                 blockRight ? blockRight->data : nullptr,
                                 AUDIO_BLOCK_SAMPLES);

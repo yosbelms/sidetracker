@@ -499,7 +499,7 @@ void cSampleEditor::setParamsScreenFunctions()
             break;
         }
     }
-    ip->setButtonObj(interfaceButton5, buttonPress, functBack);
+    ip->setButtonObj(interfaceButton0 + kBackButton, buttonPress, functBack);
     switch (previewState)
     {
         case previewStatePreview:
@@ -1061,21 +1061,21 @@ void cSampleEditor::refreshEffectList()
 
     if (SE->isParametersScreen())
     {
-        display.setControlText(label[5], "Apply");
-        display.setControlText2(label[5], "");
-        display.setControlValue(label[5], 0);
+        display.setControlText(label[0], "Apply");
+        display.setControlText2(label[0], "");
+        display.setControlValue(label[0], 0);
     }
     else
     {
-        display.setControlText(label[5], "Select");
-        display.setControlText2(label[5], "effect");
-        display.setControlValue(label[5], 1);
+        display.setControlText(label[0], "Select");
+        display.setControlText2(label[0], "effect");
+        display.setControlValue(label[0], 1);
     }
     display.setControlColors(
-      label[5],
+      label[0],
       canApplyCurrentEffect() ? display.getTheme().activeButtonLabelsColors
                               : display.getTheme().inactiveLabelsColors);
-    display.refreshControl(label[5]);
+    display.refreshControl(label[0]);
 
     if (SE->isParametersScreen())
     {
@@ -2130,7 +2130,7 @@ void cSampleEditor::showToolsScreen()
     display.refreshControl(effectList);
     for (unsigned i = 0; i < 8; ++i)
     {
-        display.setControlText(label[i], i == 0 ? "Back" : i == 5 ? "Select" : "");
+        display.setControlText(label[i], i == kBackButton ? "Back" : i == 0 ? "Select" : "");
         display.setControlText2(label[i], "");
         display.setControlData(label[i], nullptr);
         display.setControlStyle(label[i], controlStyleCenterX | controlStyleCenterY | controlStyleFont3);
@@ -2159,8 +2159,8 @@ void cSampleEditor::showToolsScreen()
 void cSampleEditor::setToolsScreenFunctions()
 {
     ip->clearAll(); setCommonFunctions();
-    ip->setButtonObj(interfaceButton0, buttonPress, functToolsBack);
-    ip->setButtonObj(interfaceButton5, buttonPress, functToolSelect);
+    ip->setButtonObj(interfaceButton0, buttonPress, functToolSelect);
+    ip->setButtonObj(interfaceButton0 + kBackButton, buttonPress, functToolsBack);
     ip->setButtonObj(interfaceButtonUp, buttonPress, functToolUp);
     ip->setButtonObj(interfaceButtonDown, buttonPress, functToolDown);
     ip->setButtonObj(interfaceButtonRight, buttonPress, functToolSelect);

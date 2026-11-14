@@ -363,7 +363,10 @@ AUDIO_CORE_FLASH void Sequencer::play_microStep(int row)
         }
         else if (((playerRow.actual_pos == patternRow.length)) && player.songMode)
         {
-            loadNextPattern(newFileManager.getNextSongPattern());
+#ifndef TRACKER_DESKTOP
+            if (!recordingSong || newFileManager.hasMoreSongPatterns())
+#endif
+                loadNextPattern(newFileManager.getNextSongPattern());
         }
     }
 
@@ -1444,6 +1447,19 @@ void Sequencer::playSong(void)
 
 void Sequencer::playSongFromPosition(uint8_t fromPos)
 {
+    prepareSongFromPosition(fromPos, false);
+    play();
+}
+
+#ifndef TRACKER_DESKTOP
+bool Sequencer::prepareSongRecording()
+{
+    return prepareSongFromPosition(0, true);
+}
+#endif
+
+bool Sequencer::prepareSongFromPosition(uint8_t fromPos, bool requireReadablePattern)
+{
     uint8_t patternToStart = newFileManager.getSongPattern(fromPos);
     uint8_t currentPatternIdx = mtProject.values.actualPattern;
 
@@ -1451,7 +1467,8 @@ void Sequencer::playSongFromPosition(uint8_t fromPos)
 
     if (patternToStart != currentPatternIdx)
     {
-        newFileManager.loadWorkspacePatternNow(patternToStart);
+        const bool loaded = newFileManager.loadWorkspacePatternNow(patternToStart, requireReadablePattern);
+        if (!loaded && requireReadablePattern) return false;
         DISABLE_GLOBAL_INTERRUPTS();
         newFileManager.setSongPos(fromPos);
         switchRamPatternsNow();
@@ -1463,7 +1480,7 @@ void Sequencer::playSongFromPosition(uint8_t fromPos)
     }
 
     player.songMode = 1;
-    play();
+    return true;
 }
 
 void Sequencer::loopCurrentPattern(uint8_t songPos)
@@ -1717,6 +1734,13 @@ void Sequencer::switchRowStep(uint8_t row) // przełączamy stepy w zależności
         {
             player.tempoFx.reset();
 
+#ifndef TRACKER_DESKTOP
+            if (recordingSong)
+            {
+                player.onSongEnd();
+                return;
+            }
+#endif
             // if exporting end export here
             if (player.onPatternOrSelectionEnd == cbkSetCurrentExporterOnLastStep ||
                 player.onSongEnd == cbkSetCurrentExporterOnLastStep)
@@ -1908,6 +1932,13 @@ void Sequencer::switchRowStep(uint8_t row) // przełączamy stepy w zależności
         }
         else if (player.songMode)
         {
+#ifndef TRACKER_DESKTOP
+            if (recordingSong && !newFileManager.hasMoreSongPatterns())
+            {
+                player.onSongEnd();
+                return;
+            }
+#endif
             if (!newFileManager.isPatternPreloaded(newFileManager.getNextSongPattern()))
             {
                 stopForMissingNextPattern();

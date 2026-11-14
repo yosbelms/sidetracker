@@ -52,6 +52,13 @@ void cFileManager::setSongPos(uint8_t pos)
     song->playlistPos = pos;
 }
 
+bool cFileManager::hasMoreSongPatterns() const
+{
+    const auto& song = mtProject.song;
+    return song.playlistPos < SONG_MAX - 1 &&
+           song.playlist[song.playlistPos + 1] != PLAYLIST_EMPTY_SLOT;
+}
+
 bool cFileManager::switchNextPatternInSong()
 {
     strSong* song = &mtProject.song;

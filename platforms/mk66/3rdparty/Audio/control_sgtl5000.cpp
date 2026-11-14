@@ -608,6 +608,16 @@ bool AudioControlSGTL5000::write(unsigned int reg, unsigned int val)
     return false;
 }
 
+bool AudioControlSGTL5000::routePostCodecToI2s(bool enabled)
+{
+    constexpr unsigned i2sSelectMask = 0x0003;
+    const auto routing = read(CHIP_SSS_CTRL);
+    // A zero read also signals a bus error. Normal playback always routes I2S or DAP to DAC.
+    if ((routing & 0x0030) == 0 || (enabled && (routing & 0x00f0) != 0x0070))
+        return false;
+    return write(CHIP_SSS_CTRL, (routing & ~i2sSelectMask) | (enabled ? i2sSelectMask : 0));
+}
+
 unsigned int AudioControlSGTL5000::modify(unsigned int reg, unsigned int val, unsigned int iMask)
 {
     unsigned int val1 = (read(reg) & (~iMask)) | val;

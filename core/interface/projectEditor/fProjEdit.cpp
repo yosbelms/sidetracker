@@ -1,5 +1,6 @@
 #include "mtSliceDetector.h"
 #include <mtAudioExport.h>
+#include "PostCodecRecording.h"
 #include <mtRandomNameGenerator.h>
 
 #include "core/interfaceMenuPopup.h"
@@ -74,6 +75,10 @@ static void functOpenProjectMod();
 //****************************************************
 // Export
 static void functExportSong();
+#ifndef TRACKER_DESKTOP
+static void functRecordOutput();
+static void functRecordOutputConfirm();
+#endif
 static void functExportSongStems();
 static void functExportPattern();
 static void functExportPatternStems();
@@ -112,6 +117,25 @@ static void makeMoveOnActiveList(int16_t moveDir);
 void cProjectEditor::update()
 {
     uint8_t managerStatus = newFileManager.getStatus();
+#ifndef TRACKER_DESKTOP
+    if (recordingOutput && !postCodecRecording.active())
+    {
+        recordingOutput = false;
+        const char* error = postCodecRecording.error();
+        if (managerStatus == fmRecordingOutput) newFileManager.exportSoundCancel();
+        newFileManager.clearStatus();
+        setExportWindowFuncts();
+        showExportWindow();
+        ip->unblockAllInputs();
+        interfaceGlobals.refreshFileExplorer = true;
+        if (error)
+        {
+            mtPopups.showInfoPopup("Output recording failed", error);
+            ip->setButtonObj(interfaceButton7, buttonPress, functExportGoBack);
+        }
+        return;
+    }
+#endif
     if (managerStatus == fmExportSoundEnd)
     {
         PE->showExportWindow();
@@ -231,6 +255,14 @@ void cProjectEditor::start([[maybe_unused]] uint32_t options)
 
 void cProjectEditor::stop()
 {
+#ifndef TRACKER_DESKTOP
+    if (recordingOutput)
+    {
+        recordingOutput = false;
+        postCodecRecording.cancel();
+        if (newFileManager.getStatus() == fmRecordingOutput) newFileManager.exportSoundCancel();
+    }
+#endif
     cleanupListsData();
     cleanupAfterSaveData();
     // The path and name of a pending open are freed above; it must not run without them.
@@ -296,6 +328,9 @@ void cProjectEditor::setExportWindowFuncts()
     PE->ip->setButtonObj(interfaceButton3, buttonPress, functExportPatternStems);
     PE->ip->setButtonObj(interfaceButton4, buttonPress, functExportToMOD);
     PE->ip->setButtonObj(interfaceButton5, buttonPress, functExportSamples);
+#ifndef TRACKER_DESKTOP
+    PE->ip->setButtonObj(interfaceButton6, buttonPress, functRecordOutput);
+#endif
 
     PE->ip->setButtonObj(interfaceButton7, buttonPress, functExportGoBack);
 
@@ -360,6 +395,7 @@ uint8_t cProjectEditor::loadProjectValues()
     engine.setHeadroomEnable((bool)mtProject.values.isHeadroomEnabled);
     engine.setSnapToZeroEnable((bool)mtProject.values.isSnapToZeroEnabled);
     engine.setSaturationType((SaturationType)mtProject.values.saturationType);
+    engine.setSaturationDrive(mtProject.saturationDrive);
     engine.setLimiterAttack(mtProject.values.limiterAttack);
     engine.setLimiterRelease(mtProject.values.limiterRelease);
     engine.setLimiterThreshold(mtProject.values.limiterThreshold);
@@ -1306,6 +1342,29 @@ static void functDeleteMod_Confirm()
 // export
 char currentExportPath[PATCH_SIZE];
 
+#ifndef TRACKER_DESKTOP
+static void functRecordOutputDismiss()
+{
+    PE->setExportWindowFuncts();
+    PE->showExportWindow();
+    PE->ip->unblockAllInputs();
+}
+
+static void functRecordOutput()
+{
+    PE->showRecordOutputConfirmation();
+    PE->ip->setButtonObj(interfaceButton6, buttonPress, functRecordOutputDismiss);
+    PE->ip->setButtonObj(interfaceButton7, buttonPress, functRecordOutputConfirm);
+    PE->ip->blockAllInputsExcept(interfaceButton6, interfaceButton7);
+}
+
+static void functRecordOutputConfirm()
+{
+    functRecordOutputDismiss();
+    PE->startExport(exportPostCodecOutput);
+}
+#endif
+
 static void functExportSong()
 {
     if (PE->checkClockConfig(exportSong))
@@ -1367,11 +1426,21 @@ void cProjectEditor::startExport(uint8_t source)
 {
     if (newFileManager.exportSound(source))
     {
+#ifndef TRACKER_DESKTOP
+        recordingOutput = source == exportPostCodecOutput;
+#endif
         PE->ip->setButtonObj(interfaceButton7, buttonPress, functExportCancel);
         PE->ip->blockAllInputsExcept(interfaceButton7);
 
         PE->showLabelDuringExport();
     }
+#ifndef TRACKER_DESKTOP
+    else if (source == exportPostCodecOutput)
+    {
+        const char* error = postCodecRecording.error();
+        mtPopups.showInfoPopup("Could not record output", error ? error : "File operation in progress.");
+    }
+#endif
 }
 
 static void functExportToMOD()

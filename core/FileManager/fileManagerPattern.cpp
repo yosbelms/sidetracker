@@ -37,7 +37,8 @@ void cFileManager::updateLoadWorkspacePattern()
 //----------------------------------------------------------------------------------------
 void cFileManager::loadPatternFromWorkspaceFinish()
 {
-    if (status == fmExportingSoundSong || status == fmExportingSoundSongStems)
+    if (status == fmExportingSoundSong || status == fmExportingSoundSongStems ||
+        status == fmRecordingOutput)
     {
         currentOperationStep = 0;
         currentOperation = fmExportSound;
@@ -90,8 +91,13 @@ void cFileManager::loadPatternFromWorkspace(uint8_t index)
         return;
     }
 
+    if (status == fmRecordingOutput)
+    {
+        // The live recorder detects the missing preload and discards the take.
+        loadPatternFromWorkspaceFinish();
+        return;
+    }
     stopOperationWithError(fmLoadPatternError);
-    return;
 }
 
 const Sequencer::strPattern* cFileManager::loadWorkspacePatternToTempBuffer(uint8_t index)
@@ -186,7 +192,7 @@ bool cFileManager::continuePatternProcess()
 //-----------------------------------------------------------
 //------------------------------------------------------------------------------------------------------------------
 
-bool cFileManager::loadWorkspacePatternNow(uint8_t index)
+bool cFileManager::loadWorkspacePatternNow(uint8_t index, bool allowEmpty)
 {
     bool status = false;
     char patternToLoad[PATCH_SIZE]{ 0 };
@@ -199,7 +205,8 @@ bool cFileManager::loadWorkspacePatternNow(uint8_t index)
     if (!fileSystem->exists(patternToLoad))
     {
         report(" load patern now - file no exist ", patternToLoad);
-        status = false;
+        sequencer.clearPattern(destPattern);
+        return allowEmpty && fileSystem->isSdCardInserted();
     }
     else
     {

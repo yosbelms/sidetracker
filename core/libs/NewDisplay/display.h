@@ -52,6 +52,10 @@ struct CompressedFontData
     int count;
 };
 
+#ifdef FEATURE_SYNTH
+bool drawSideTrackerSynthBadge(int bitmapId, int x, int y);
+#endif
+
 class FileSystem;
 
 class cDisplay

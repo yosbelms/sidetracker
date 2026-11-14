@@ -33,20 +33,30 @@ def run(binary, card, name, commands):
             if line.count("\t") >= 2}
 
 
-def check_badge(path, label, x, y, width, height):
+def check_badge(path, label, x, y, width, height, striped=False):
     data = path.read_bytes()
     offset = struct.unpack_from("<I", data, 10)[0]
     bmp_width, bmp_height = struct.unpack_from("<ii", data, 18)
     pixel_size = struct.unpack_from("<H", data, 28)[0] // 8
     stride = (bmp_width * pixel_size + 3) & ~3
-    bright_pixels = 0
-    for row in range(y, y + height):
+    gray = b"\x31" * 3
+    black = b"\x00" * 3
+
+    def pixels(row):
         bitmap_row = bmp_height - 1 - row if bmp_height > 0 else row
         start = offset + bitmap_row * stride + x * pixel_size
-        for pixel in range(start, start + width * pixel_size, pixel_size):
-            bright_pixels += min(data[pixel:pixel + 3]) >= 128
-    if bright_pixels < 100:
+        return [data[i:i + 3] for i in range(start, start + width * pixel_size, pixel_size)]
+
+    rows = [pixels(row) for row in range(y, y + height)]
+    if sum(min(pixel) >= 128 for row in rows for pixel in row) < 100:
         raise AssertionError(f"Missing {label} bitmap in {path.name}")
+    if striped:
+        if rows[0][0] == gray or rows[0][width // 2] != gray:
+            raise AssertionError(f"Missing rounded logo-gray background on {label}")
+        stripe_rows = [height // 2 + depth * (height // 2) // 10 for depth in (0, 2, 5, 9)]
+        for row in stripe_rows:
+            if sum(a == black and b == gray for a, b in zip(rows[row], rows[row - 1])) < width // 4:
+                raise AssertionError(f"Missing thin logo stripe on {label} at row {row}")
 
 
 def check_bundled_patches(binary, card):
@@ -91,8 +101,8 @@ release pad 12
         expected = {f"Synth {part + 1} ({synth})", "Synth Parameters 1/2"}
         if part == 0:
             expected.update(("Synth 2 (OBER)", "Synth 3 (CHIP)"))
-            for label, y in (("CHIP", 45), ("MINI", 95), ("OBER", 145)):
-                check_badge(card / "MINI.bmp", label, 10, y, 80, 27)
+            for label, y in (("CHIP", 44), ("MINI", 94), ("OBER", 144)):
+                check_badge(card / "MINI.bmp", label, 11, y, 80, 28, striped=label != "CHIP")
         if missing := expected - frames:
             raise AssertionError(f"Missing Instrument picker or synth editor labels: {missing}")
 
@@ -126,7 +136,7 @@ release pad 16
 """)
     if f"Edit Patch: {patch_name}" not in frames:
         raise AssertionError("The saved native patch did not reload")
-    check_badge(card / "reload.bmp", "MINI patch header", 60, 49, 110, 40)
+    check_badge(card / "reload.bmp", "MINI patch header", 62, 49, 108, 40, striped=True)
 
     bundled_card = card / "bundled"
     bundled_card.mkdir()

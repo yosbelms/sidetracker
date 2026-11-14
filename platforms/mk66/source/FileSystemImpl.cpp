@@ -282,6 +282,15 @@ void FileSystemImpl::closeFile(FileHandle fileHandle, bool deleteOnClose)
     }
 }
 
+bool FileSystemImpl::closeWrittenFile(FileHandle fileHandle)
+{
+    if (!fileHandle) return false;
+    auto* file = static_cast<SdFile*>(fileHandle);
+    const bool ok = file->close();
+    freeSdFile(file);
+    return ok;
+}
+
 bool FileSystemImpl::isFileOpen(FileHandle fileHandle)
 {
     if (fileHandle == nullptr)

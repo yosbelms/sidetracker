@@ -585,6 +585,11 @@ void NewList::drawImagesList(int x1, int x2, int y, int rowH)
         int imgPosX = x1 + ((x2 - x1) / 2) - (bitmaps[idx].width / 2);
         int imgPosY = y + (rowH * rowIdx) - (bitmaps[idx].height / 2);
 
+#ifdef FEATURE_SYNTH
+        if (drawSideTrackerSynthBadge(idx, imgPosX, imgPosY))
+            continue;
+#endif
+
         API_BITMAP_SOURCE(bitmaps[idx].address);
         API_BITMAP_LAYOUT(bitmaps[idx].format, bitmaps[idx].linestride, bitmaps[idx].height);
 

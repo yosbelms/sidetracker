@@ -49,9 +49,16 @@ def check_chain_frames(path: Path):
               "Mid": "0.000 dB", "Mid freq": "800 Hz", "Mid Width": "1.000",
               "High": "0.000 dB", "High freq": "12000 Hz", "High Width": "1.000"}
     for frame in frames:
+        if any(text == "Choose Generator" for _, _, text in frame):
+            raise AssertionError("Actions still offers a separate generator picker")
         menu = any(300 <= x < 500 and 31 <= y < 60 and text in
                    {"Actions", "Save Patch", "Load Patch", "Render to"} for x, y, text in frame)
+        back_positions = [x for x, y, text in frame if 424 <= y < 480 and text == "Back"]
+        if back_positions and back_positions != [550]:
+            raise AssertionError(f"Sample Editor Back appeared outside F6: {back_positions}")
         if menu:
+            if back_positions != [550]:
+                raise AssertionError("Sample Editor menu did not show Back on F6")
             if any(x >= 500 and 31 <= y < 424 and text for x, y, text in frame):
                 raise AssertionError("Parameter/Value columns remained visible over the patch menu")
             if any(x == 750 and 424 <= y < 480 and text for x, y, text in frame):
@@ -69,13 +76,13 @@ def check_chain_frames(path: Path):
         if toolbar.get(150) == ["Select"]:
             continue  # Context/saved-patch/destination menu.
         for x, choices in [(50, {"Preview", "Stop"}), (150, {"Add", "Use src", "Replace"}),
-                           (250, {"Back"}), (350, {"Apply"}), (450, {"Actions"}), (550, {"Mix"})]:
+                           (350, {"Apply"}), (450, {"Actions"}), (550, {"Back"}), (650, {"Mix"})]:
             if not toolbar.get(x) or toolbar[x][0] not in choices:
                 raise AssertionError(f"Partially drawn chain toolbar at x={x}: {toolbar}")
         if toolbar[350] != ["Apply"]:
             raise AssertionError(f"Apply button should have a single label: {toolbar[350]}")
-        if toolbar.get(650):
-            raise AssertionError(f"Seventh chain button should be empty: {toolbar}")
+        if toolbar.get(250):
+            raise AssertionError(f"Third chain button should be empty: {toolbar}")
         value = toolbar.get(750, [])
         expected = {values[value[0]]} if value and value[0] in values else None
         if value and value[0] == "Low freq": expected = {"80 Hz", "90 Hz"}
@@ -137,7 +144,7 @@ button Insert
 encoder 7
 button Insert
 button Insert
-button 2
+button 5
 wait 100
 button 0
 wait 100
@@ -156,11 +163,11 @@ encoder 10
 button Left
 button Left
 button Insert
-encoder 2
+encoder 1
 button Insert
 button Down
 button Insert
-button 2
+button 5
 wait 100
 assert-chain closed
 """.replace("PLUGIN_AUDIT", str(audit.resolve()))
@@ -203,8 +210,10 @@ def check_editor_tools(binary: Path, output: Path):
 button S. Editor
 button 6
 snapshot TOOLS_SCREEN
-encoder {index}
 button 5
+button 6
+encoder {index}
+button 0
 """
             if name == "normalize":
                 commands += "encoder -50\n"
@@ -214,7 +223,7 @@ assert-sample 0 100 2000
 button 5
 assert-sample 0 100 2000
 button 6
-button 5
+button 0
 """
             commands += "button 7\nwait 300\n"
             if name == "normalize":
@@ -278,11 +287,11 @@ wait 2000
 """ + ("""assert-chain open
 assert-chain-size 1
 assert-sample 0 100 2000
-button 2
+button 5
 assert-chain closed
 button 6
 encoder 3
-button 5
+button 0
 button 7
 wait 1000
 assert-sample 0 100 2000
@@ -356,7 +365,7 @@ button Insert
 button Insert
 encoder 8
 button Insert
-button 2
+button 5
 wait 100
 button 5
 assert-chain-size 2
@@ -429,7 +438,7 @@ def check_named_patches(binary: Path, output: Path):
                     "button S. Editor", "button 5", "button Right"]
         for index, name in enumerate(names):
             stages = patches[name]["stages"]
-            commands += ["button Insert", f"encoder {1 if index == 0 else 6}", "button Insert",
+            commands += ["button Insert", f"encoder {0 if index == 0 else 6}", "button Insert",
                          f"encoder {index}", "button Insert", f"assert-chain-size {len(stages)}",
                          "button 0", "wait 100", "assert-preview live", "button 0", "wait 50"]
         # Edit the last loaded chain and replace its named patch.
@@ -481,13 +490,13 @@ def check_chain_mix(binary: Path, output: Path):
             arrows = ["Down", "Up", "Left", "Right"] if percent == 100 else ["Up", "Down", "Right", "Left"]
             commands = [f"audit-frames {audit.resolve()}", "import 0 /input.wav", "button S. Editor", "button 5",
                         "button 1", "button 7", "encoder 100", "button Left", "button Left", "button Left",
-                        "button 1", "button 7", "encoder 100", "button 5", "press 5", f"encoder {percent - 100}",
-                        *[f"button {arrow}" for arrow in arrows], "release 5",
-                        "button 0", "wait 100", "assert-preview live", "press 5", f"encoder {delta}", "wait 50",
-                        "assert-preview live", f"encoder {-delta}", "assert-preview live", "release 5", "button 0"]
+                        "button 1", "button 7", "encoder 100", "button 5", "press 6", f"encoder {percent - 100}",
+                        *[f"button {arrow}" for arrow in arrows], "release 6",
+                        "button 0", "wait 100", "assert-preview live", "press 6", f"encoder {delta}", "wait 50",
+                        "assert-preview live", f"encoder {-delta}", "assert-preview live", "release 6", "button 0"]
             if percent == 50:
                 commands += ["button Left", "button Left", "button 4", "encoder 7", "button Insert",
-                             "button Insert", "press 5", "encoder -50", "release 5", "button 4", "encoder 6",
+                             "button Insert", "press 6", "encoder -50", "release 6", "button 4", "encoder 6",
                              "button Insert", "button Insert", "button 5"]
             commands += [f"snapshot {(output / f'sample-patch-mix-{percent}-control.bmp').resolve()}", "button 4", "encoder 100", "button Insert", "wait 20000", "button Insert", "wait 20000", "assert-chain closed"]
             script = card / "mix.txt"; script.write_text("\n".join(commands) + "\n")
@@ -507,11 +516,11 @@ def check_chain_mix(binary: Path, output: Path):
             if f"\t{percent}%\n" not in frames:
                 raise AssertionError("Chain Mix percentage was not displayed")
             for frame in frames.split("frame\n")[1:]:
-                if "550\t441\tMix\n" not in frame:
+                if "650\t441\tMix\n" not in frame:
                     continue
                 for line in frame.splitlines():
                     fields = line.split("\t", 2)
-                    if len(fields) == 3 and (fields[2] == "Mix" or fields[2].endswith("%")) and fields[0] != "550":
+                    if len(fields) == 3 and (fields[2] == "Mix" or fields[2].endswith("%")) and fields[0] != "650":
                         raise AssertionError("Mix appeared outside its toolbar button")
             if percent == 50:
                 saved = (card / "Effects/Patches/Patch01.patch").read_bytes()
@@ -546,7 +555,6 @@ button S. Editor
 button 5
 button Right
 button 4
-button Down
 button Insert
 button Insert
 assert-chain-size 1
@@ -555,14 +563,14 @@ encoder 100
 button Insert
 wait 5000
 button 0
-press 5
+press 6
 encoder -50
 wait 1000
 encoder -50
 wait 1000
 encoder 50
 wait 1000
-release 5
+release 6
 button 4
 encoder 100
 button Insert
@@ -616,11 +624,11 @@ import 0 /input.wav
 button S. Editor
 button 6
 button Down
-button 5
+button 0
 button 7
 wait 300
 button 6
-button 5
+button 0
 button 7
 wait 300
 snapshot MAIN_SCREEN
@@ -628,17 +636,17 @@ button 5
 wait 100
 assert-chain open
 button 4
-button 0
+button 5
 button Left
 button 1
 button 1
 button 7
 encoder 100
 button 4
-button 0
+button 5
 button Right
 button 4
-button 0
+button 5
 button 4
 snapshot ACTIONS_SCREEN
 button Down
@@ -667,6 +675,14 @@ wait 200
 button 4
 encoder 100
 button Insert
+wait 2000
+button 5
+assert-chain open
+assert-chain-size 2
+button 4
+encoder 100
+button Insert
+wait 2000
 button Insert
 wait 2000
 assert-chain closed
@@ -705,6 +721,10 @@ button Down
 button Insert
 encoder 6
 button 1
+button 5
+button 4
+encoder 6
+button 1
 button Right
 button Down
 button Right
@@ -719,7 +739,7 @@ button Up
 button Up
 button Up
 button Up
-button 2
+button 5
 wait 200
 assert-chain closed
 assert-chain-size 1
@@ -734,7 +754,7 @@ button S. Editor
 button 5
 assert-chain open
 assert-chain-size 1
-button 2
+button 5
 wait 200
 assert-chain closed
 """.replace("FRAME_AUDIT", str((output / "sample-fx-frames.tsv").resolve()))
@@ -812,7 +832,7 @@ assert-preview live
 encoder -50
 assert-preview live
 snapshot LIVE_SCREEN
-button 2
+button 5
 wait 200
 assert-chain closed
 assert-chain-size 1
@@ -849,7 +869,7 @@ assert-preview stopped
 button 5
 assert-chain open
 assert-chain-size 1
-button 2
+button 5
 wait 200
 assert-chain closed
 """.replace("STOP_PROMPT", str((output / "sample-editor-stop-pattern.bmp").resolve()))
@@ -887,7 +907,7 @@ button 5
 wait 100
 assert-chain open
 button 0
-button 2
+button 5
 wait 100
 assert-chain closed
 """)

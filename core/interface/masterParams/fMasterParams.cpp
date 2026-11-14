@@ -40,6 +40,9 @@ static void functSelectVolume(uint8_t state);
 static void functSwitchToLimiterScreen();
 static void functSwitchToEqualizerScreen();
 static void functSelectSaturation();
+static void functSelectSaturationMode();
+static void functSelectSaturationDrive();
+static void functSaturationBack();
 static void functSelectBassBoost();
 static void functSelectStereoBoost();
 
@@ -93,6 +96,7 @@ static void functSelectSynth3(uint8_t state);
 // MASTER EDIT FUNCTIONS
 void changeVolume(int16_t value);
 void changeSaturationType(int16_t value);
+static void changeSaturationDrive(int16_t value);
 void changeBassBoost(int16_t value);
 void changeStereoBoost(int16_t value);
 
@@ -179,8 +183,18 @@ void cMasterParams::update()
         showFinalOutputLevel();
     }
 
-    if (spectrumVisible && masterSpectrum::read(spectrumLevels))
-        display.refreshControl(spectrumControl);
+    if (spectrumVisible)
+    {
+        const bool playing = sequencer.isPlay();
+        const bool playbackChanged = playing != spectrumWasPlaying;
+        if (playbackChanged)
+        {
+            spectrumWasPlaying = playing;
+            display.setControlValue(spectrumControl, playing);
+        }
+        if (masterSpectrum::read(spectrumLevels) || playbackChanged)
+            display.refreshControl(spectrumControl);
+    }
 
     if (displayType == displayMode::mixer && !keyboardManager.getState())
     {
@@ -331,6 +345,8 @@ void cMasterParams::start(uint32_t options)
             switchToLimiterScreen();
         else if (isEqualizerScreen)
             switchToEqualizerScreen();
+        else if (isSaturationScreen)
+            switchToSaturationScreen();
         else
             switchToMaster();
     }
@@ -344,6 +360,7 @@ void cMasterParams::start(uint32_t options)
     isReverbScreenBeforeMasterPress = isReverbScreen;
     isLimiterScreenBeforeMasterPress = isLimiterScreen;
     isEqualizerScreenBeforeMasterPress = isEqualizerScreen;
+    isSaturationScreenBeforeMasterPress = isSaturationScreen;
     selectedPlaceBeforeMasterPress = selectedPlace;
     showMasterVolumeOnHold = true;
     resetMixerLevels();
@@ -388,11 +405,11 @@ void cMasterParams::setMasterScreenFunct()
     ip->setButtonObj(interfaceButtonDelete, buttonPress, functDelete);
 
     ip->setButtonObj(interfaceButton0, functSelectVolume);
-    ip->setButtonObj(interfaceButton1, buttonPress, functSwitchToReverbWindow);
-    ip->setButtonObj(interfaceButton2, buttonPress, functSwitchToDelayWindow);
-    ip->setButtonObj(interfaceButton3, buttonPress, functSwitchToLimiterScreen);
-    ip->setButtonObj(interfaceButton4, buttonPress, functSwitchToEqualizerScreen);
-    ip->setButtonObj(interfaceButton5, buttonPress, functSelectSaturation);
+    ip->setButtonObj(interfaceButton1, buttonPress, functSwitchToDelayWindow);
+    ip->setButtonObj(interfaceButton2, buttonPress, functSwitchToReverbWindow);
+    ip->setButtonObj(interfaceButton3, buttonPress, functSelectSaturation);
+    ip->setButtonObj(interfaceButton4, buttonPress, functSwitchToLimiterScreen);
+    ip->setButtonObj(interfaceButton5, buttonPress, functSwitchToEqualizerScreen);
     ip->setButtonObj(interfaceButton6, buttonPress, functSelectBassBoost);
     ip->setButtonObj(interfaceButton7, buttonPress, functSelectStereoBoost);
     ip->setButtonObj(interfaceButtonMiniMiddle, functMiniMiddle);
@@ -546,6 +563,15 @@ static void functEncoder(int16_t value)
         return;
     }
 
+    if (MP->isSaturationScreen)
+    {
+        if (MP->selectedPlaceSaturation == 0)
+            changeSaturationType(interfaceGlobals.invertValForList ? -value : value);
+        else
+            changeSaturationDrive(value);
+        return;
+    }
+
     if (MP->isDelayScreen)
     {
         switch (MP->selectedPlaceDelay)
@@ -598,7 +624,6 @@ static void functEncoder(int16_t value)
         switch (MP->selectedPlace)
         {
             case 0: changeVolume(value); break;
-            case 5: changeSaturationType(interfaceGlobals.invertValForList ? -value : value); break;
             case 6: changeBassBoost(value); break;
             case 7: changeStereoBoost(value); break;
             default: break;
@@ -615,6 +640,12 @@ static void functLeft()
     if (MP->displayType == cMasterParams::displayMode::mixerDelayReverb)
     {
         if (editPerfFxMix(-1)) return;
+        return;
+    }
+
+    if (MP->isSaturationScreen)
+    {
+        functSelectSaturationMode();
         return;
     }
 
@@ -652,21 +683,8 @@ static void functLeft()
     }
     else
     {
-        if (MP->selectedPlace > 0)
-        {
-            if (MP->selectedPlace == 5)
-            {
-                MP->selectedPlace = 0;
-            }
-            else if (MP->selectedPlace == 6)
-            {
-                MP->selectedPlace = 5;
-            }
-            else if (MP->selectedPlace == 7)
-            {
-                MP->selectedPlace = 6;
-            }
-        }
+        if (MP->selectedPlace == 6) MP->selectedPlace = 0;
+        else if (MP->selectedPlace == 7) MP->selectedPlace = 6;
         MP->activateLabelsBorder();
     }
 }
@@ -680,6 +698,12 @@ static void functRight()
     if (MP->displayType == cMasterParams::displayMode::mixerDelayReverb)
     {
         if (editPerfFxMix(1)) return;
+        return;
+    }
+
+    if (MP->isSaturationScreen)
+    {
+        functSelectSaturationDrive();
         return;
     }
 
@@ -717,21 +741,8 @@ static void functRight()
     }
     else
     {
-        if (MP->selectedPlace < MP->frameData.placesCount - 1)
-        {
-            if (MP->selectedPlace == 0)
-            {
-                MP->selectedPlace = 5;
-            }
-            else if (MP->selectedPlace == 5)
-            {
-                MP->selectedPlace = 6;
-            }
-            else if (MP->selectedPlace == 6)
-            {
-                MP->selectedPlace = 7;
-            }
-        }
+        if (MP->selectedPlace == 0) MP->selectedPlace = 6;
+        else if (MP->selectedPlace == 6) MP->selectedPlace = 7;
         MP->activateLabelsBorder();
     }
 }
@@ -788,6 +799,13 @@ static void functUp()
         return;
     }
 
+    if (MP->isSaturationScreen)
+    {
+        if (MP->selectedPlaceSaturation == 0) changeSaturationType(-1);
+        else changeSaturationDrive(1);
+        return;
+    }
+
     if (MP->isDelayScreen)
     {
         switch (MP->selectedPlaceDelay)
@@ -834,7 +852,6 @@ static void functUp()
         switch (MP->selectedPlace)
         {
             case 0: changeVolume(1); break;
-            case 5: changeSaturationType(-1); break;
             case 6: changeBassBoost(1); break;
             case 7: changeStereoBoost(1); break;
             default: break;
@@ -893,6 +910,13 @@ static void functDown()
         return;
     }
 
+    if (MP->isSaturationScreen)
+    {
+        if (MP->selectedPlaceSaturation == 0) changeSaturationType(1);
+        else changeSaturationDrive(-1);
+        return;
+    }
+
     if (MP->isDelayScreen)
     {
         switch (MP->selectedPlaceDelay)
@@ -939,7 +963,6 @@ static void functDown()
         switch (MP->selectedPlace)
         {
             case 0: changeVolume(-1); break;
-            case 5: changeSaturationType(1); break;
             case 6: changeBassBoost(-1); break;
             case 7: changeStereoBoost(-1); break;
             default: break;
@@ -999,6 +1022,13 @@ static void functDelete()
         return;
     }
 
+    if (MP->isSaturationScreen)
+    {
+        if (MP->selectedPlaceSaturation == 0) setDefaultSaturationType();
+        else changeSaturationDrive(-mtProject.saturationDrive);
+        return;
+    }
+
     if (MP->isDelayScreen)
     {
         switch (MP->selectedPlaceDelay)
@@ -1045,7 +1075,6 @@ static void functDelete()
         switch (MP->selectedPlace)
         {
             case 0: setDefaultMasterVolume(); break;
-            case 5: setDefaultSaturationType(); break;
             case 6: setDefaultBassBoost(); break;
             case 7: setDefaultStereoBoost(); break;
             default: break;
@@ -1109,28 +1138,26 @@ static void functSwitchToEqualizerScreen()
 
 static void functSelectSaturation()
 {
-    if (MP->selectedPlace == 5)
-    {
-        if ((int)mtProject.values.saturationType < (int)SaturationType::kSaturationTypeEnd - 1)
-        {
-            mtProject.values.saturationType++;
-        }
-        else
-        {
-            mtProject.values.saturationType = (uint8_t)SaturationType::kSaturationMin;
-        }
+    MP->selectedPlaceSaturation = 0;
+    MP->switchToSaturationScreen();
+}
 
-        engine.setSaturationType((SaturationType)mtProject.values.saturationType);
+static void functSelectSaturationMode()
+{
+    MP->selectedPlaceSaturation = 0;
+    MP->activateLabelsBorder();
+}
 
-        newFileManager.setProjectStructChanged();
+static void functSelectSaturationDrive()
+{
+    MP->selectedPlaceSaturation = 1;
+    MP->activateLabelsBorder();
+}
 
-        MP->showSaturationType();
-    }
-    else
-    {
-        MP->selectedPlace = 5;
-        MP->activateLabelsBorder();
-    }
+static void functSaturationBack()
+{
+    MP->selectedPlace = 0;
+    MP->switchToMaster();
 }
 
 static void functSelectBassBoost()
@@ -1177,6 +1204,8 @@ void cMasterParams::switchScreen()
             switchToLimiterScreen();
         else if (isEqualizerScreen)
             switchToEqualizerScreen();
+        else if (isSaturationScreen)
+            switchToSaturationScreen();
         else
             switchToMaster();
     }
@@ -1204,6 +1233,8 @@ void cMasterParams::returnToScreen()
             MP->switchToLimiterScreen();
         else if (isEqualizerScreenBeforeMasterPress)
             MP->switchToEqualizerScreen();
+        else if (isSaturationScreenBeforeMasterPress)
+            MP->switchToSaturationScreen();
         else
             switchToMaster();
     }
@@ -1217,14 +1248,7 @@ void cMasterParams::switchToMaster()
     ip->clearButtonsRange(interfaceButton0, interfaceButton7);
     ip->clearButton(interfaceButtonShift);
 
-    ip->setButtonObj(interfaceButton0, functSelectVolume);
-    ip->setButtonObj(interfaceButton1, buttonPress, functSwitchToReverbWindow);
-    ip->setButtonObj(interfaceButton2, buttonPress, functSwitchToDelayWindow);
-    ip->setButtonObj(interfaceButton3, buttonPress, functSwitchToLimiterScreen);
-    ip->setButtonObj(interfaceButton4, buttonPress, functSwitchToEqualizerScreen);
-    ip->setButtonObj(interfaceButton5, buttonPress, functSelectSaturation);
-    ip->setButtonObj(interfaceButton6, buttonPress, functSelectBassBoost);
-    ip->setButtonObj(interfaceButton7, buttonPress, functSelectStereoBoost);
+    setMasterScreenFunct();
 
     keyboardManager.deactivateKeyboard();
 
@@ -1233,6 +1257,7 @@ void cMasterParams::switchToMaster()
     isReverbScreen = false;
     isLimiterScreen = false;
     isEqualizerScreen = false;
+    isSaturationScreen = false;
 
     showMasterScreen();
 }
@@ -1291,6 +1316,20 @@ void cMasterParams::switchToMixerDelayReverb()
 
     resetMixerDelayReverbLevels();
     showMixerDelayReverbScreen();
+}
+
+void cMasterParams::switchToSaturationScreen()
+{
+    ip->clearButtonsRange(interfaceButton0, interfaceButton7);
+    ip->clearButton(interfaceButtonShift);
+    ip->setButtonObj(interfaceButton0, buttonPress, functSelectSaturationMode);
+    ip->setButtonObj(interfaceButton1, buttonPress, functSelectSaturationDrive);
+    ip->setButtonObj(interfaceButton7, buttonPress, functSaturationBack);
+    keyboardManager.deactivateKeyboard();
+
+    displayType = displayMode::masterValues;
+    isSaturationScreen = true;
+    showSaturationScreen();
 }
 
 void cMasterParams::switchToDelayScreen()
@@ -2201,6 +2240,7 @@ static void functSwitchModeMaster(uint8_t state)
         MP->isReverbScreenBeforeMasterPress = MP->isReverbScreen;
         MP->isLimiterScreenBeforeMasterPress = MP->isLimiterScreen;
         MP->isEqualizerScreenBeforeMasterPress = MP->isEqualizerScreen;
+        MP->isSaturationScreenBeforeMasterPress = MP->isSaturationScreen;
         MP->selectedPlaceBeforeMasterPress = MP->selectedPlace;
 
         MP->sourceModuleButton = interfaceButtonMaster;
@@ -2239,6 +2279,7 @@ static void functSwitchModeMaster(uint8_t state)
                 MP->isReverbScreen = MP->isReverbScreenBeforeMasterPress;
                 MP->isLimiterScreen = MP->isLimiterScreenBeforeMasterPress;
                 MP->isEqualizerScreen = MP->isEqualizerScreenBeforeMasterPress;
+                MP->isSaturationScreen = MP->isSaturationScreenBeforeMasterPress;
                 MP->selectedPlace = MP->selectedPlaceBeforeMasterPress;
 
                 if (MP->sourceModuleButton == interfaceButtonSampleRec)
@@ -2351,6 +2392,17 @@ void changeLimiterSidechain(int16_t value)
     newFileManager.setProjectStructChanged();
 
     MP->showLimiterSidechain();
+}
+
+static void changeSaturationDrive(int16_t value)
+{
+    constexpr int limit = MasterSaturation::kDriveLimit;
+    const auto next = clamp<int>(mtProject.saturationDrive + value, -limit, limit);
+    if (next == mtProject.saturationDrive) return;
+    mtProject.saturationDrive = next;
+    engine.setSaturationDrive(next);
+    newFileManager.setProjectStructChanged();
+    MP->showSaturationDrive();
 }
 
 void changeSaturationType(int16_t value)

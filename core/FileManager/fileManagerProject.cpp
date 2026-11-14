@@ -2,6 +2,7 @@
 #include "mtStructs.h"
 
 #include "fileManager.h"
+#include "MasterSaturationSettings.h"
 #include "fileTransfer.h"
 #include "mtAudioEngine.h"
 #include "mtFileManagerOldVersionRecovery.h"
@@ -143,6 +144,10 @@ bool cFileManager::loadProjectFileFormFileStruct(strMtProject* project, strProje
 
     memcpy(&project->song, &pFile->projectDataAndHeader.project.song, sizeof(strSong));
     memcpy(&project->values, &pFile->projectDataAndHeader.project.values, sizeof(strMtValues));
+    project->saturationDrive =
+      masterSaturationSettings::readDrive(project->values.midiInstrument[0].reserved);
+    if (project->values.saturationType >= SaturationType::kSaturationTypeEnd)
+        project->values.saturationType = SaturationType::kSoftClip;
     project->bypassRenderTrackFaders = project->values.oldVolume == kRenderFaderBypassMarker;
     if (project->bypassRenderTrackFaders)
         project->values.oldVolume = 0;
@@ -155,6 +160,8 @@ bool cFileManager::writeProjectFileToFileStruct(strMtProject* project, strProjec
 {
     memcpy(&pFile->projectDataAndHeader.project.song, &project->song, sizeof(strSong));
     memcpy(&pFile->projectDataAndHeader.project.values, &project->values, sizeof(strMtValues));
+    masterSaturationSettings::writeDrive(
+      pFile->projectDataAndHeader.project.values.midiInstrument[0].reserved, project->saturationDrive);
     if (project->bypassRenderTrackFaders)
         pFile->projectDataAndHeader.project.values.oldVolume = kRenderFaderBypassMarker;
     strcpy(pFile->projectDataAndHeader.project.projectName, currentProjectName);
@@ -208,6 +215,7 @@ void cFileManager::getDefaultProject(struct strMtProject* source)
     source->max_memory = SAMPLE_MEMORY_SIZE;
     source->used_memory = 0;
     source->bypassRenderTrackFaders = 0;
+    source->saturationDrive = 0;
 
     for (uint32_t i = 0; i < kSampleInstrumentsCount; i++)
     {

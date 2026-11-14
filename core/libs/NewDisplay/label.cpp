@@ -327,6 +327,14 @@ void cLabel::update()
                 data->bitmaps[i].bitmapIndex < displayBitmapsCount)
             {
 
+#ifdef FEATURE_SYNTH
+                const auto& badge = data->bitmaps[i];
+                if (drawSideTrackerSynthBadge(badge.bitmapIndex,
+                                              badge.xValue - bitmaps[badge.bitmapIndex].width / 2,
+                                              badge.yValue))
+                    continue;
+#endif
+
                 API_CMD_SETBITMAP(bitmaps[data->bitmaps[i].bitmapIndex].address,
                                   bitmaps[data->bitmaps[i].bitmapIndex].format,
                                   bitmaps[data->bitmaps[i].bitmapIndex].width,

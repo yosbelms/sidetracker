@@ -131,3 +131,8 @@ void Sgtl5000Impl::enableHardwareProcessor(bool enabled)
         codecDriver.audioProcessorDisable();
     }
 }
+
+bool Sgtl5000Impl::routePostCodecToI2s(bool enabled)
+{
+    return codecDriver.routePostCodecToI2s(enabled);
+}

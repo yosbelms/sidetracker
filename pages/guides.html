@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="How to use SideTracker’s Performance FX, pattern automation, Sample Editor chains, and synth engines.">
+  <meta name="description" content="How to use SideTracker’s Performance FX, master routing and exports, Sample Editor chains, and synth engines.">
   <title>SideTracker · Feature guides</title>
   <link rel="icon" href="assets/st.png" type="image/png">
   <link rel="stylesheet" href="style.css">
@@ -25,6 +25,7 @@
         <a href="#performance-fx">Performance FX</a>
         <a href="#performance-fx-sequencing">Performance FX sequencing</a>
         <a href="#pattern-and-mixer">Pattern and mixer</a>
+        <a href="#master-routing">Master routing and exports</a>
         <a href="#sample-editor">Sample Editor</a>
         <a href="#synth-engines">Synth engines</a>
       </nav>
@@ -64,6 +65,7 @@
             <tr><th scope="row">09</th><td><code>XOFF</code></td><td><code>----</code></td><td>Release all sequenced effects.</td></tr>
           </tbody>
         </table>
+        <p>Live pads and sequenced commands share a limit of <strong>three different effects at once</strong>. A fourth waits for a slot to free up. If both select the same effect, the latest preset wins and uses one slot.</p>
         <p>Commands on muted tracks or steps that fail Chance are skipped. Latches carry across loops of the same pattern and release when you change patterns or stop. Master WAV exports include the effects. Individual stems are taken before the rack.</p>
       </div>
       <figure>
@@ -77,10 +79,11 @@
         <h2 id="pattern-mixer-title">Pattern and mixer</h2>
         <h3>Pattern view indicator</h3>
         <p>In the four-track Pattern view, press <strong>Note</strong> while the Note column is selected. The title shows <code>[FX]</code> for FX1 and FX2 or <code>[mV]</code> for Micro-move and Volume/Velocity. Tracker CE already has the toggle. SideTracker adds the indicator when <strong>Config → General → Pattern info</strong> is set to <strong>Additional info</strong>.</p>
-        <h3>Render fader bypass</h3>
+        <h3 id="render-fader-bypass">Render fader bypass</h3>
         <p>Turn on <strong>Config → Project Settings → Render fader bypass</strong> to use 0 dB sample-track fader gain in <strong>Render Pattern</strong> and <strong>Render Selection</strong>. It also applies to post-fader delay and reverb sends. The setting is off by default and saves with the project. Playback, song exports, and stem exports use the saved mixer levels.</p>
         <h3>Master and track meter readouts</h3>
         <p>Read the final digital output peak in dBFS at the top right of <strong>Master</strong>. The numbers above the sample-track meters on <strong>Mixer 2/3</strong> show averaged signal levels. The dB values along the bottom show the fader gain settings.</p>
+        <p><strong>Master 1/3</strong> shows a 50 Hz to 20 kHz spectrum over Delay, Reverb, Saturation, and Limiter. Open <strong>Saturation</strong> with <strong>F4</strong> to choose a Mode and set Drive.</p>
       </div>
       <div class="guide-screens">
         <figure>
@@ -98,13 +101,53 @@
       </div>
     </section>
 
+    <section class="guide-section" id="master-routing" aria-labelledby="master-routing-title">
+      <h2 id="master-routing-title">Master routing and exports</h2>
+      <div>
+        <h3>Signal path</h3>
+        <ol class="signal-path" aria-label="Master signal processing order">
+          <li><strong>Combined mix</strong> <span>Sample and synth tracks, monitored Line In, and the parallel Delay and Reverb returns.</span></li>
+          <li><strong>Perf FX</strong> <span>The rack blends the processed and dry signals using Perf FX Mix.</span></li>
+          <li><strong>Master Saturation → Limiter</strong> <span>The complete mix passes through one saturation stage, then the limiter.</span></li>
+          <li><strong>Final digital master</strong> <span>Preview and metronome join here. The spectrum and USB master read the digital signal.</span></li>
+          <li><strong>Codec DSP → Headphones</strong> <span>Space → Bass Boost → EQ, followed by the DAC and analog headphone Volume.</span></li>
+        </ol>
+      </div>
+      <div>
+        <table>
+          <caption>Where each output is captured</caption>
+          <thead>
+            <tr><th scope="col">Output</th><th scope="col">Capture point</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">Pattern and Selection</th><td>After Perf FX and before Master Saturation and Limiter. Includes Delay, Reverb, and sequenced Perf FX.</td></tr>
+            <tr><th scope="row">Song and stem <code>master.wav</code></th><td>Final digital master after the Limiter and before codec DSP.</td></tr>
+            <tr><th scope="row">Individual stems</th><td>Tracks and synths retain their instrument processing, gain, and pan. Delay and Reverb have separate return files. All of these taps are upstream of Perf FX.</td></tr>
+            <tr><th scope="row">USB on Tracker+ and Mini</th><td>Channels 1–2 carry the final digital master. Separate track, synth, and effect return pairs use upstream taps.</td></tr>
+            <tr><th scope="row">Record Output</th><td>After Space, Bass Boost, and EQ, before the DAC and headphone Volume.</td></tr>
+          </tbody>
+        </table>
+        <p><a href="#render-fader-bypass">Render fader bypass</a> sets sample-track faders to 0 dB for Pattern and Selection, including post-fader sends. Offline exports mute monitored Line In.</p>
+      </div>
+      <div>
+        <h3>Record Output</h3>
+        <p>Choose <strong>File → Export → Record Output (F7)</strong>, then press <strong>Record (F8)</strong>. The Tracker plays the song once from the first playlist entry, records the effect tail, and saves a stereo <code>master.wav</code> in <code>Export/&lt;project&gt;/&lt;project&gt;_RecordOutput_NNNN/</code> on the SD card.</p>
+        <p>Line In and Mic are unavailable during the take. Press <strong>F8 (Cancel)</strong> to discard the partial recording. The Tracker restores the input path when the take ends or you cancel.</p>
+      </div>
+      <div>
+        <h3>Compared with original Tracker CE</h3>
+        <p>Original Tracker CE applies saturation in both the dry mixer and the combined mixer, and captures Pattern, Selection, and Song from the same post-limiter master. SideTracker applies saturation once. Short bounces print the sequenced effects before saturation and limiting, so they can go through those master stages when you use them in an arrangement.</p>
+        <p><a href="https://github.com/yosbelms/sidetracker/blob/main/docs/master_audio_routing.md">Read the full routing comparison</a></p>
+      </div>
+    </section>
+
     <section class="guide-section" id="sample-editor" aria-labelledby="sample-title">
       <div>
         <h2 id="sample-title">Sample Editor</h2>
         <ol>
           <li>Open <strong>Effects</strong>. Select an effect and press <strong>Add</strong>. Choose the stage in <strong>Chain</strong>, then edit its <strong>Parameter</strong> and <strong>Value</strong>. The chain can contain up to eight stages.</li>
-          <li>Try <strong>ST Texture → Cassette</strong> for a starting point. The four ST categories offer six Types each. Hold <strong>Mix</strong> and turn the jog wheel or use the arrows to blend the whole chain.</li>
-          <li>Use <strong>Preview</strong> to listen. <strong>Back</strong> keeps the draft active for waveform preview. <strong>Apply</strong> writes to the current sample slot. Use <strong>Actions → Render to new slot</strong> for a separate copy. If realtime preview exceeds the audio budget, you can still Apply.</li>
+          <li>Try <strong>ST Texture → Cassette</strong> for a starting point. The four ST categories offer six Types each. Hold <strong>Mix (F7)</strong> and turn the jog wheel or use the arrows to blend the whole chain.</li>
+          <li>Use <strong>Preview</strong> to listen. <strong>Back (F6)</strong> keeps the draft active for waveform preview. <strong>Apply</strong> writes to the current sample slot. Use <strong>Actions → Render to new slot</strong> for a separate copy. If realtime preview exceeds the audio budget, you can still Apply.</li>
         </ol>
         <p>Use <strong>Actions → Save Patch</strong> or <strong>Load Patch</strong> to reuse a chain. Effect patches live in <code>/Effects/Patches/</code> on the SD card. For selection edits such as Crop or fades, open <strong>Tools</strong> from the waveform. After Apply, <strong>Undo</strong> on the waveform restores the previous audio.</p>
       </div>

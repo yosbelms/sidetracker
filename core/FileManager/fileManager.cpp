@@ -112,6 +112,7 @@ uint8_t cFileManager::getProgress()
 
     switch (status)
     {
+        case fmRecordingOutput: return getExportProgress();
         case fmSavingProjectToProjects:
         {
             if (currentOperation == fmSaveWorkspaceProject)
@@ -353,8 +354,9 @@ void cFileManager::startRequestedPatternLoad()
     stopAutosave(); // TODO: sprawdzic czy nie opoznia ladowania patternu
 
     // to wyjatek który moze byc wywolywany podczas exportu songa
-    if (status != fmIdle && status != fmExportingSoundSong && status != fmExportingSoundSongStems &&
-        status != fmSavingProjectToWorkspace)
+    const bool songExport = status == fmExportingSoundSong || status == fmExportingSoundSongStems ||
+                            status == fmRecordingOutput;
+    if (status != fmIdle && !songExport && status != fmSavingProjectToWorkspace)
         return;
     if (currentOperation != fmNoOperation && currentOperation != fmExportSound &&
         currentOperation != fmSaveWorkspaceProject)
@@ -362,7 +364,7 @@ void cFileManager::startRequestedPatternLoad()
 
     currentPattern = index;
 
-    if (status != fmExportingSoundSong && status != fmExportingSoundSongStems)
+    if (!songExport)
     {
         status = fmLoadingPatternFromWorkspace;
     }

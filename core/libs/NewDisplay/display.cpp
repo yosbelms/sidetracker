@@ -70,8 +70,6 @@
 #include "images/dirt_mini_nomark_80x28_L2.h"
 #include "images/synth_shaper_18x18_L4.h"
 #include "images/analog_synth_badges.h"
-#include "images/chip_med_108x40_L2.h"
-#include "images/chip_mini_nomark_80x28_L2.h"
 
 #endif
 
@@ -189,11 +187,46 @@ const strBitmap bitmaps[displayBitmapsCount] = {
     { synthbadges::miniSynthMedium.data(), 129400, 1080, 108, 40, L2, 27 },
     { synthbadges::miniOber.data(), 130500, 560, 80, 28, L2, 20 },
     { synthbadges::mediumOber.data(), 131100, 1080, 108, 40, L2, 27 },
+    { synthbadges::smallBackground.data(), 132200, synthbadges::smallBackground.size(), 80, 28, L2, 20 },
+    { synthbadges::mediumBackground.data(), 133400, synthbadges::mediumBackground.size(), 108, 40, L2, 27 },
 
 #endif
     { kSideTrackerMonogram, 80000, sizeof(kSideTrackerMonogram), kSideTrackerMonogramWidth,
       kSideTrackerMonogramHeight, L4, kSideTrackerMonogramWidth / 2 },
 };
+
+#ifdef FEATURE_SYNTH
+static_assert(133400 + synthbadges::mediumBackground.size() <= controlsRamStartAddress);
+
+bool drawSideTrackerSynthBadge(int bitmapId, int x, int y)
+{
+    const bool small = bitmapId == kBitmapMiniSynthSmall || bitmapId == kBitmapMiniOBER;
+    if (!small && bitmapId != kBitmapMiniSynth && bitmapId != kBitmapOBER)
+        return false;
+
+    const auto& text = bitmaps[bitmapId];
+    const auto& background = bitmaps[small ? kBitmapSideTrackerSynthSmallBackground
+                                           : kBitmapSideTrackerSynthMediumBackground];
+    const auto drawMask = [&](uint32_t address, uint32_t color) {
+        API_BITMAP_SOURCE(address);
+        API_COLOR(color);
+        API_BEGIN(BITMAPS);
+        API_VERTEX2F(x, y);
+        API_END();
+    };
+
+    API_SAVE_CONTEXT();
+    API_BITMAP_HANDLE(0);
+    API_CELL(0);
+    API_BITMAP_LAYOUT(L2, text.linestride, text.height);
+    API_BITMAP_SIZE(NEAREST, BORDER, BORDER, text.width, text.height);
+    drawMask(background.address, sideTrackerLogo::kBackground);
+    drawMask(background.address + text.linestride * text.height, sideTrackerLogo::kStripeColor);
+    drawMask(text.address, 0xffffff);
+    API_RESTORE_CONTEXT();
+    return true;
+}
+#endif
 
 uint32_t ImageViewerJpegAddress = 350000;
 

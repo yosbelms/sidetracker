@@ -309,6 +309,9 @@ class Sgtl5000
     virtual void enableSurroundSound(bool enabled) = 0;
     virtual void configureSurroundSound(SurroundSoundParams* params) = 0;
     virtual void enableHardwareProcessor(bool enabled) = 0;
+#ifndef TRACKER_DESKTOP
+    virtual bool routePostCodecToI2s(bool enabled) = 0;
+#endif
 };
 
 class FileSystem
@@ -375,6 +378,11 @@ class FileSystem
     virtual bool seekFileCur(int offset, FileHandle fileHandle) = 0;
     virtual bool seekFile(uint32_t pos, FileHandle fileHandle) = 0;
     virtual void closeFile(FileHandle file, bool deleteOnClose = true) = 0;
+    virtual bool closeWrittenFile(FileHandle file)
+    {
+        closeFile(file);
+        return true;
+    }
     virtual void endFile(FileHandle file) = 0;
     virtual bool isFileOpen(FileHandle file) = 0;
     virtual bool enableFastSeek(FileHandle fileHandle,

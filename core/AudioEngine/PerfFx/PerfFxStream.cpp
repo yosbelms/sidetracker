@@ -51,6 +51,7 @@ void Stream::update()
     effects.process(left, right, available ? wet[0]->data : nullptr,
                     available ? wet[1]->data : nullptr, AUDIO_BLOCK_SAMPLES);
     const bool meter = !renderMode && meterEnabled.load(std::memory_order_relaxed);
+    const bool capture = renderMode && exportTap.load(std::memory_order_relaxed);
     int64_t sum = 0;
     for (unsigned ch = 0; ch < 2; ++ch)
     {
@@ -59,6 +60,7 @@ void Stream::update()
         {
             if (meter) sum = AudioAnalyzeRMS::accumulateSquares(*output, sum);
             transmit(output, ch);
+            if (capture) transmit(output, kExportOutput + ch);
         }
         if (wet[ch] && wet[ch] != dry[ch]) release(wet[ch]);
         if (dry[ch]) release(dry[ch]);

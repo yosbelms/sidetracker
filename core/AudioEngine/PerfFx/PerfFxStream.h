@@ -17,6 +17,8 @@ class Stream : public AudioStream
     void setVisible(bool value) { visible.store(value, std::memory_order_relaxed); }
     void setMix(uint8_t value) { mix.store(value, std::memory_order_relaxed); }
     void setMeterEnabled(bool value) { meterEnabled.store(value, std::memory_order_relaxed); }
+    void setExportTap(bool enabled) { exportTap.store(enabled, std::memory_order_relaxed); }
+    static constexpr unsigned kExportOutput = 2;
     float readOutputRms();
 #ifdef AUDIO_PERFORMANCE_INFO_ENABLED
     void setTimer(Timer* value) { timer = value; }
@@ -28,6 +30,7 @@ class Stream : public AudioStream
     void update() override;
     audio_block_t* queue[2];
     Rack effects;
+    std::atomic<bool> exportTap{false};
     std::atomic<bool> visible{false};
     std::atomic<uint8_t> mix{100};
     std::atomic<bool> meterEnabled{false};

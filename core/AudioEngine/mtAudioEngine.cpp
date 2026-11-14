@@ -1,5 +1,6 @@
 #include "mtAudioEngine.h"
 #include "Platform.h"
+#include "PostCodecRecording.h"
 #include "VoiceStreamManager.h"
 #ifdef FEATURE_SYNTH
 #include "PolySynth/sdk/SynthVoiceSDK.h"
@@ -235,6 +236,7 @@ void audioEngine::init(Platform* platform, [[maybe_unused]] Synth* synth)
     AudioPlayMemory::enableSnapToZero((bool)mtProject.values.isSnapToZeroEnabled);
 
     setSaturationType((SaturationType)mtProject.values.saturationType);
+    setSaturationDrive(mtProject.saturationDrive);
 
     codec->setMasterVolume(mtConfig.audioCodecConfig.volume / 100.0f);
     setPreviewVolume(mtConfig.general.previewVolume);
@@ -329,13 +331,33 @@ AUDIO_CORE_RAM void audioEngine::updateInputAudioBuffers(void* i2sData,
                                                          [[maybe_unused]] void* usbData,
                                                          int length)
 {
+#ifndef TRACKER_DESKTOP
+    if (postCodecRecording.inputIsolated())
+    {
+        postCodecRecording.receive(static_cast<const int16_t*>(i2sData), length);
+        i2sData = nullptr;
+    }
+#else
     (void)length;
-
+#endif
     input.getI2sStream()->setInBuffer(i2sData);
 #ifdef PLATFORM_IMX
     input.getUsbStream()->setInBuffer(usbData);
 #endif
 }
+
+#ifndef TRACKER_DESKTOP
+bool audioEngine::routePostCodecToI2s(bool enabled)
+{
+    return codec->routePostCodecToI2s(enabled);
+}
+#ifdef PLATFORM_IMX
+void audioEngine::forceRegularOutputForCapture(bool enabled)
+{
+    output.getStream()->forceRegularSource(enabled);
+}
+#endif
+#endif
 
 #ifndef PLATFORM_IMX
 void audioEngine::connectVoiceToMixer(AudioVoice* voice, MixerAndFxs<kVoices>* mixerAndFxs, int idx)
@@ -781,14 +803,16 @@ void audioEngine::connectMixerToExportQueue(MixerAndFxs<kVoices>* mixerAndFxs,
 
 void audioEngine::connectOutputToExportQueue(AudioOutput* output, ExportQueues* exportQueues)
 {
-    connections.push_back(
-      new AudioConnection(output->getFinalMixer(AudioOutput::OutputChannels::kLeft),
-                          exportQueues->getQueue(ExportQueues::ExportChannels::kLeft,
-                                                 mtAudioExport::enStem::stem_master)));
-    connections.push_back(
-      new AudioConnection(output->getFinalMixer(AudioOutput::OutputChannels::kRight),
-                          exportQueues->getQueue(ExportQueues::ExportChannels::kRight,
-                                                 mtAudioExport::enStem::stem_master)));
+    for (unsigned channel = 0; channel < ExportQueues::kChannelsCount; ++channel)
+    {
+        auto* master = exportQueues->getQueue(static_cast<ExportQueues::ExportChannels>(channel),
+                                              mtAudioExport::stem_master);
+        connections.push_back(new AudioConnection(
+          output->getFinalMixer(static_cast<AudioOutput::OutputChannels>(channel)), 0,
+          master, ExportQueues::kFinalMixInput));
+        connections.push_back(new AudioConnection(&output->getPerfFx(),
+          perffx::Stream::kExportOutput + channel, master, ExportQueues::kPerfFxInput));
+    }
     connections.push_back(
       new AudioConnection(output->getFinalMixer(AudioOutput::OutputChannels::kLeft),
                           exportQueues->getChannelRms(ExportQueues::ExportChannels::kLeft)));
@@ -1612,11 +1636,12 @@ void audioEngine::setSnapToZeroEnable(bool enabled)
 
 void audioEngine::setSaturationType(SaturationType type)
 {
-    getMixerAndFx()->getTracksMixer(MixerAndFxChannelType::kLeft)->setSaturationType(type);
-    getMixerAndFx()->getTracksMixer(MixerAndFxChannelType::kRight)->setSaturationType(type);
+    output.getSaturation().setMode(type);
+}
 
-    getMixerAndFx()->getTracksAndSendsMixer(MixerAndFxChannelType::kLeft)->setSaturationType(type);
-    getMixerAndFx()->getTracksAndSendsMixer(MixerAndFxChannelType::kRight)->setSaturationType(type);
+void audioEngine::setSaturationDrive(int halfDb)
+{
+    output.getSaturation().setDrive(halfDb);
 }
 
 #ifdef PLATFORM_IMX

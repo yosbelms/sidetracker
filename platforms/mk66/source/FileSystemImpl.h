@@ -38,6 +38,7 @@ class FileSystemImpl final : public FileSystem
     virtual bool seekFileCur(int offset, FileHandle fileHandle) override;
     virtual bool seekFile(uint32_t pos, FileHandle fileHandle) override;
     virtual void closeFile(FileHandle fileHandle, bool deleteOnClose = true) override;
+    bool closeWrittenFile(FileHandle fileHandle) override;
     virtual void endFile(FileHandle file) override;
     virtual bool isFileOpen(FileHandle file) override;
     virtual bool enableFastSeek(FileHandle fileHandle,

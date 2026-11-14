@@ -80,6 +80,8 @@ enum enDisplayBitmaps
     kBitmapMiniSynth,
     kBitmapMiniOBER,
     kBitmapOBER,
+    kBitmapSideTrackerSynthSmallBackground,
+    kBitmapSideTrackerSynthMediumBackground,
 
 #endif
 

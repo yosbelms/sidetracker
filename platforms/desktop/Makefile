@@ -42,7 +42,9 @@ check: $(OUT)/$(BIN) $(SD_TARGET)
 	fi
 ifeq ($(DESKTOP_MODEL),plus)
 	python3 $(ROOT)/tools/desktop_plus_synth_check.py $<
+	python3 $(ROOT)/tools/desktop_perf_fx_check.py $<
 endif
+	python3 $(ROOT)/tools/desktop_master_check.py $<
 	python3 $(ROOT)/tools/desktop_fx_chain_check.py $< --output $(OUT)
 
 sd:

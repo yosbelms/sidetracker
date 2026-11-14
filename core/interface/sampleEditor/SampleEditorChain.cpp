@@ -30,10 +30,10 @@ namespace
 using namespace samplefx;
 constexpr uint32_t kCapacity = EDIT_BUFF_SIZE / 2;
 constexpr unsigned kIoFrames = 4096;
-constexpr unsigned kBackButton = 2;
+constexpr unsigned kBackButton = cSampleEditor::kBackButton;
 constexpr unsigned kApplyButton = 3;
 constexpr unsigned kActionsButton = 4;
-constexpr unsigned kMixButton = 5;
+constexpr unsigned kMixButton = 6;
 constexpr unsigned kValueButton = 7;
 constexpr char kTempDir[] = "Workspace/FxChainTemp";
 constexpr char kPatchDir[] = "/Effects/Patches";
@@ -477,7 +477,6 @@ class ChainScreen
     void turn(int delta);
     void choose();
     void addSelectedEffect();
-    void browseSource();
     void preview(Output action = Audition);
     void startRealtime();
     void playPrepared();
@@ -622,7 +621,6 @@ void ChainScreen::show(Page next)
             addMenuRow("Bypass / Enable"); addMenuRow("Move Up"); addMenuRow("Move Down");
             addMenuRow("Duplicate"); addMenuRow("Remove"); addMenuRow("Replace Effect", 20);
         }
-        else addMenuRow("Choose Generator");
         addMenuRow("Load Patch", 10); addMenuRow("Save Patch", 11);
         if(stpalette::contains(node().effect)) addMenuRow("Measure CPU",12);
         addMenuRow("Render to new slot", 13);
@@ -665,15 +663,18 @@ void ChainScreen::show(Page next)
     if (!busy() || !toolbarReady || work == Processing || work == Restoring)
         drawColumns(pageChanged, previousCount);
     snprintf(mixText, sizeof(mixText), "%u%%", definition.mix);
-    const char* labels[8] = { "Preview", "Add", "Back", "Apply", "Actions", "Mix", "", valueName };
-    if (page != Chain)
-    { labels[0] = "Back"; labels[1] = "Select"; for (unsigned i = 2; i < 8; ++i) labels[i] = ""; }
-    else
+    const char* labels[8] = { "", "Select", "", "", "", "", "", "" };
+    labels[kBackButton] = "Back";
+    if (page == Chain)
     {
         unsigned id = count ? entries[browserSelection] : kSample;
         bool source = id == kSample || (id >= 256 && (PtfxManager::getPlugin(id - 256)->flags & PTFX_FLAG_GENERATOR));
+        labels[0] = playing ? "Stop" : "Preview";
         labels[1] = replacingEffect ? "Replace" : source ? "Use src" : "Add";
-        if (playing) labels[0] = "Stop";
+        labels[kApplyButton] = "Apply";
+        labels[kActionsButton] = "Actions";
+        labels[kMixButton] = "Mix";
+        labels[kValueButton] = valueName;
     }
     const bool hasValue = page == Chain && valueName[0];
     for (unsigned i = 0; i < 8; ++i)
@@ -1017,21 +1018,6 @@ void ChainScreen::turn(int delta)
     else navigate(delta);
 }
 
-void ChainScreen::browseSource()
-{
-    replacingEffect = false;
-    focus = 0;
-    for (unsigned i = 0; i < count; ++i)
-    {
-        unsigned id = entries[i];
-        if (id >= 256 && ((definition.source.effect == kSample && (PtfxManager::getPlugin(id - 256)->flags & PTFX_FLAG_GENERATOR)) ||
-            (definition.source.effect == kPlugin && !strcmp(PtfxManager::getPlugin(id - 256)->filename, definition.source.filename))))
-        { browserSelection = i; break; }
-    }
-    snprintf(notice, sizeof(notice), "Choose a generator, then Use src");
-    show(Chain);
-}
-
 void ChainScreen::addSelectedEffect()
 {
     if (!count || busy()) return;
@@ -1105,7 +1091,7 @@ void ChainScreen::choose()
         }
         if (action >= 10)
         { savingPatch = action == 11; selected = 0; show(SavedPatches); return; }
-        if (!selectedNode) { browseSource(); return; }
+        if (!selectedNode) return;
         changed();
         unsigned i = selectedNode - 1;
         if (selected == 0) definition.stages[i].bypass = !definition.stages[i].bypass;
@@ -1190,7 +1176,12 @@ void ChainScreen::input(unsigned button)
     if (busy()) return;
     if (page != Chain)
     {
-        if (button == 0) { if (page == Destinations) output = Audition; focus = 1; show(Chain); }
+        if (button == kBackButton)
+        {
+            if (page == Destinations) output = Audition;
+            focus = 1;
+            show(Chain);
+        }
         else if (button == 1) choose();
         return;
     }

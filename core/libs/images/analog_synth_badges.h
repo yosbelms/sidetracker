@@ -3,6 +3,10 @@
 #include <array>
 #include <cstdint>
 
+#include "chip_med_108x40_L2.h"
+#include "chip_mini_nomark_80x28_L2.h"
+#include "sideTrackerLogoStyle.h"
+
 namespace synthbadges
 {
 using Glyph = std::array<uint8_t, 7>;
@@ -31,6 +35,45 @@ constexpr auto badge(const Glyph (&letters)[Count])
         }
     return bitmap;
 }
+
+// Mirror CHIP's clean right edge to keep its antialiased corners while
+// dropping the lettering and any marks at the left of the source bitmap.
+// Each pixel is drawn by one mask so the stripes preserve edge opacity.
+template<unsigned Width, unsigned Height>
+constexpr auto background(const uint8_t (&chip)[Width * Height / 4])
+{
+    constexpr unsigned maskBytes = Width * Height / 4;
+    std::array<uint8_t, 2 * maskBytes> masks{};
+    for (unsigned y = 0; y < Height; ++y)
+    {
+        bool striped = false;
+        constexpr int halfHeight = Height / 2;
+        for (int height : sideTrackerLogo::kStripeHeights)
+            striped |= int(y) == halfHeight - height * halfHeight / 10;
+
+        const auto setPixel = [&](unsigned x, unsigned level) {
+            const unsigned pixel = y * Width + x;
+            const unsigned packed = level << (6 - 2 * (pixel % 4));
+            const unsigned layer = striped ? maskBytes : 0;
+            masks[layer + pixel / 4] |= packed;
+        };
+
+        bool inside = false;
+        for (unsigned offset = 0; offset < Width / 2; ++offset)
+        {
+            const unsigned x = Width - 1 - offset;
+            const unsigned pixel = y * Width + x;
+            const unsigned level = inside ? 3 : (chip[pixel / 4] >> (6 - 2 * (pixel % 4))) & 3;
+            setPixel(x, level);
+            setPixel(offset, level);
+            inside |= level == 3;
+        }
+    }
+    return masks;
+}
+
+constexpr auto smallBackground = background<80, 28>(chip_mini_nomark_80x28_L2);
+constexpr auto mediumBackground = background<108, 40>(chip_med_108x40_L2);
 
 constexpr Glyph mini[] = {m, i, n, i};
 constexpr Glyph ober[] = {o, b, e, r};

@@ -15,6 +15,9 @@ class AudioOutputStream : public AudioStream
     virtual void update(void);
     void begin(void);
     void selectSource(int channel, int idx);
+#if defined(PLATFORM_IMX) && !defined(TRACKER_DESKTOP)
+    void forceRegularSource(bool enabled) { forceRegular = enabled; }
+#endif
     void setOutBuffers(void* left, void* right);
     uint32_t readPeak();
 
@@ -25,6 +28,9 @@ class AudioOutputStream : public AudioStream
     audio_block_t* inputQueueArray[kOutChannels * kSources];
     void* outBuffers[kOutChannels];
     int source[kOutChannels];
+#if defined(PLATFORM_IMX) && !defined(TRACKER_DESKTOP)
+    volatile bool forceRegular = false;
+#endif
     volatile uint32_t peak = 0;
 };
 

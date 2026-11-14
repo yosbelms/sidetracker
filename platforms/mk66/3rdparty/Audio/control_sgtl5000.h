@@ -115,6 +115,7 @@ class AudioControlSGTL5000
     unsigned short surroundSoundEnable(void);
     unsigned short surroundSoundDisable(void);
     void killAutomation(void) { semi_automated = false; }
+    bool routePostCodecToI2s(bool enabled);
     bool write(unsigned int reg, unsigned int val);
 
   protected:

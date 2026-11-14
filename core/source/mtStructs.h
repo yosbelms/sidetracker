@@ -1022,6 +1022,7 @@ struct strMtProject
     uint32_t max_memory = SAMPLE_MEMORY_SIZE;
     uint32_t used_memory;
     uint8_t bypassRenderTrackFaders = 0;
+    int8_t saturationDrive = 0; // Half-dB units, stored in tagged reserved bytes.
     uint16_t perfTracksPatterns[kMaxAllTracksInTrackers] = {
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
     };

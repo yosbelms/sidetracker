@@ -83,10 +83,12 @@ AUDIO_CORE_FLASH void AudioRecordQueue::freeBuffer(void)
 
 AUDIO_CORE_FLASH void AudioRecordQueue::update(void)
 {
-    audio_block_t* block;
-    uint32_t h;
+    enqueue(receiveReadOnly());
+}
 
-    block = receiveReadOnly();
+AUDIO_CORE_FLASH void AudioRecordQueue::enqueue(audio_block_t* block)
+{
+    uint32_t h;
     if (!block)
         return;
     if (!enabled)

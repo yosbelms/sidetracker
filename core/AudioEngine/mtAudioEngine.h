@@ -46,6 +46,12 @@ class audioEngine
     void updateSdStream();
     void updateAudioBuffers(void* left, void* right, int length);
     void updateInputAudioBuffers(void* i2sData, void* usbData, int length);
+#ifndef TRACKER_DESKTOP
+    bool routePostCodecToI2s(bool enabled);
+#ifdef PLATFORM_IMX
+    void forceRegularOutputForCapture(bool enabled);
+#endif
+#endif
     void connectVoiceToMixer(AudioVoice* voice, MixerAndFxs<kVoices>* mixerAndFxs, int idx);
     void connectInputToMixer(AudioInput* input, MixerAndFxs<kVoices>* mixerAndFxs);
     void connectVoiceToOutput(AudioVoice* voice, AudioOutput* output, int idx);
@@ -176,6 +182,7 @@ class audioEngine
     void setHeadroomEnable(bool enabled);
     void setSnapToZeroEnable(bool enabled);
     void setSaturationType(SaturationType type);
+    void setSaturationDrive(int halfDb);
 #ifdef PLATFORM_IMX
     enum OutputSourceType
     {

@@ -688,19 +688,29 @@ void cProjectEditor::showExportWindow()
     display.setControlText2(label[4], "As .it");
     display.setControlText(label[5], "Export");
     display.setControlText2(label[5], "Samples");
+#ifdef TRACKER_DESKTOP
     display.setControlText(label[6], "");
+    display.setControlText2(label[6], "");
+#else
+    display.setControlText(label[6], "Record");
+    display.setControlText2(label[6], "Output");
+#endif
     display.setControlText(label[7], "Back");
+    display.setControlText2(label[7], "");
 
     for (uint8_t i = 0; i < 8; i++)
     {
         display.setControlStyle(label[i],
                                 controlStyleCenterX | controlStyleCenterY | controlStyleFont3 |
                                   controlStyleShow);
+        display.setControlColors(label[i], display.getTheme().activeButtonLabelsColors);
         display.setControlValue(label[i], 1);
         display.refreshControl(label[i]);
     }
 
+#ifdef TRACKER_DESKTOP
     display.setControlValue(label[6], 0);
+#endif
     display.setControlValue(label[7], 0);
 
     display.setControlValue(bgLabel, 255);
@@ -729,6 +739,7 @@ void cProjectEditor::showLabelDuringExport()
     display.setControlText(label[5], "");
     display.setControlText2(label[5], "");
     display.setControlText(label[6], "");
+    display.setControlText2(label[6], "");
     display.setControlText(label[7], "Cancel");
 
     for (uint8_t i = 0; i < 8; i++)
@@ -767,6 +778,26 @@ void cProjectEditor::activateLabelsBorder()
     display.setControlShow(frameControl);
     display.refreshControl(frameControl);
 }
+
+#ifndef TRACKER_DESKTOP
+void cProjectEditor::showRecordOutputConfirmation()
+{
+    for (uint8_t i = 0; i < 8; ++i)
+    {
+        display.setControlValue(label[i], 0);
+        display.setControlText(label[i], "");
+        display.setControlText2(label[i], "");
+        display.refreshControl(label[i]);
+    }
+    display.setControlText(label[6], "Cancel");
+    display.setControlText(label[7], "Record");
+    display.refreshControl(label[6]);
+    display.refreshControl(label[7]);
+    mtPopups.showInfoPopup("Record Output",
+                           "Line In and Mic are disabled while recording.");
+    display.synchronizeRefresh();
+}
+#endif
 
 void cProjectEditor::showClockWarning()
 {

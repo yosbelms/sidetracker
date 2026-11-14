@@ -191,8 +191,21 @@ button Play
 assert-sequencer stopped
 """)
 
-        def render_stems():
-            run(binary, card, """button File
+        reset_master = """button Master
+button 3
+button Delete
+button 1
+button Delete
+button 7
+button 4
+button 2
+button Delete
+button 7
+wait 10500
+"""
+
+        def render_stems(edits=""):
+            run(binary, card, edits + """button File
 button 5
 button 3
 wait 7000
@@ -214,8 +227,33 @@ wait 7000
         assert wet_pcm[:rate * frame_bytes // 10] != dry_pcm[:rate * frame_bytes // 10]
         assert wet_pcm[rate * frame_bytes * 2:] == dry_pcm[rate * frame_bytes * 2:]
 
-        # Exercise the master-only writer for each mode as well as the stems writer.
+        # Change both master stages through the normal UI. Keep the pattern,
+        # saved track mix, and sequenced effects identical across the exports.
+        change_saturation = """button Master
+button 3
+button Down
+button 1
+encoder 24
+button 7
+"""
+        change_limiter = """button Master
+button 4
+button 2
+encoder -100
+button 7
+"""
         (card / "Export").rename(card / "baseline")
+        isolated = baseline
+        for label, edits in (("saturation", change_saturation), ("limiter", change_limiter)):
+            changed = render_stems(edits)
+            assert changed.keys() == isolated.keys()
+            for name in changed.keys() - {"master.wav"}:
+                assert isolated[name] == changed[name], (label, name)
+            assert changed["master.wav"][1] != isolated["master.wav"][1], label
+            (card / "Export").rename(card / f"stems-{label}")
+            run(binary, card, reset_master)
+
+        # Run the master-only writer in each mode and compare its real PCM.
         exports = {
             "pattern": "button File\nbutton 5\nbutton 2\n",
             "song": "button File\nbutton 5\nbutton 0\n",
@@ -223,15 +261,58 @@ wait 7000
         }
         for mode, commands in exports.items():
             results = []
-            for name, pattern in (("wet", wet), ("dry", dry)):
+            for name, pattern, edits in (("wet", wet, ""), ("dry", dry, ""),
+                                         ("saturated", wet, change_saturation),
+                                         ("limited", wet, change_limiter)):
                 write_pattern(pattern)
-                run(binary, card, commands + "wait 7000\n")
+                run(binary, card, edits + commands + "wait 7000\n")
                 exported, = (card / "Export").rglob("*.wav")
                 results.append(read_wave(exported))
                 (card / "Export").rename(card / f"{mode}-{name}")
-            (wet_params, wet_pcm), (dry_params, dry_pcm) = results
+                if edits:
+                    run(binary, card, reset_master)
+            (wet_params, wet_pcm), (dry_params, dry_pcm), saturated, limited = results
             assert wet_params == dry_params, mode
             assert wet_pcm[:rate * frame_bytes // 10] != dry_pcm[:rate * frame_bytes // 10], mode
+            if mode == "song":
+                assert saturated[1] != wet_pcm and limited[1] != wet_pcm
+            else:
+                assert saturated == limited == (wet_params, wet_pcm), mode
+
+        # Establish a unity reference, then attenuate the track on Mixer 2/3.
+        # With bypass on, Pattern export should recover the reference PCM.
+        write_pattern(wet)
+        call_pattern_export = exports["pattern"] + "wait 7000\n"
+        run(binary, card, call_pattern_export)
+        reference, = (card / "Export").rglob("master.wav")
+        unity = read_wave(reference)
+        (card / "Export").rename(card / "unity")
+
+        lower_fader = """button Master
+button Master
+press 0
+encoder -30
+release 0
+"""
+        enable_bypass = "button Config\nbutton Right\n" + "button Down\n" * 9
+        enable_bypass += "button 7\nbutton Down\nbutton 7\n"
+        run(binary, card, lower_fader + call_pattern_export)
+        attenuated, = (card / "Export").rglob("master.wav")
+        assert read_wave(attenuated)[1] != unity[1]
+        (card / "Export").rename(card / "fader-attenuated")
+        run(binary, card, lower_fader + enable_bypass + call_pattern_export + "wait 10500\n")
+        bypassed, = (card / "Export").rglob("master.wav")
+        assert read_wave(bypassed) == unity
+        (card / "Export").rename(card / "fader-bypassed")
+
+        # Reload the saved project and edit Drive along with the persisted
+        # fader flag. Both settings must survive the same serialization.
+        run(binary, card, change_saturation + "wait 10500\n")
+        run(binary, card, call_pattern_export)
+        reloaded, = (card / "Export").rglob("master.wav")
+        assert read_wave(reloaded) == unity
+        (card / "Export").rename(card / "fader-bypassed-reloaded")
+        run(binary, card, reset_master)
 
         cassette = bytearray(dry)
         step(cassette, 0, 0, note=60, fx1=(51, 20))  # CA4

@@ -22,6 +22,7 @@ class Sgtl5000Impl : public Sgtl5000
     virtual void enableSurroundSound(bool enabled) override;
     virtual void configureSurroundSound(SurroundSoundParams* params) override;
     virtual void enableHardwareProcessor(bool enabled) override;
+    bool routePostCodecToI2s(bool enabled) override;
 
     void powerOff();
 

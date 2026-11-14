@@ -51,6 +51,12 @@ Useful commands are listed below.
 | `make perf-gate HOST_MAX_BLOCK_US=1000` | Also enforce a host-specific maximum block time |
 | `make desktop-check` | Boot CE and compare Pattern, Config and Song captures |
 
+Master audio coverage includes the single saturation stage, Drive ramps, the render tap,
+legacy Drive defaults, and the shared fader alignment. Recorder tests force short SD writes,
+ring wrap, cancellation, and overrun and check the resulting WAV bytes. The desktop suite
+checks the Master pages and compares WAVs exported with different saturation and limiter
+settings. Hardware verification is required for codec routing and recording under SD load.
+
 The desktop check requires SDL2 discoverable through pkg-config. CI runs the
 sanitized tests, performance gate and desktop check before the firmware build,
 and retains benchmark records and screen captures as artifacts.

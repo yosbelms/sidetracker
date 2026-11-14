@@ -179,6 +179,8 @@ class cSampleEditor : public ModuleBase
 {
 
   public:
+    static constexpr unsigned kBackButton = 5; // F6, zero-based toolbar slot.
+
     static constexpr unsigned kWaveformWidth = 800;
     enum enScreenType
     {

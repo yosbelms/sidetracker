@@ -56,6 +56,9 @@ class cProjectEditor : public ModuleBase
 
     //-------------------------------------------------------------
     void showClockWarning();
+#ifndef TRACKER_DESKTOP
+    void showRecordOutputConfirmation();
+#endif
     void setClockWarningScreenFunct();
     //-------------------------------------------------------------
 
@@ -158,6 +161,9 @@ class cProjectEditor : public ModuleBase
 
     // export
     void startExport(uint8_t source);
+#ifndef TRACKER_DESKTOP
+    bool recordingOutput = false;
+#endif
 
     // clock for export setup
     bool checkClockConfig(uint8_t source);

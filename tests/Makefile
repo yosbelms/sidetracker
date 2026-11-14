@@ -6,7 +6,7 @@ STEREO ?= 0
 OUT ?= $(ROOT)/build/host-tests$(if $(SANITIZE),,-release)$(if $(filter 1,$(STEREO)),-stereo)
 
 CPPFLAGS += -DTRACKER_DESKTOP -isystem $(GTEST)/include -I$(GTEST) -I. \
-    $(addprefix -I$(CORE)/,config include source libs/Audio libs/Audio/utility libs/ElapsedMillis AudioEngine FileManager) \
+    $(addprefix -I$(CORE)/,config include source libs/Audio libs/Audio/utility libs/ElapsedMillis AudioEngine FileManager Exporter interface/masterParams) \
     -I$(CORE)/effector -I$(ROOT)/util/include -I$(ROOT)/util/3rdparty
 CXXFLAGS += -std=c++20 -O1 -g -Wall -Wextra -Wno-unused-parameter -MMD -MP -pthread
 ifeq ($(STEREO),1)
@@ -20,10 +20,11 @@ endif
 
 # Add portable production modules here. Every *_test.cpp is discovered below.
 CORE_SOURCES := $(addprefix libs/Audio/,AudioStream.cpp filter_variable.cpp amplifier.cpp \
-    monoToStereo.cpp dspApplyGain.cpp mixer.cpp effect_bitDepth.cpp) \
+    monoToStereo.cpp dspApplyGain.cpp mixer.cpp effect_bitDepth.cpp record_queue.cpp analyze_rms.cpp) \
     source/wavHeaderReader.cpp source/SdStream.cpp source/util_string.cpp source/scales.cpp \
     source/mtEnvelopeGenerator.cpp source/mtWavetableEnvelopes.cpp source/util_math.cpp \
     libs/ElapsedMillis/elapsedMillis.cpp AudioEngine/padToBeatNoteConverter.cpp AudioEngine/SampleFxPreview.cpp AudioEngine/PerfFx/PerfFx.cpp \
+    AudioEngine/MasterSaturation.cpp AudioEngine/ExportQueues.cpp Exporter/MasterCapture.cpp \
     FileManager/instrumentFileValidation.cpp effector/SampleFxChain.cpp effector/SampleFxPatch.cpp effector/SampleFxRealtime.cpp effector/ptfx_validation.cpp \
     $(addprefix effector/,mtDataCopyier.cpp mtEffectModular.cpp mtEffectAmplifier.cpp mtEffectNormalizer.cpp \
     mtEffectDelay.cpp mtEffectEQ.cpp mtEffectChorus.cpp mtEffectFlanger.cpp \

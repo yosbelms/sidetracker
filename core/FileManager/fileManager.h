@@ -62,6 +62,7 @@ enum fileManagerStatus
     fmImportingSampleFromSampleEditor,
     fmReloadingSamples,
     fmDrawingSampleWaveform,
+    fmRecordingOutput,
 
     fmLoadEnd,
     fmSaveEnd,
@@ -272,6 +273,7 @@ class cFileManager
     bool deleteMod(char* modPathWithName);
 
     bool exportSound(uint8_t mode);
+    void clearRequestedPatternLoad() { requestedPattern = 0; }
     bool exportSoundRenderSelection(char* filePath);
     bool exportSoundCancel();
     bool saveRecordedSound(char* dirPath,
@@ -300,7 +302,7 @@ class cFileManager
 
     // to na pozniej \/
 
-    bool loadWorkspacePatternNow(uint8_t index);
+    bool loadWorkspacePatternNow(uint8_t index, bool allowEmpty = false);
     bool saveWorkspacePatternNow(uint8_t index);
     bool loadPerformanceTrackToBuffer(uint8_t pattIndex, uint8_t trackIndex);
     bool isPatternLoading();
@@ -312,6 +314,7 @@ class cFileManager
     uint8_t getSongPattern(uint8_t pos);
     std::optional<int> getPatternPosInSong(uint8_t patternToSearch);
     void setSongPos(uint8_t pos);
+    bool hasMoreSongPatterns() const;
     bool switchNextPatternInSong();
     void copySongTracks(char* currentProjectPath,
                         uint8_t srcPatternIdx,

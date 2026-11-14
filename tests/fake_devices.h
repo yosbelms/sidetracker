@@ -47,7 +47,9 @@ class FakeFileSystem final : public FileSystem
     std::set<std::string> directories;
     bool inserted = true;
     bool failOpen = false;
+    bool failCloseWrite = false;
     bool failRead = false;
+    size_t maxWriteSize = std::numeric_limits<size_t>::max();
     size_t maxReadSize = std::numeric_limits<size_t>::max();
     FakeTimer* timer = nullptr;
     uint32_t readDelayUs = 0;
@@ -124,7 +126,7 @@ class FakeFileSystem final : public FileSystem
         if (!inserted || !isFileOpen(file)) return -1;
         auto* h = static_cast<Handle*>(file);
         if (!h->writable) return -1;
-        length = std::min(length, size_t(INT32_MAX));
+        length = std::min({length, maxWriteSize, size_t(INT32_MAX)});
         h->bytes->resize(std::max(h->bytes->size(), h->position + length));
         if (length) std::memcpy(h->bytes->data() + h->position, source, length);
         h->position += length;
@@ -148,6 +150,11 @@ class FakeFileSystem final : public FileSystem
     void closeFile(FileHandle file, bool = true) override
     {
         if (file) static_cast<Handle*>(file)->open = false;
+    }
+    bool closeWrittenFile(FileHandle file) override
+    {
+        closeFile(file);
+        return !failCloseWrite;
     }
     void endFile(FileHandle file) override { closeFile(file); }
     bool isFileOpen(FileHandle file) override { return file && static_cast<Handle*>(file)->open; }

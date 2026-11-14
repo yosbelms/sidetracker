@@ -3,13 +3,16 @@
 #include "mtMasterEnhancer.h"
 #include "mtAudioEngine.h"
 #include "mtConfig.h"
+#include "mtSequencer.h"
 #ifdef FEATURE_SYNTH
 #include "Synth.h"
 #endif
 #include "util_math.h"
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <masterParams/masterParams.h>
+#include "MasterFaderPosition.h"
 
 static constexpr uint32_t kMixerHeadingStyle = controlStyleShow | controlStyleBackground |
                                                 controlStyleCenterY | controlStyleCenterX;
@@ -18,8 +21,15 @@ namespace
 {
 constexpr int kMasterBarTop = 29;
 constexpr int kMasterBarHeight = 394;
-// cBar draws the fader fill to 15 px above the bottom of its control.
+constexpr int kMasterHeadingTop = 38;
+constexpr int kMasterHeadingHeight = 24;
+constexpr int kOutputBarTop = 64;
+constexpr int kCodecDividerX = 800 / 8 * 5; // Between Limiter and EQ.
+constexpr int kCodecDividerWidth = 2;
+// cBar's fill area has a 10 px top inset and a 15 px bottom inset.
 constexpr int kMasterFaderBottom = kMasterBarTop + kMasterBarHeight - 15;
+constexpr int kMasterFaderFillHeight = kMasterBarHeight - 25;
+constexpr int kMasterFaderUnityY = kMasterFaderBottom - kMasterFaderFillHeight * MASTER_VOLUME_DEFAULT / 100;
 
 struct SpectrumTick
 {
@@ -57,6 +67,35 @@ class MasterSpectrumControl : public cDisplayControl
         const int labelY = kMasterFaderBottom - scaleFont.height;
         const int bottom = labelY - 12;
         API_SAVE_CONTEXT();
+        API_COLOR(display.getTheme().inactiveLabelsColors[3]);
+        API_LINE_WIDTH(8);
+        API_BEGIN(LINES);
+        for (int x = kCodecDividerX; x < kCodecDividerX + kCodecDividerWidth; ++x)
+        {
+            API_VERTEX2F(x, kMasterBarTop);
+            API_VERTEX2F(x, kMasterBarTop + kMasterBarHeight);
+        }
+        API_END();
+
+        if (playing)
+        {
+            constexpr char unityLabel[] = "0 dB";
+            constexpr int dashLength = 6;
+            constexpr int dashGap = 4;
+            const int firstDash = posX + getTextWidth(&scaleFont, unityLabel, sizeof(unityLabel) - 1) + 6;
+            const int endX = posX + width - 1;
+
+            API_COLOR(colors[1]);
+            API_CMD_TEXT(posX, posY, scaleFont.handle, OPT_CENTERY, unityLabel);
+            API_BEGIN(LINES);
+            for (int x = firstDash; x < endX; x += dashLength + dashGap)
+            {
+                API_VERTEX2F(x, posY);
+                API_VERTEX2F(std::min(x + dashLength, endX), posY);
+            }
+            API_END();
+        }
+
         API_COLOR(colors[0]);
         API_LINE_WIDTH(8);
         API_BEGIN(LINE_STRIP);
@@ -85,12 +124,13 @@ class MasterSpectrumControl : public cDisplayControl
 
     void setStyle(uint32_t value) override { style = value; }
     void setText(const char*) override {}
-    void setValue(int) override {}
+    void setValue(int value) override { playing = value != 0; }
     void setColors(const uint32_t* value) override { colors = value; }
     void setData(void* data) override { levels = static_cast<const uint8_t*>(data); }
 
   private:
     const uint8_t* levels;
+    bool playing = false;
 };
 }
 
@@ -125,10 +165,23 @@ void cMasterParams::initDisplayControls()
     prop.data = &frameData;
     frameControl = display.createControl<cFrame>(&prop);
 
+    strControlProperties headingProps;
+    headingProps.style = controlStyleCenterX | controlStyleCenterY | controlStyleFont4;
+    headingProps.colors = display.getTheme().perfFxNameTextLabelColors;
+    headingProps.y = kMasterHeadingTop;
+    headingProps.h = kMasterHeadingHeight;
+    headingProps.x = (800 / 8 + kCodecDividerX) / 2;
+    headingProps.text = "Mix";
+    masterHeadings[0] = display.createControl<cLabel>(&headingProps);
+    headingProps.x = (kCodecDividerX + 800) / 2;
+    headingProps.text = "Out";
+    masterHeadings[1] = display.createControl<cLabel>(&headingProps);
+
     strControlProperties spectrumProps;
-    spectrumProps.x = 116;
-    spectrumProps.y = 104;
-    spectrumProps.w = 368;
+    spectrumProps.x = 100 + 12;
+    spectrumProps.y = kMasterFaderUnityY;
+    spectrumProps.w = 4 * 100 - 24;
+    spectrumProps.h = kMasterFaderBottom - spectrumProps.y;
     spectrumProps.colors = display.getTheme().waveformColors;
     spectrumProps.data = spectrumLevels;
     spectrumControl = display.createControl<MasterSpectrumControl>(&spectrumProps);
@@ -308,7 +361,7 @@ void cMasterParams::initDisplayControls()
     saturationListProperties.style =
       controlStyleBackground |
       (display.getTheme().bottomScreenShadow > 0 ? controlStyleBottomShadow : 0);
-    saturationListProperties.x = (800 / 8) * (5) + 2;
+    saturationListProperties.x = 2;
     saturationListProperties.y = 29;
     saturationListProperties.w = 800 / 8 - 3;
     saturationListProperties.h = 394;
@@ -324,8 +377,7 @@ void cMasterParams::showMasterScreen()
     display.setControlHide(delaySyncEnableList);
     display.setControlHide(delaySyncRateList);
     display.setControlHide(limiterSidechainList);
-    display.setControlShow(saturationList);
-
+    display.setControlHide(saturationList);
     display.refreshControl(saturationList);
 
     for (uint8_t i = 0; i < 8; i++)
@@ -337,23 +389,21 @@ void cMasterParams::showMasterScreen()
     titleBar->setTitle("Master 1/3");
 
     display.setControlText(label[0], "Volume");
-    display.setControlText(label[1], "Reverb");
-    display.setControlText2(label[1], " ");
-    display.setControlText(label[2], "Delay");
-    display.setControlText2(label[2], " ");
-    display.setControlText(label[3], "Limiter");
+    display.setControlText(label[1], "Delay");
+    display.setControlText2(label[1], "");
+    display.setControlText(label[2], "Reverb");
+    display.setControlText2(label[2], "");
+    display.setControlText(label[3], "Saturation");
     display.setControlText2(label[3], "");
-    display.setControlText(label[4], "EQ");
-    display.setControlText2(label[4], " ");
-    display.setControlText(label[5], "Saturation");
-    display.setControlText2(label[5], " ");
+    display.setControlText(label[4], "Limiter");
+    display.setControlText2(label[4], "");
+    display.setControlText(label[5], "EQ");
+    display.setControlText2(label[5], "");
     display.setControlText(label[6], "Bass Boost");
     display.setControlText(label[7], "Space");
     display.setControlText2(label[7], " ");
 
     resizeToDefaultMaster();
-
-    display.setControlColors(barControl[3], display.getTheme().activeBarColors);
 
     for (uint8_t i = 0; i < 8; i++)
     {
@@ -378,12 +428,12 @@ void cMasterParams::showMasterScreen()
     display.setControlValue(label[2], 0);
     display.setControlValue(label[3], 0);
     display.setControlValue(label[4], 0);
+    display.setControlValue(label[5], 0);
 
     display.refreshControl(bgLabel);
     display.setControlValue(bgLabel, 255);
 
     showVolume();
-    showSaturationType();
     showBassBoost();
     showStereoBoost();
 
@@ -401,6 +451,11 @@ void cMasterParams::showMasterScreen()
     activateLabelsBorder();
 
     resizeBarControl(displayMode::masterValues);
+    for (unsigned i : {6u, 7u})
+    {
+        display.setControlPosition(barControl[i], -1, kOutputBarTop);
+        display.setControlSize(barControl[i], -1, kMasterBarTop + kMasterBarHeight - kOutputBarTop);
+    }
 
     for (uint8_t i = 0; i < 8; i++)
     {
@@ -416,11 +471,17 @@ void cMasterParams::showMasterScreen()
     display.setControlShow(blankSpaceCover[0]);
     display.refreshControl(blankSpaceCover[0]);
 
-    display.setControlHide(blankSpaceCover[1]);
+    display.setControlPosition(blankSpaceCover[1], kCodecDividerX + kCodecDividerWidth, kMasterBarTop);
+    // The full Out panel shares one flat background above the faders.
+    display.setControlSize(blankSpaceCover[1], 800 - kCodecDividerX - kCodecDividerWidth - 1,
+                           kMasterBarHeight);
+    display.setControlStyle(blankSpaceCover[1], controlStyleBackground);
+    display.setControlShow(blankSpaceCover[1]);
+    display.refreshControl(blankSpaceCover[1]);
     display.setControlHide(blankSpaceCover[2]);
 
     showSpectrum(displayType == displayMode::masterValues && !isDelayScreen && !isReverbScreen &&
-                 !isLimiterScreen && !isEqualizerScreen);
+                 !isLimiterScreen && !isEqualizerScreen && !isSaturationScreen);
     display.synchronizeRefresh();
 
     lightUpPadBoard();
@@ -1003,10 +1064,12 @@ void cMasterParams::showEqualizerBand(uint8_t n)
 
 void cMasterParams::activateLabelsBorder()
 {
-    if (selectedPlace > frameData.placesCount - 1)
+    const auto focus = isSaturationScreen && displayType == displayMode::masterValues
+                         ? selectedPlaceSaturation : selectedPlace;
+    if (focus >= frameData.placesCount)
         return;
 
-    display.setControlValue(frameControl, selectedPlace);
+    display.setControlValue(frameControl, focus);
     display.setControlShow(frameControl);
     display.refreshControl(frameControl);
 }
@@ -1217,7 +1280,7 @@ void cMasterParams::showVolume()
         return;
     }
 
-    if (isDelayScreen || isReverbScreen || isLimiterScreen || isEqualizerScreen)
+    if (isDelayScreen || isReverbScreen || isLimiterScreen || isEqualizerScreen || isSaturationScreen)
     {
         return;
     }
@@ -1270,6 +1333,8 @@ void cMasterParams::showSpectrum(bool visible)
     if (visible)
     {
         std::memset(spectrumLevels, 0, sizeof(spectrumLevels));
+        spectrumWasPlaying = sequencer.isPlay();
+        display.setControlValue(spectrumControl, spectrumWasPlaying);
         display.setControlShow(spectrumControl);
     }
     else
@@ -1277,15 +1342,85 @@ void cMasterParams::showSpectrum(bool visible)
         display.setControlHide(spectrumControl);
     }
     display.refreshControl(spectrumControl);
+    for (const auto heading : masterHeadings)
+    {
+        if (visible) display.setControlShow(heading);
+        else display.setControlHide(heading);
+        display.refreshControl(heading);
+    }
+}
+
+void cMasterParams::showSaturationScreen()
+{
+    showSpectrum(false);
+    display.setControlHide(delayPingpongEnableList);
+    display.setControlHide(delaySyncEnableList);
+    display.setControlHide(delaySyncRateList);
+    display.setControlHide(limiterSidechainList);
+    titleBar->setTitle("Master Saturation");
+
+    resizeToDefaultMaster();
+    resizeBarControl(displayMode::masterValues);
+    constexpr const char* names[] = {"Mode", "Drive", "", "", "", "", "", "Back"};
+    for (unsigned i = 0; i < 8; ++i)
+    {
+        display.setControlText(label[i], names[i]);
+        display.setControlText2(label[i], "");
+        display.setControlValue(label[i], i < 2);
+        display.setControlStyle2(label[i],
+                                 controlStyleCenterX | controlStyleCenterY | controlStyleFont2);
+        display.setControlShow(label[i]);
+        display.refreshControl(label[i]);
+        display.setControlHide(trackNameLabel[i]);
+        display.setControlHide(trackVolumeBar[i]);
+        display.refreshControl(trackNameLabel[i]);
+        display.refreshControl(trackVolumeBar[i]);
+        if (i == 1) display.setControlShow(barControl[i]);
+        else display.setControlHide(barControl[i]);
+        display.refreshControl(barControl[i]);
+    }
+
+    display.setControlValue(bgLabel, 255);
+    display.refreshControl(bgLabel);
+    display.setControlPosition(blankSpaceCover[0], 2 * (800 / 8) + 2, -1);
+    display.setControlSize(blankSpaceCover[0], 6 * (800 / 8) - 3, -1);
+    display.setControlShow(blankSpaceCover[0]);
+    display.refreshControl(blankSpaceCover[0]);
+    display.setControlHide(blankSpaceCover[1]);
+    display.setControlHide(blankSpaceCover[2]);
+    display.setControlColors(barControl[1], display.getTheme().activeBarColors);
+    display.setControlShow(saturationList);
+    showSaturationType();
+    showSaturationDrive();
+
+    frameData.placesCount = 2;
+    frameData.places[0] = &framesPlaces[0][0];
+    frameData.places[1] = &framesPlaces[1][0];
+    activateLabelsBorder();
+    display.synchronizeRefresh();
+    lightUpPadBoard();
 }
 
 void cMasterParams::showSaturationType()
 {
-    display.setControlValue(saturationList, mtProject.values.saturationType);
+    const unsigned mode = mtProject.values.saturationType < SaturationType::kSaturationTypeEnd
+                            ? mtProject.values.saturationType : SaturationType::kSoftClip;
+    display.setControlValue(saturationList, mode);
     display.refreshControl(saturationList);
+    display.setControlText2(label[0], saturationListTexts[mode]);
+    display.refreshControl(label[0]);
+}
 
-    display.setControlText2(label[5], saturationListTexts[mtProject.values.saturationType]);
-    display.refreshControl(label[5]);
+void cMasterParams::showSaturationDrive()
+{
+    const int drive = mtProject.saturationDrive;
+    constexpr int limit = MasterSaturation::kDriveLimit;
+    snprintf(saturationDriveText, sizeof(saturationDriveText), "%s%d.%d dB",
+             drive < 0 ? "-" : "", std::abs(drive) / 2, std::abs(drive) % 2 * 5);
+    display.setControlText2(label[1], saturationDriveText);
+    display.refreshControl(label[1]);
+    display.setControlValue(barControl[1], ((drive + limit) * 100 + limit) / (2 * limit));
+    display.refreshControl(barControl[1]);
 }
 
 void cMasterParams::showBassBoost()
@@ -1521,7 +1656,7 @@ void cMasterParams::showPerfFxMix()
     display.setControlColors(label[i], display.getTheme().activeLabelsColors);
     display.refreshControl(label[i]);
     display.setControlColors(trackVolumeBar[i], display.getTheme().activeBarColors);
-    display.setControlValue(trackVolumeBar[i], mix);
+    display.setControlValue(trackVolumeBar[i], masterFaderPosition::mix(mix));
     display.setControlShow(trackVolumeBar[i]);
     display.refreshControl(trackVolumeBar[i]);
 }
@@ -1974,7 +2109,7 @@ void cMasterParams::showSynthGain(int synthIdx)
 
     display.setControlShow(trackVolumeBar[position]);
     display.setControlValue(trackVolumeBar[position],
-                            map<int>(value, Synth::kGainSilence, Synth::kGainMax, 0, 100));
+                            masterFaderPosition::synth(value, Synth::kGainSilence, Synth::kGainMax));
     display.refreshControl(trackVolumeBar[position]);
 }
 #endif

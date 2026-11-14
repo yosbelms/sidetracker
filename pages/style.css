@@ -60,10 +60,6 @@ body {
   align-items: center;
   gap: clamp(1.75rem, 4vw, 3.5rem);
   margin-block: clamp(1.25rem, 3vw, 2.5rem) clamp(2rem, 5vw, 4rem);
-  padding: clamp(1.25rem, 4vw, 3.25rem);
-  border: 1px solid var(--line);
-  border-radius: 1rem;
-  background: linear-gradient(135deg, #24291e, #191c17 55%, #141612);
 }
 
 h1 {
@@ -115,9 +111,6 @@ p, dd {
 
 .hero-screen {
   padding: .6rem;
-  border: 1px solid #414738;
-  border-radius: .8rem;
-  background: #10120f;
 }
 
 .hero-screen figcaption { margin: .65rem .2rem .1rem; }
@@ -250,6 +243,19 @@ strong { color: #f2f2eb; }
   border-bottom: 1px solid var(--line);
   vertical-align: top;
 }
+
+#master-routing > h2 { grid-column: 1 / -1; }
+
+#master-routing h3 { margin-top: 0; }
+
+#master-routing .signal-path {
+  margin: 0;
+  padding: 0 0 0 1rem;
+  border-inline-start: 2px solid var(--accent);
+  list-style: none;
+}
+
+.signal-path strong { display: block; }
 
 code { color: var(--accent); font-family: var(--mono); }
 

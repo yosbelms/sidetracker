@@ -1,6 +1,7 @@
 #include "fileManagerDefs.h"
 #include "mtStructs.h"
 #include <mtAudioExport.h>
+#include "PostCodecRecording.h"
 
 #include "VoiceStreamManager.h"
 #include "fileManager.h"
@@ -41,6 +42,9 @@ bool cFileManager::exportSound(uint8_t mode)
         return false;
     if (currentOperation != fmNoOperation && currentOperation != fmSaveWorkspaceProject)
         return false;
+#ifndef TRACKER_DESKTOP
+    if (mode == exportPostCodecOutput && currentOperation != fmNoOperation) stopAutosave();
+#endif
 
     char currentExportPath[255];
 
@@ -55,6 +59,16 @@ bool cFileManager::exportSound(uint8_t mode)
 
     switch (mode)
     {
+#ifndef TRACKER_DESKTOP
+        case exportPostCodecOutput:
+            if (!postCodecRecording.start(*fileSystem, newFileManager.getCurrentProjectName()))
+                return false;
+
+            status = fmRecordingOutput;
+            currentOperationStep = 0;
+            currentOperation = fmExportSound;
+            return true;
+#endif
         case exportPattern:
             temp_status = fmExportingSoundPattern;
             if (!getPatternExportFolderName(currentExportPath))
@@ -145,21 +159,32 @@ void cFileManager::exportSoundEnd()
 
 void cFileManager::exportSoundGetStatus()
 {
-    if (exporter.getStatus() == 0)
+#ifndef TRACKER_DESKTOP
+    if (status == fmRecordingOutput)
     {
-        exportSoundEnd();
+        if (!postCodecRecording.active()) exportSoundEnd();
+        return;
     }
+#endif
+    if (exporter.getStatus() == 0) exportSoundEnd();
 }
 
 bool cFileManager::exportSoundCancel()
 {
-    exporter.cancel();
+#ifndef TRACKER_DESKTOP
+    if (status == fmRecordingOutput) postCodecRecording.cancel();
+    else
+#endif
+        exporter.cancel();
     exportSoundEnd();
     return true;
 }
 
 uint8_t cFileManager::getExportProgress()
 {
+#ifndef TRACKER_DESKTOP
+    if (status == fmRecordingOutput) return postCodecRecording.progress();
+#endif
     return exporter.getProgress();
 }
 

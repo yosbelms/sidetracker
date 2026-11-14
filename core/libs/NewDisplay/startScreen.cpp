@@ -4,6 +4,7 @@
 #include "display.h"
 #include "displayControls.h"
 #include "startScreenControl.h"
+#include "images/sideTrackerLogoStyle.h"
 
 namespace
 {
@@ -73,25 +74,23 @@ void drawSideTrackerLogo()
     constexpr int center = 400;
     constexpr int badgeY = 139;
     constexpr int badgeRadius = 51;
-    constexpr uint32_t logoGray = 0x313131; // Solid fill in both original startup bitmaps.
 
     API_SAVE_CONTEXT();
     API_VERTEX_FORMAT(0);
     API_LINE_WIDTH(16);
 
-    API_COLOR(logoGray);
+    API_COLOR(sideTrackerLogo::kBackground);
     API_POINT_SIZE(16 * badgeRadius);
     API_BEGIN(FTPOINTS);
     API_VERTEX2F(center, badgeY);
     API_END();
 
     // Logo coordinates use the circle center as Y=0 and the top as Y=10.
-    constexpr int lineHeights[] = {0, -2, -5, -9};
     constexpr int lineHalfThickness = 1;
-    API_COLOR(0x000000);
+    API_COLOR(sideTrackerLogo::kStripeColor);
     API_LINE_WIDTH(8);
     API_BEGIN(LINES);
-    for (const int height : lineHeights)
+    for (const int height : sideTrackerLogo::kStripeHeights)
     {
         const int lineY = badgeY - height * badgeRadius / 10;
         for (int y = lineY - lineHalfThickness; y <= lineY + lineHalfThickness; ++y)
@@ -121,7 +120,7 @@ void drawSideTrackerLogo()
     API_END();
 
     API_LINE_WIDTH(16);
-    API_COLOR(logoGray);
+    API_COLOR(sideTrackerLogo::kBackground);
     drawWordmark(center, 213, 7);
     API_RESTORE_CONTEXT();
 }

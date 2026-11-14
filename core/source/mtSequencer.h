@@ -758,6 +758,10 @@ class Sequencer
     float getPlaySelectionProgress(void);
     void playSong(void);
     void playSongFromPosition(uint8_t songPos);
+#ifndef TRACKER_DESKTOP
+    bool prepareSongRecording();
+    void startPreparedSongRecording() { play(); }
+#endif
     void recStart(void);
     void showPreRollPopup();
     bool startRecOnExtClk_Active(void);
@@ -884,6 +888,9 @@ class Sequencer
         player.onPatternOrSelectionEnd = action;
     }
     void setOnSongEnd(void (*action)(void)) { player.onSongEnd = action; }
+#ifndef TRACKER_DESKTOP
+    void setRecordingSong(bool enabled) { recordingSong = enabled; }
+#endif
     void setOnGlobalStep(void (*action)(void)) { player.onGlobalStep = action; }
 
     void setPerformanceMidiTune(uint8_t tr, int8_t value);
@@ -955,6 +962,7 @@ class Sequencer
     static const float MIN_TEMPO_FX;
     static const float MAX_TEMPO_FX;
 
+    bool prepareSongFromPosition(uint8_t songPos, bool requireReadablePattern);
     void play(void);
     void play(uint8_t fromPos);
 
@@ -1026,6 +1034,9 @@ class Sequencer
     void updatePatternManagment();
 
     void stopForMissingNextPattern();
+#ifndef TRACKER_DESKTOP
+    bool recordingSong = false;
+#endif
 
     strPattern* currentPattern;
     strPattern* bufferPattern;

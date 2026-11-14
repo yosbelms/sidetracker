@@ -51,6 +51,8 @@ class cMasterParams : public ModuleBase
     void showBassBoost();
     void showStereoBoost();
     void showSaturationType();
+    void showSaturationDrive();
+    void showSaturationScreen();
     // delay
     void showDelayScreen();
     void showDelayPingPongEnable();
@@ -123,6 +125,9 @@ class cMasterParams : public ModuleBase
     bool isLimiterScreenBeforeMasterPress;
     bool isEqualizerScreen;
     bool isEqualizerScreenBeforeMasterPress;
+    bool isSaturationScreen = false;
+    bool isSaturationScreenBeforeMasterPress = false;
+    uint8_t selectedPlaceSaturation = 0;
     uint8_t selectedPlaceBeforeMasterPress;
     bool showMasterVolumeOnHold;
     // mixer
@@ -149,6 +154,7 @@ class cMasterParams : public ModuleBase
     void switchToReverbScreen();
     void switchToLimiterScreen();
     void switchToEqualizerScreen();
+    void switchToSaturationScreen();
     void calcLevel(strTrackLevel* level, float value);
     void resetLevel(strTrackLevel* level);
     void resetMixerLevels();
@@ -316,6 +322,7 @@ class cMasterParams : public ModuleBase
     strBarData barData[mixerBarCount];
     uint32_t levelBarColors[mixerBarCount][5]{};
     strList saturationListData;
+    char saturationDriveText[16];
 
     const char* const delayPingPongEnable[2] = { (char*)"On", (char*)"Off" };
 
@@ -395,8 +402,10 @@ class cMasterParams : public ModuleBase
     char finalOutputLevelText[16]{};
     elapsedMillis finalOutputRefreshTimer;
     hControl spectrumControl = -1;
+    hControl masterHeadings[2];
     uint8_t spectrumLevels[masterSpectrum::kPoints]{};
     bool spectrumVisible = false;
+    bool spectrumWasPlaying = false;
     void showSpectrum(bool visible);
     char delayFeedbackVal[4];
     char delayTimeVal[9];

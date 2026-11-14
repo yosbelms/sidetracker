@@ -156,3 +156,8 @@ void Sgtl5000Impl::enableHardwareProcessor(bool enabled)
 {
     codecDriver.enableDAP(enabled);
 }
+
+bool Sgtl5000Impl::routePostCodecToI2s(bool enabled)
+{
+    return codecDriver.routePostCodecToI2s(enabled);
+}

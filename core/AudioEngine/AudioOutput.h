@@ -3,6 +3,7 @@
 
 #include "Audio.h"
 #include "SampleFxPreview.h"
+#include "MasterSaturation.h"
 #include "PerfFx/PerfFxStream.h"
 
 class AudioOutput
@@ -37,6 +38,7 @@ class AudioOutput
     AudioMixer<FinalMixInputs::kFinalMixerSize>* getFinalMixer(OutputChannels channel);
     AudioOutputStream* getStream();
     perffx::Stream& getPerfFx() { return perfFx; }
+    MasterSaturation& getSaturation() { return saturation; }
     SampleFxPreview* getSampleFxPreview() { return &sampleFxPreview; }
 
   private:
@@ -48,6 +50,7 @@ class AudioOutput
 #endif
     SampleFxPreview sampleFxPreview;
     perffx::Stream perfFx;
+    MasterSaturation saturation;
     AudioEffectLimiter limiter[OutputChannels::kChannelsCount];
     AudioOutputStream outputStream;
     AudioMixer<FinalMixInputs::kFinalMixerSize> finalMixer[OutputChannels::kChannelsCount];

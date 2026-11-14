@@ -14,9 +14,15 @@ enum enExportType
     exportPatternStems,
 
     exportPatternSelection,
+    exportPostCodecOutput,
 
     exportTypesCount
 };
+
+constexpr bool exportUsesPerfFxTap(enExportType mode)
+{
+    return mode == exportPattern || mode == exportPatternSelection;
+}
 
 const uint8_t numOfAudioBlocksInPacket = 70; // ile blokow w buforze na 1 stem
 

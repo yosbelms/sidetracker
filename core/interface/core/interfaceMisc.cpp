@@ -349,6 +349,7 @@ void Interface::commonThingsUpdate()
                 case fmSavingProjectToProjects: text_index = 11; break;
                 case fmLoadingPatternFromWorkspace: break;
                 case fmExportingSoundSong: text_index = 13; break;
+                case fmRecordingOutput: text_index = 25; break;
                 case fmExportingSoundSongStems: text_index = 14; break;
                 case fmExportingSoundPattern: text_index = 15; break;
                 case fmExportingSoundPatternStems: text_index = 16; break;
@@ -419,6 +420,7 @@ void Interface::processFileManagerPopupProgress(uint8_t status)
         case fmSavingProjectToWorkspace: break;
         case fmSavingProjectToProjects: progress = newFileManager.getProgress(); break;
         case fmLoadingPatternFromWorkspace: break;
+        case fmRecordingOutput: progress = newFileManager.getProgress(); break;
         case fmExportingSoundSong:
         case fmExportingSoundSongStems:
         case fmExportingSoundPattern:
@@ -436,7 +438,8 @@ void Interface::processFileManagerPopupProgress(uint8_t status)
     }
 
     // pchanie progressu kiedy nie zmienia sie przez dluzszy czas
-    if (fileManagerLastProgress == progress && fileManagerLastProgress < 100)
+    if (status != fmRecordingOutput && fileManagerLastProgress == progress &&
+        fileManagerLastProgress < 100)
     {
         noProgressChangeCounter++;
 

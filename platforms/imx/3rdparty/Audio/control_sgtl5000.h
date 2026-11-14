@@ -123,6 +123,7 @@ class AudioControlSGTL5000 : public I2cDevice
     uint16_t surroundSoundDisable(void);
     bool isSurroundSoundEnable();
     void killAutomation(void) { semi_automated = false; }
+    bool routePostCodecToI2s(bool enabled);
     bool write(uint32_t reg, uint32_t val);
 
   protected:
