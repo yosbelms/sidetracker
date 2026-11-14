@@ -687,18 +687,17 @@ wait 2000
 button Insert
 wait 2000
 assert-chain closed
+# Rendering selects the new instrument. Switch back to the original source.
+button Pattern
+import 0 /input.wav
+button S. Editor
 button 5
 wait 100
-button Right
+button 4
 button Insert
 button Down
 button Insert
-button Down
-button Insert
-button Down
-button Down
-button Insert
-button Insert
+assert-chain-size 2
 button 0
 wait 200
 button 4
@@ -722,9 +721,8 @@ button Down
 button Insert
 encoder 6
 button 1
-button 5
 button 4
-encoder 6
+encoder 5
 button 1
 button Right
 button Down
