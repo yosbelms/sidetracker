@@ -161,7 +161,7 @@ release-zip:
 	@mkdir -p "$(OUT_DIR)"
 	@set -eu; stage=$$(mktemp -d "$(OUT_DIR)/release-stage.XXXXXX"); \
 		trap 'rm -rf "$$stage"' EXIT; \
-		$(MAKE) all OUT_DIR="$$stage" SD_DIR="$$stage/SD" SYNTH_PATCH_DIR="$$stage/SideTrackerAnalogPresets"; \
+		$(MAKE) all ptfx OUT_DIR="$$stage" SD_DIR="$$stage/SD" SYNTH_PATCH_DIR="$$stage/SideTrackerAnalogPresets"; \
 		cmp "$$stage/$(ORIGINAL_PTF)" "$$stage/SD/Firmware/$(ORIGINAL_PTF)"; \
 		cmp "$$stage/$(PLUS_PTF)" "$$stage/SD/Firmware/$(PLUS_PTF)"; \
 		cmp "$$stage/$(MINI_PTF)" "$$stage/SD/Firmware/$(MINI_PTF)"; \
