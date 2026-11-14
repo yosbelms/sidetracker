@@ -75,7 +75,7 @@ ifeq ($(PLATFORM), MK66)
 ifndef DEBUG
 ORIGINAL_UI_OBJECTS := $(filter $(OBJ_DIR)/interface/%,$(OBJS_SORTED))
 $(ORIGINAL_UI_OBJECTS): COMPILER_OPTIONS += -Os
-$(ORIGINAL_UI_OBJECTS): Makefile
+$(ORIGINAL_UI_OBJECTS): makefile
 endif
 endif
 
