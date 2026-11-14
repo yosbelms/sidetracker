@@ -112,8 +112,10 @@ def check_pattern_fx(binary):
         card = Path(directory)
         audit = card / "frames.tsv"
         rate = 44100
+        # End the source before the export tail so master silence detection
+        # cannot change the length of still-playing upstream stem audio.
         samples = [int(5000 * math.sin(i * math.tau * 3800 / rate) +
-                       4000 * math.sin(i * math.tau * 257 / rate)) for i in range(rate * 5)]
+                       4000 * math.sin(i * math.tau * 257 / rate)) for i in range(rate * 3)]
         with wave.open(str(card / "input.wav"), "wb") as audio:
             audio.setparams((1, 2, rate, len(samples), "NONE", "not compressed"))
             audio.writeframes(struct.pack(f"<{len(samples)}h", *samples))

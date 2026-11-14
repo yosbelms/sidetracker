@@ -490,14 +490,14 @@ def check_chain_mix(binary: Path, output: Path):
             arrows = ["Down", "Up", "Left", "Right"] if percent == 100 else ["Up", "Down", "Right", "Left"]
             commands = [f"audit-frames {audit.resolve()}", "import 0 /input.wav", "button S. Editor", "button 5",
                         "button 1", "button 7", "encoder 100", "button Left", "button Left", "button Left",
-                        "button 1", "button 7", "encoder 100", "button 5", "press 6", f"encoder {percent - 100}",
+                        "button 1", "button 7", "encoder 100", "press 6", f"encoder {percent - 100}",
                         *[f"button {arrow}" for arrow in arrows], "release 6",
                         "button 0", "wait 100", "assert-preview live", "press 6", f"encoder {delta}", "wait 50",
                         "assert-preview live", f"encoder {-delta}", "assert-preview live", "release 6", "button 0"]
             if percent == 50:
                 commands += ["button Left", "button Left", "button 4", "encoder 7", "button Insert",
                              "button Insert", "press 6", "encoder -50", "release 6", "button 4", "encoder 6",
-                             "button Insert", "button Insert", "button 5"]
+                             "button Insert", "button Insert"]
             commands += [f"snapshot {(output / f'sample-patch-mix-{percent}-control.bmp').resolve()}", "button 4", "encoder 100", "button Insert", "wait 20000", "button Insert", "wait 20000", "assert-chain closed"]
             script = card / "mix.txt"; script.write_text("\n".join(commands) + "\n")
             result = subprocess.run([*desktop_args(binary), "--sd", str(card), "--script", str(script),
@@ -562,6 +562,7 @@ button 4
 encoder 100
 button Insert
 wait 5000
+button 5
 button 0
 press 6
 encoder -50

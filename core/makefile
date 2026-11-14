@@ -70,6 +70,15 @@ endif
 
 
 
+# Keep the original model's UI within its 1 MiB flash budget.
+ifeq ($(PLATFORM), MK66)
+ifndef DEBUG
+ORIGINAL_UI_OBJECTS := $(filter $(OBJ_DIR)/interface/%,$(OBJS_SORTED))
+$(ORIGINAL_UI_OBJECTS): COMPILER_OPTIONS += -Os
+$(ORIGINAL_UI_OBJECTS): Makefile
+endif
+endif
+
 # Build rules
 
 $(OBJ_DIR)/%.o: %.cpp $(wildcard ../version.mk)

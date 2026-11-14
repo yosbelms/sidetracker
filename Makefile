@@ -152,6 +152,8 @@ release-zip:
 		if test -d "$$stage/SD/Patches/MINI"; then \
 			cp "$(ROOT_DIR)/build/SideTrackerAnalogPresets/"*-LICENSE.txt "$$stage/Licenses/"; \
 			cp "$(ROOT_DIR)/build/SideTrackerAnalogPresets/README.txt" "$$stage/Licenses/AnalogPresets.txt"; \
+		else \
+			python3 "$(ROOT_DIR)/tools/stage_release_synth_patches.py" "$(SYNTH_PATCH_ARCHIVE)" "$$stage"; \
 		fi; \
 		(cd "$$stage" && zip -q -r "$(RELEASE_ZIP)" "$(ORIGINAL_PTF)" "$(PLUS_PTF)" "$(MINI_PTF)" SD Licenses); \
 		mv "$$stage/$(RELEASE_ZIP)" "$(OUT_DIR)/$(RELEASE_ZIP)"

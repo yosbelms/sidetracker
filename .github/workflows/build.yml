@@ -97,7 +97,11 @@ jobs:
           fi
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             release_version="${GITHUB_REF_NAME#v}"
-            make release-zip RELEASE_VERSION="$release_version" 2>&1 | tee build_output.log
+            synth_patches="$RUNNER_TEMP/SideTracker_0.0.3.zip"
+            curl --fail --silent --show-error --location --retry 3 \
+              https://github.com/yosbelms/sidetracker/releases/download/v0.0.3/SideTracker_0.0.3.zip \
+              --output "$synth_patches"
+            make release-zip RELEASE_VERSION="$release_version" SYNTH_PATCH_ARCHIVE="$synth_patches" 2>&1 | tee build_output.log
             echo "release_zip=build/SideTracker_${release_version}.zip" >> "$GITHUB_OUTPUT"
           else
             make all "${POSTFIX_ARGS[@]}" 2>&1 | tee build_output.log
@@ -248,11 +252,21 @@ jobs:
               });
             }
 
+      - name: Read release notes from the version tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          if [ "$(git cat-file -t "$GITHUB_REF")" = tag ]; then
+            git for-each-ref --format='%(contents)' "$GITHUB_REF" > release-notes.md
+          else
+            touch release-notes.md
+          fi
+
       - name: Publish GitHub Release on Version Tag
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v3
         with:
           name: SideTracker ${{ github.ref_name }}
+          body_path: release-notes.md
           generate_release_notes: true
           fail_on_unmatched_files: true
           overwrite_files: false
