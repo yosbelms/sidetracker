@@ -218,6 +218,13 @@ void SoftwareDisplay::displayWord(uint32_t word)
         return;
     }
 
+    const auto fixed = [word](unsigned bits, unsigned fraction)
+    {
+        const auto sign = uint32_t{1} << (bits - 1);
+        const auto value = int32_t(((word & (2 * sign - 1)) ^ sign)) - int32_t(sign);
+        return double(value) / (uint32_t{1} << fraction);
+    };
+    const auto coefficientBits = (word & (1u << 17)) ? 15u : 8u;
     auto& b = bitmaps[state.handle];
     switch (word >> 24)
     {
@@ -245,6 +252,12 @@ void SoftwareDisplay::displayWord(uint32_t word)
         case 0x0d: state.pointSize = word & 8191; break;
         case 0x0e: state.lineWidth = word & 4095; break;
         case 0x10: state.alpha = word & 255; break;
+        case 0x15: state.transform.a = fixed(17, coefficientBits); break;
+        case 0x16: state.transform.b = fixed(17, coefficientBits); break;
+        case 0x17: state.transform.c = fixed(24, 8); break;
+        case 0x18: state.transform.d = fixed(17, coefficientBits); break;
+        case 0x19: state.transform.e = fixed(17, coefficientBits); break;
+        case 0x1a: state.transform.f = fixed(24, 8); break;
         case 0x1b: state.clip.x = (word >> 11) & 2047; state.clip.y = word & 2047; setClip(); break;
         case 0x1c: state.clip.w = (word >> 12) & 4095; state.clip.h = word & 4095; setClip(); break;
         case 0x1f: state.prim = word & 15; hasVertex = false; break;
@@ -269,9 +282,27 @@ void SoftwareDisplay::displayWord(uint32_t word)
         case 0x27: state.fraction = word & 7; break;
         case 0x28: b.stride |= ((word >> 2) & 3) << 10; b.height |= (word & 3) << 9; break;
         case 0x29: b.drawWidth |= ((word >> 2) & 3) << 9; b.drawHeight |= (word & 3) << 9; break;
-        default: break; // Other graphics state (stencil, tags and transforms) is not modeled yet.
+        default: break; // Other graphics state (stencil and tags) is not modeled yet.
 
     }
+}
+
+void SoftwareDisplay::writeDisplayList(uint32_t offset, const uint32_t* words, uint32_t count)
+{
+    auto& buffer = hardwareLists[backList];
+    const auto first = offset / sizeof(uint32_t);
+    if (buffer.size() < first + count) buffer.resize(first + count);
+    std::copy_n(words, count, buffer.begin() + first);
+}
+
+void SoftwareDisplay::swapDisplayList()
+{
+    const auto& buffer = hardwareLists[backList];
+    commands.assign(1, CMD_DLSTART);
+    commands.insert(commands.end(), buffer.begin(), buffer.end());
+    commands.push_back(CMD_SWAP);
+    endCoProList();
+    backList ^= 1;
 }
 
 void SoftwareDisplay::endCoProList()
@@ -409,6 +440,10 @@ void SoftwareDisplay::endCoProList()
                 text(int16_t(xy), int16_t(xy >> 16), args & 65535, args >> 16, value.c_str());
                 break;
             }
+            case 0:
+                // A shorter display list may leave old words after DISPLAY.
+                if (commands.back() == CMD_SWAP) i = commands.size() - 1;
+                break;
             default: displayWord(word); break;
         }
     }

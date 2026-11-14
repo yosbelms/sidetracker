@@ -15,8 +15,6 @@ class cDisplay;
 // #########################################################################
 
 const uint8_t controlsCount = 65;
-const uint32_t controlsRamStartAddress = 150000;
-const uint32_t controlsRamAddressStep = 8192;
 
 const uint32_t imgRamAddress = 670000;
 const uint32_t imgSizeMax = 1000000 - imgRamAddress;
@@ -39,16 +37,6 @@ enum enDisplayBitmaps
     displayBatteryCh,
 
 #ifdef FEATURE_SYNTH
-    kBitmapMiniACD,
-    kBitmapMiniFAT,
-    kBitmapMiniVAP,
-    kBitmapMiniWTFM,
-
-    kBitmapACD,
-    kBitmapFAT,
-    kBitmapVAP,
-    kBitmapWTFM,
-
     kBitmapEnv,
     kBitmapFilter,
     kBitmapGear,
@@ -56,11 +44,6 @@ enum enDisplayBitmaps
     kBitmapMacro,
     kBitmapMod,
     kBitmapOsc,
-
-    kBitmapMiniPERC,
-    kBitmapMiniPHZ,
-    kBitmapPERC,
-    kBitmapPHZ,
 
     kBitmapFX,
     kBitmapCymbal,
@@ -71,8 +54,6 @@ enum enDisplayBitmaps
     kBitmapSnare,
     kBitmapTom,
 
-    kBitmapMiniDIRT,
-    kBitmapDIRT,
     kBitmapShaper,
     kBitmapMiniCHIP,
     kBitmapCHIP,
@@ -201,7 +182,9 @@ struct strControlProperties
 
 struct strFont
 {
-    uint8_t data[148];
+    // The start of the font's metric block. Only 148 bytes are metrics; see
+    // displayList::kFontMetricsSize for why more are kept.
+    uint8_t data[256];
     uint32_t size;
     int16_t handle;
     uint32_t address;

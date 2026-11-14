@@ -2,6 +2,7 @@
 #if GUI_HANDLE_SYNTH
 
 #include "core/interfacePopups.h"
+#include "fileBrowser/GlobalFileBrowser.h"
 #include "mtPadBoard.h"
 #include "mtPadsBacklight.h"
 
@@ -21,25 +22,15 @@ static const uint16_t framesPlacesSynth[1][4] = {
     { (800 / 8) * 6 + 1, 31, 800 / 4 - 3, 391 },
 };
 
-static const int synthModelListImages[Synth::kSynthTypes.size()] = {
-    enDisplayBitmaps::kBitmapMiniACD,  enDisplayBitmaps::kBitmapMiniFAT,
-    enDisplayBitmaps::kBitmapMiniVAP,  enDisplayBitmaps::kBitmapMiniWTFM,
-    enDisplayBitmaps::kBitmapMiniPERC, enDisplayBitmaps::kBitmapMiniDIRT,
-    enDisplayBitmaps::kBitmapMiniCHIP, enDisplayBitmaps::kBitmapMiniSynthSmall,
-    enDisplayBitmaps::kBitmapMiniOBER
-};
+static std::vector<std::string> synthModelNamesStorage;
+static std::vector<char*> synthModelNamesPtrs;
+static std::vector<int> synthModelImages;
 
 static cInstrumentEditor* IE = &instrumentEditor;
 
 static void functSynthActionButtons(uint8_t button);
 static void functSynthLoad();
 static void functSynthEditPatch();
-
-static void functSynthListButton(uint8_t button, uint8_t state);
-static void functSynthConfirmLoad();
-static void functSynthCancelLoad();
-static void functSynthListEncoder(int16_t value);
-static void functSynthLoadMiniMiddle(uint8_t state);
 
 static void functSynthEncoder(int16_t value);
 static void functSynthUp();
@@ -244,139 +235,200 @@ static void functSynthActionButtons(uint8_t button)
     IE->activateLabelsBorder();
 }
 
-static void functSynthLoad()
+static std::string extractLeafPatchName(std::string pName)
 {
-    IE->browsePatchList();
-    IE->showSynthPatchBrowser();
-
-    IE->ip->clearAllPots();
-    IE->ip->clearAllButtons();
-
-    IE->setPlayButtonAction();
-    IE->ip->setButtonObj(interfaceButton4, functSynthListButton);
-    IE->ip->setButtonObj(interfaceButton5, functSynthListButton);
-    IE->ip->setButtonObj(interfaceButton6, buttonPress, functSynthCancelLoad);
-    IE->ip->setButtonObj(interfaceButton7, buttonPress, functSynthConfirmLoad);
-
-    IE->ip->setButtonObj(interfaceButtonUp, functSynthListButton);
-    IE->ip->setButtonObj(interfaceButtonDown, functSynthListButton);
-
-    IE->ip->setPotObj(interfacePot0, functSynthListEncoder);
-    IE->ip->setButtonObj(interfaceButtonMiniMiddle, functSynthLoadMiniMiddle);
-}
-
-static void functSynthConfirmLoad()
-{
-    if (IE->list2Data.length == 0)
+    if (!pName.empty() && (pName.front() == '/' || pName.size() >= sizeof(SynthPartSettings::patchName)))
     {
-        return;
-    }
-
-    int syntPartIdx = instrumentIdxToMidiChannel(mtProject.values.lastUsedInstrument) - 1;
-    assert(syntPartIdx >= 0 && syntPartIdx < kSynthInstrumentsCount);
-
-    IE->getSynth()->triggerTestNote(syntPartIdx, IE->kSynthPreviewNote1, false);
-    IE->getSynth()->triggerTestNote(syntPartIdx, IE->kSynthPreviewNote2, false);
-
-    assert(!isOutOfRange(syntPartIdx, 0, kSynthParts - 1));
-
-    if (IE->previousPatchName == IE->getSynth()->getPatchName(syntPartIdx))
-    {
-        // force reload current patch from Patches folder
-        // to be sure to update the patch editor parameters
-        if (!IE->getSynth()->loadPatch(syntPartIdx, IE->patchListDataName[IE->patchListPosition]))
+        auto slash = pName.find_last_of('/');
+        if (slash != std::string::npos)
         {
-            mtPopups.show(0, "Error loading patch");
+            pName = pName.substr(slash + 1);
         }
     }
-
-    polystrncpy(mtProject.values.synthPart[syntPartIdx].patchName,
-                IE->getSynth()->getPatchName(syntPartIdx).c_str(),
-                sizeof(SynthPartSettings::patchName));
-
-    IE->getSynth()->initSynthPartMacrosValues(syntPartIdx, mtProject.values.synthPart[syntPartIdx]);
-    engine.refreshSynthInstrumentParams(mtProject.values.synthPart[syntPartIdx], syntPartIdx);
-
-    IE->getSynth()->savePatchToWorkspace(syntPartIdx);
-
-    newFileManager.setProjectStructChanged();
-
-    IE->showSynthParamsScreen();
-    IE->setSynthParamsScreenFunct();
+    return pName;
 }
 
-static void functSynthCancelLoad()
+static void functSynthLoad()
 {
-    IE->revertPatch();
-
     int syntPartIdx = instrumentIdxToMidiChannel(mtProject.values.lastUsedInstrument) - 1;
     assert(syntPartIdx >= 0 && syntPartIdx < kSynthInstrumentsCount);
 
-    IE->getSynth()->triggerTestNote(syntPartIdx, IE->kSynthPreviewNote1, false);
-    IE->getSynth()->triggerTestNote(syntPartIdx, IE->kSynthPreviewNote2, false);
+    sequencer.stopManualNotes();
+    IE->getSynth()->silencePart(syntPartIdx);
 
-    engine.refreshSynthInstrumentParams(mtProject.values.synthPart[syntPartIdx], syntPartIdx);
+    const bool wasDirty = IE->getSynth()->isPatchDirty(syntPartIdx);
+    IE->previousPatchName = IE->getSynth()->getPatchName(syntPartIdx);
+    IE->getSynth()->savePatchToWorkspace(syntPartIdx);
 
-    IE->showSynthParamsScreen();
-    IE->setSynthParamsScreenFunct();
-}
+    GlobalFileBrowserConfig cfg;
+    cfg.mode = GlobalFileBrowserConfig::Mode::kLoadGenericFile;
+    cfg.title = "Load Patch - " + IE->getSynth()->getSynthName(syntPartIdx);
+    cfg.initialDirectory = IE->getSynth()->getEnginePatchFolder(syntPartIdx);
+    cfg.extensionFilter = ".patch";
+    cfg.confirmButtonLabel = "Load";
+    cfg.contextKey = "synth_patch_" + IE->getSynth()->getSynthName(syntPartIdx);
+    cfg.returnModule = IE;
+    cfg.returnModuleOptions = 0;
 
-static void functSynthListButton(uint8_t button, uint8_t state)
-{
-    switch (button)
+    auto loadedPreviewPath = std::make_shared<std::string>();
+    auto patchModified = std::make_shared<bool>(false);
+
+    if (!IE->previousPatchName.empty() && IE->previousPatchName != Synth::kInitPatchName)
     {
-        case interfaceButton4:
-        case interfaceButton5:
+        std::string leaf = extractLeafPatchName(IE->previousPatchName);
+        cfg.initialSelectedName = leaf;
+
+        FileSystem* fs = newFileManager.getFileSystem();
+        std::string curFull;
+        if (IE->previousPatchName.front() == '/')
         {
-            if (IE->list2Data.length == 0)
+            curFull = IE->previousPatchName;
+        }
+        else
+        {
+            curFull = cfg.initialDirectory + "/" + IE->previousPatchName;
+        }
+        if (curFull.size() < 6 ||
+            strcasecmp(curFull.c_str() + curFull.size() - 6, ".patch") != 0)
+        {
+            curFull += ".patch";
+        }
+        if (!wasDirty && fs != nullptr && fs->exists(curFull.c_str()))
+        {
+            *loadedPreviewPath = curFull;
+        }
+        cfg.notifyHighlightOnOpen = false;
+    }
+    else if (wasDirty)
+    {
+        cfg.notifyHighlightOnOpen = false;
+    }
+
+    auto ensurePatchLoadedForPath =
+      [syntPartIdx, loadedPreviewPath, patchModified](const std::string& fullPath) -> bool
+    {
+        if (fullPath.empty())
+        {
+            return false;
+        }
+        if (*loadedPreviewPath == fullPath)
+        {
+            return true;
+        }
+        *patchModified = true;
+        sequencer.stopManualNotes();
+        IE->getSynth()->silencePart(syntPartIdx);
+        if (IE->getSynth()->loadPatchByPath(syntPartIdx, fullPath))
+        {
+            *loadedPreviewPath = fullPath;
+            SynthPartSettings tempSettings = mtProject.values.synthPart[syntPartIdx];
+            IE->getSynth()->initSynthPartMacrosValues(syntPartIdx, tempSettings);
+            engine.refreshSynthInstrumentParams(tempSettings, syntPartIdx);
+            return true;
+        }
+        loadedPreviewPath->clear();
+        return false;
+    };
+
+    cfg.onDescribeItem = [syntPartIdx](const std::string& fullPath, bool isFolder, bool)
+      -> std::string
+    {
+        if (isFolder)
+        {
+            return {};
+        }
+        return IE->getSynth()->describePatchFile(syntPartIdx, fullPath);
+    };
+
+    cfg.onHighlightChange = [ensurePatchLoadedForPath](const std::string& fullPath, bool isSelectable)
+    {
+        if (!isSelectable || fullPath.empty())
+        {
+            return;
+        }
+        ensurePatchLoadedForPath(fullPath);
+    };
+
+    cfg.onPreviewStart = [syntPartIdx, ensurePatchLoadedForPath](const std::string& fullPath)
+    {
+        if (ensurePatchLoadedForPath(fullPath))
+        {
+            IE->getSynth()->triggerTestNote(
+              syntPartIdx, cInstrumentEditor::kSynthPreviewNote2, true);
+        }
+    };
+
+    cfg.onPreviewStop = [syntPartIdx]()
+    {
+        IE->getSynth()->triggerTestNote(syntPartIdx, cInstrumentEditor::kSynthPreviewNote1, false);
+        IE->getSynth()->triggerTestNote(syntPartIdx, cInstrumentEditor::kSynthPreviewNote2, false);
+    };
+
+    cfg.onPadEvent = [ensurePatchLoadedForPath](uint8_t pad, uint8_t state, int16_t)
+    {
+        if (state != 0)
+        {
+            std::string sel = globalFileBrowser.getSelectedPathIfSelectable();
+            if (!sel.empty() && !ensurePatchLoadedForPath(sel))
             {
                 return;
             }
-
-            int syntPartIdx = mtProject.values.lastUsedInstrument - SYNTH_INSTRUMENTS_START_IDX;
-            assert(syntPartIdx >= 0 && syntPartIdx < kSynthInstrumentsCount);
-            int note = button == interfaceButton5 ? 60 : 60 - 2 * 12;
-            if (state == buttonPress)
-            {
-                IE->getSynth()->triggerTestNote(syntPartIdx, note, true);
-            }
-            else if (state == buttonRelease)
-            {
-                IE->getSynth()->triggerTestNote(syntPartIdx, note, false);
-            }
-            break;
         }
-        case interfaceButtonUp:
-        {
-            if (state == buttonPress)
-            {
-                IE->changeSynthPatchListPos(-1);
-            }
-            break;
-        }
-        case interfaceButtonDown:
-        {
-            if (state == buttonPress)
-            {
-                IE->changeSynthPatchListPos(1);
-            }
-            break;
-        }
-        default: break;
-    }
-}
+        IE->playSynthNoteByPad(pad, state);
+    };
 
-static void functSynthListEncoder(int16_t value)
-{
-    IE->changeSynthPatchListPos(interfaceGlobals.invertValForList ? -value : value);
-}
-
-static void functSynthLoadMiniMiddle(uint8_t state)
-{
-    if (state == buttonPress)
+    cfg.onConfirm = [syntPartIdx, ensurePatchLoadedForPath](const std::string& fullPath)
     {
-        functSynthConfirmLoad();
-    }
+        IE->getSynth()->triggerTestNote(syntPartIdx, cInstrumentEditor::kSynthPreviewNote1, false);
+        IE->getSynth()->triggerTestNote(syntPartIdx, cInstrumentEditor::kSynthPreviewNote2, false);
+        sequencer.stopManualNotes();
+
+        if (!ensurePatchLoadedForPath(fullPath))
+        {
+            mtPopups.show(0, "Error loading patch");
+            IE->revertPatch();
+            engine.refreshSynthInstrumentParams(mtProject.values.synthPart[syntPartIdx], syntPartIdx);
+            IE->showSynthParamsScreen();
+            return;
+        }
+
+        std::string storedName = extractLeafPatchName(IE->getSynth()->getPatchName(syntPartIdx));
+        polystrncpy(mtProject.values.synthPart[syntPartIdx].patchName,
+                    storedName.c_str(),
+                    sizeof(SynthPartSettings::patchName));
+
+        IE->getSynth()->initSynthPartMacrosValues(syntPartIdx, mtProject.values.synthPart[syntPartIdx]);
+        engine.refreshSynthInstrumentParams(mtProject.values.synthPart[syntPartIdx], syntPartIdx);
+        IE->getSynth()->savePatchToWorkspace(syntPartIdx);
+        newFileManager.setProjectStructChanged();
+        mtPopups.show(0, "Patch loaded");
+        IE->showSynthParamsScreen();
+    };
+
+    cfg.onCancel = [syntPartIdx, patchModified, wasDirty]()
+    {
+        IE->getSynth()->triggerTestNote(syntPartIdx, cInstrumentEditor::kSynthPreviewNote1, false);
+        IE->getSynth()->triggerTestNote(syntPartIdx, cInstrumentEditor::kSynthPreviewNote2, false);
+        sequencer.stopManualNotes();
+        IE->getSynth()->silencePart(syntPartIdx);
+
+        if (*patchModified)
+        {
+            IE->revertPatch();
+            if (wasDirty)
+            {
+                IE->getSynth()->setPatchDirty(syntPartIdx);
+            }
+            engine.refreshSynthInstrumentParams(mtProject.values.synthPart[syntPartIdx], syntPartIdx);
+        }
+        else if (wasDirty)
+        {
+            IE->getSynth()->setPatchDirty(syntPartIdx);
+        }
+        IE->showSynthParamsScreen();
+    };
+
+    openGlobalFileBrowser(cfg);
 }
 
 static void functSynthEditPatch()
@@ -393,29 +445,15 @@ void cInstrumentEditor::changeSynthModel(int16_t value)
     int syntPartIdx = mtProject.values.lastUsedInstrument - SYNTH_INSTRUMENTS_START_IDX;
     assert(syntPartIdx >= 0 && syntPartIdx < kSynthInstrumentsCount);
 
-    int modelMaxValue = (Synth::kSynthTypes.size() - 1);
+    const auto& synthTypes = synth->getSynthTypes();
+    int modelMaxValue = std::max<int>(0, static_cast<int>(synthTypes.size()) - 1);
 
-    int32_t previousSynthType = mtProject.values.synthPart[syntPartIdx].synthType;
-
-    if (IE->rollListOver &&
-        mtProject.values.synthPart[syntPartIdx].synthType + value > modelMaxValue)
-    {
-        mtProject.values.synthPart[syntPartIdx].synthType = Synth::kFirstAvailableType;
-    }
-    else
-    {
-        mtProject.values.synthPart[syntPartIdx].synthType =
-          clamp<int>(mtProject.values.synthPart[syntPartIdx].synthType + value,
-                     Synth::kFirstAvailableType, modelMaxValue);
-    }
-
-    if (previousSynthType == mtProject.values.synthPart[syntPartIdx].synthType)
-    {
-        return;
-    }
-
-    synth->setInstrumentType(
-      syntPartIdx, Synth::kSynthTypes.at(mtProject.values.synthPart[syntPartIdx].synthType));
+    const int previousModel = synth->getInstrumentTypeIdx(syntPartIdx);
+    const int model = IE->rollListOver && previousModel + value > modelMaxValue
+        ? 0 : std::clamp(previousModel + value, 0, modelMaxValue);
+    if (previousModel == model) return;
+    mtProject.values.synthPart[syntPartIdx].synthType = synth->modelSetting(model);
+    synth->setInstrumentType(syntPartIdx, synthTypes.at(model));
 
     changeSynthPolyphony(0);
 
@@ -571,7 +609,7 @@ void cInstrumentEditor::setDefaultSynthDelay()
 
 [[maybe_unused]] void cInstrumentEditor::setDefaultSynthModel()
 {
-    int modelMaxValue = (Synth::kSynthTypes.size() - 1);
+    int modelMaxValue = std::max<int>(0, static_cast<int>(synth->getSynthTypes().size()) - 1);
     changeSynthModel(-modelMaxValue);
 }
 
@@ -702,8 +740,6 @@ int cInstrumentEditor::loadPatchList()
     char* destHead = patchfileNamesBuffer;
     for (auto& patchName : patchList)
     {
-        if (idx >= kMaxFilesListLength) break;
-        if (patchName.size() > kMaxFileNameLen) continue;
         patchListDataName[idx] = destHead;
         const auto len = patchName.length() + 1;
         polystrncpy(destHead, patchName.data(), len);
@@ -719,7 +755,7 @@ int cInstrumentEditor::loadPatchList()
 
     list2Data.start = previousPatchIdx;
     list2Data.data = patchListDataName;
-    list2Data.length = idx;
+    list2Data.length = patchList.size();
 
     return previousPatchIdx;
 }
@@ -815,12 +851,30 @@ void cInstrumentEditor::showSynthParamsScreen()
     display.setControlPosition(noteLabel, 625, 45);
     display.setControlSize(noteLabel, 170, 30);
 
-    modelListData.start = mtProject.values.synthPart[syntPartIdx].synthType - Synth::kFirstAvailableType;
-    modelListData.length = Synth::kSynthTypes.size() - Synth::kFirstAvailableType;
-    modelListData.linesCount = std::min<uint16_t>(modelListData.length, 7);
+    const auto& synthTypes = synth->getSynthTypes();
+    std::size_t modelCount = synthTypes.size();
+    synthModelNamesStorage.resize(modelCount);
+    synthModelNamesPtrs.resize(modelCount);
+    synthModelImages.assign(modelCount, -1);
+    for (std::size_t i = 0; i < modelCount; ++i)
+    {
+        synthModelNamesStorage[i] = synth->getInstrumentTypeName(i);
+        synthModelNamesPtrs[i] = synthModelNamesStorage[i].data();
+        switch (synthTypes[i])
+        {
+            case polysynth::InstrumentTypeId::kChiptuneSynth: synthModelImages[i] = kBitmapMiniCHIP; break;
+            case polysynth::InstrumentTypeId::kMiniSynth: synthModelImages[i] = kBitmapMiniSynthSmall; break;
+            case polysynth::InstrumentTypeId::kOberSynth: synthModelImages[i] = kBitmapMiniOBER; break;
+            default: break;
+        }
+    }
+
+    modelListData.start = synth->getInstrumentTypeIdx(syntPartIdx);
+    modelListData.length = modelCount;
+    modelListData.linesCount = std::min<uint16_t>(modelCount, 7);
     modelListData.rowHeight = 50;
-    modelListData.params = nullptr;
-    modelListData.imageIds = synthModelListImages + Synth::kFirstAvailableType;
+    modelListData.params = synthModelNamesPtrs.data();
+    modelListData.imageIds = synthModelImages.data();
     modelListData.scrollText = true;
 
     display.setControlData(modelListControl, &modelListData);
@@ -904,19 +958,22 @@ void cInstrumentEditor::showSynthParamsScreen()
 
 void cInstrumentEditor::showSynthModel(uint8_t synthPart)
 {
-    display.setControlValue(modelListControl,
-                            mtProject.values.synthPart[synthPart].synthType - Synth::kFirstAvailableType);
+    display.setControlValue(modelListControl, synth->getInstrumentTypeIdx(synthPart));
     display.refreshControl(modelListControl);
     titleBar->showCurrentInstrumentOnRightLabel();
 }
 
 void cInstrumentEditor::showSynthPolyphony(uint8_t synthPart)
 {
-    int value = mtProject.values.synthPart[synthPart].voiceCount;
     int valueMax = synth->getMaxVoiceCount(synthPart);
+    if (mtProject.values.synthPart[synthPart].voiceCount > valueMax)
+    {
+        mtProject.values.synthPart[synthPart].voiceCount = valueMax;
+        synth->setVoiceCount(synthPart, valueMax);
+    }
+    int value = mtProject.values.synthPart[synthPart].voiceCount;
 
-    value = std::min(value, valueMax);
-    snprintf(labelText[1], sizeof(labelText[1]), "%d", value);
+    snprintf(labelText[1], sizeof(labelText[1]), "%d", value > 0 && valueMax > 0 ? value : 0);
 
     display.setControlText2(label[1], labelText[1]);
     display.refreshControl(label[1]);
@@ -984,8 +1041,16 @@ void cInstrumentEditor::showSynthDelaySend(uint8_t syntPartIdx)
 
 void cInstrumentEditor::showSynthPatchName(uint8_t synthPart)
 {
-    polystrncpy(
-      synthPatchNameText, synth->getPatchName(synthPart).c_str(), sizeof(synthPatchNameText));
+    std::string pName = synth->getPatchName(synthPart);
+    if (!pName.empty() && (pName.front() == '/' || pName.size() >= sizeof(synthPatchNameText)))
+    {
+        auto slash = pName.find_last_of('/');
+        if (slash != std::string::npos)
+        {
+            pName = pName.substr(slash + 1);
+        }
+    }
+    polystrncpy(synthPatchNameText, pName.c_str(), sizeof(synthPatchNameText));
     display.setControlText2(noteLabel, synthPatchNameText);
     display.setControlShow(noteLabel);
     display.refreshControl(noteLabel);

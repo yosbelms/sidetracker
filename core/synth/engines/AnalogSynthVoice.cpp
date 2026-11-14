@@ -1,5 +1,11 @@
+#if defined(SIDETRACKER_PSYN_MINI) || defined(SIDETRACKER_PSYN_OBER)
+#include "psyn/psyn_cpp_bridge.h"
+#elif defined(FEATURE_SYNTH) && defined(TRACKER_DESKTOP)
 #include "config.h"
-#ifdef FEATURE_SYNTH
+#endif
+
+#if defined(SIDETRACKER_PSYN_MINI) || defined(SIDETRACKER_PSYN_OBER) || \
+    (defined(FEATURE_SYNTH) && defined(TRACKER_DESKTOP))
 
 #include "AnalogSynthVoice.h"
 #include "AnalogVoice.h"
@@ -394,6 +400,24 @@ void createMetadata(const Patch& patch, Patch::Metadata& metadata)
     };
 }
 
+#if defined(SIDETRACKER_PSYN_MINI) || defined(SIDETRACKER_PSYN_OBER)
+#ifdef SIDETRACKER_PSYN_MINI
+constexpr Model kPluginModel = Model::Mini;
+#else
+constexpr Model kPluginModel = Model::Ober;
+#endif
+
+class AnalogPluginVoice final : public AnalogSynthVoice
+{
+  public:
+    explicit AnalogPluginVoice(int index) : AnalogSynthVoice(kPluginModel, index) {}
+
+    static void createMetadata(const Patch& patch, Patch::Metadata& metadata)
+    {
+        polysynth::createMetadata<kPluginModel>(patch, metadata);
+    }
+};
+#else
 struct PresetValue { Param param; float value; };
 struct Preset { std::string_view name; std::span<const PresetValue> values; };
 
@@ -438,9 +462,11 @@ std::span<const Preset> factoryPatches(InstrumentTypeId type)
     if (type == InstrumentTypeId::kOberSynth) return kOberPresets;
     return {};
 }
+#endif
 
 }
 
+#ifdef TRACKER_DESKTOP
 std::unique_ptr<InstrumentType> createMiniSynth()
 {
     return std::make_unique<InstrumentType>(InstrumentType{
@@ -481,6 +507,10 @@ bool applyAnalogFactoryPatch(InstrumentTypeId type, std::string_view name, Patch
     }
     return true;
 }
+#endif
 }
 
+#if defined(SIDETRACKER_PSYN_MINI) || defined(SIDETRACKER_PSYN_OBER)
+PSYN_REGISTER_CPP_VOICE(polysynth::AnalogPluginVoice)
+#endif
 #endif

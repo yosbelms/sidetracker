@@ -17,8 +17,10 @@ OUT_DIR       := $(ROOT_DIR)/build
 SD_DIR        := $(OUT_DIR)/SD
 MINI_DONOR    := $(ROOT_DIR)/temp/fmini-1-2.5.12
 OBER_DONOR    := $(ROOT_DIR)/temp/obervave-main
-SYNTH_PATCH_INPUTS := $(addprefix $(MINI_DONOR)/,LICENSE firmware/src/eng_fmini_presets.h firmware/src/eng_fmini_filter.h) \
-                      $(addprefix $(OBER_DONOR)/,LICENSE firmware/src/obv_patches.h firmware/src/obv_params.h)
+SYNTH_PATCH_INPUTS := $(addprefix $(MINI_DONOR)/,LICENSE LICENSING.md CREDITS.md firmware/src/eng_fmini_presets.h firmware/src/eng_fmini_filter.h \
+                                                   tools/fmini_bank.py tools/gen_fmini_presets.py tools/fmini_filter.py) \
+                      $(addprefix $(OBER_DONOR)/,LICENSE LICENSING.md firmware/src/obv_patches.h firmware/src/obv_params.h)
+SYNTH_PATCH_DIR ?= $(OUT_DIR)/SideTrackerAnalogPresets
 
 include $(ROOT_DIR)/version.mk
 
@@ -35,14 +37,21 @@ RELEASE_ZIP := $(EDITION_NAME)_$(RELEASE_VERSION).zip
 
 .DEFAULT_GOAL := all
 
-.PHONY: all original plus mini desktop desktop-check sd test host-test bench bench-m4 perf-gate ptfx release-zip clean version bump-patch bump-minor
+.PHONY: all original plus mini desktop desktop-check sd test host-test bench bench-m4 perf-gate ptfx psyn synth-host release-zip clean version bump-patch bump-minor
 
 all: original plus mini
+
+psyn:
+	$(MAKE) -C "$(ROOT_DIR)/synth-plugin-sdk" sidetracker TOOLCHAIN="$(TOOLCHAIN)"
+	@mkdir -p "$(SD_DIR)/Synths"
+	@cp "$(SYNTH_DIR)"/prebuilt/*.psyn "$(SD_DIR)/Synths/"
+	@cp $(addprefix "$(ROOT_DIR)"/synth-plugin-sdk/build/,$(addsuffix .psyn,CHIP MINI OBER)) "$(SD_DIR)/Synths/"
 
 sd:
 	python3 "$(ROOT_DIR)/tools/generate_stpalette_patches.py" --sd "$(SD_DIR)"
 ifeq ($(words $(wildcard $(SYNTH_PATCH_INPUTS))),$(words $(SYNTH_PATCH_INPUTS)))
-	python3 "$(ROOT_DIR)/tools/port_analog_synth_presets.py" --sd "$(SD_DIR)"
+	python3 "$(ROOT_DIR)/tools/port_analog_synth_presets.py" \
+		--fmini "$(MINI_DONOR)" --ober "$(OBER_DONOR)" --output "$(SYNTH_PATCH_DIR)" --sd "$(SD_DIR)"
 else
 	@echo "MINI and OBER patch sources are unavailable in temp/. Staged the STPalette patches."
 endif
@@ -80,7 +89,14 @@ original: sd
 	@cp "$(OUT_DIR)/$(ORIGINAL_PTF)" "$(SD_DIR)/Firmware/$(ORIGINAL_PTF)"
 	@echo "-> Output: $(OUT_DIR)/$(ORIGINAL_PTF)"
 
-plus: sd
+synth-host:
+	$(MAKE) -C "$(SYNTH_DIR)" -j$(NPROC) build \
+		TOOLCHAIN="$(TOOLCHAIN)" \
+		PLATFORM=IMX PRODUCT=TrackerPlus \
+		POLYUTIL_DIR="$(UTIL_DIR)" \
+		POLYDSP_DIR="$(SYNTH_DIR)"
+
+plus: sd synth-host psyn
 	@echo "=================================================================="
 	@echo " Building Tracker+ (IMX) - $(EDITION_NAME) $(PLUS_VER_MAJOR).$(PLUS_VER_MINOR).$(PLUS_VER_PATCH) ($(BUILD_TAG))"
 	@echo "=================================================================="
@@ -103,7 +119,7 @@ plus: sd
 	@cp "$(OUT_DIR)/$(PLUS_PTF)" "$(SD_DIR)/Firmware/$(PLUS_PTF)"
 	@echo "-> Output: $(OUT_DIR)/$(PLUS_PTF)"
 
-mini: sd
+mini: sd synth-host psyn
 	@echo "=================================================================="
 	@echo " Building Tracker Mini (IMX) - $(EDITION_NAME) $(MINI_VER_MAJOR).$(MINI_VER_MINOR).$(MINI_VER_PATCH) ($(BUILD_TAG))"
 	@echo "=================================================================="
@@ -140,32 +156,35 @@ release-zip:
 	      test "$(RELEASE_VERSION)" = "$(MINI_VER_MAJOR).$(MINI_VER_MINOR).$(MINI_VER_PATCH)" && \
 	      test "$(ORIGINAL_POSTFIX):$(PLUS_POSTFIX):$(MINI_POSTFIX)" = "$(RELEASE_VERSION):$(RELEASE_VERSION):$(RELEASE_VERSION)" || \
 	      { echo "Release version, model versions, and firmware filename suffixes must match." >&2; exit 1; }
+	@test "$(words $(wildcard $(SYNTH_PATCH_INPUTS)))" = "$(words $(SYNTH_PATCH_INPUTS))" || \
+	      { echo "MINI and OBER preset sources are required for the release archive." >&2; exit 1; }
 	@mkdir -p "$(OUT_DIR)"
 	@set -eu; stage=$$(mktemp -d "$(OUT_DIR)/release-stage.XXXXXX"); \
 		trap 'rm -rf "$$stage"' EXIT; \
-		$(MAKE) all OUT_DIR="$$stage" SD_DIR="$$stage/SD"; \
+		$(MAKE) all OUT_DIR="$$stage" SD_DIR="$$stage/SD" SYNTH_PATCH_DIR="$$stage/SideTrackerAnalogPresets"; \
 		cmp "$$stage/$(ORIGINAL_PTF)" "$$stage/SD/Firmware/$(ORIGINAL_PTF)"; \
 		cmp "$$stage/$(PLUS_PTF)" "$$stage/SD/Firmware/$(PLUS_PTF)"; \
 		cmp "$$stage/$(MINI_PTF)" "$$stage/SD/Firmware/$(MINI_PTF)"; \
+		for engine in CHIP MINI OBER; do test -s "$$stage/SD/Synths/$$engine.psyn"; done; \
 		mkdir "$$stage/Licenses"; \
-		cp "$(ROOT_DIR)/LICENSE" "$(ROOT_DIR)/NOTICE.md" "$(SYNTH_DIR)/lib/LICENSE-PROPRIETARY.txt" "$$stage/Licenses/"; \
-		if test -d "$$stage/SD/Patches/MINI"; then \
-			cp "$(ROOT_DIR)/build/SideTrackerAnalogPresets/"*-LICENSE.txt "$$stage/Licenses/"; \
-			cp "$(ROOT_DIR)/build/SideTrackerAnalogPresets/README.txt" "$$stage/Licenses/AnalogPresets.txt"; \
-		else \
-			python3 "$(ROOT_DIR)/tools/stage_release_synth_patches.py" "$(SYNTH_PATCH_ARCHIVE)" "$$stage"; \
-		fi; \
-		(cd "$$stage" && zip -q -r "$(RELEASE_ZIP)" "$(ORIGINAL_PTF)" "$(PLUS_PTF)" "$(MINI_PTF)" SD Licenses); \
+		cp "$(ROOT_DIR)/LICENSE" "$(ROOT_DIR)/NOTICE.md" "$(SYNTH_DIR)/prebuilt/LICENSE-PROPRIETARY.txt" "$$stage/Licenses/"; \
+		test -s "$$stage/SideTrackerAnalogPresets.zip"; \
+		cp "$$stage/SideTrackerAnalogPresets/"*-LICENSE.txt "$$stage/Licenses/"; \
+		cp "$$stage/SideTrackerAnalogPresets/README.txt" "$$stage/Licenses/AnalogPresets.txt"; \
+		cp -R "$$stage/SideTrackerAnalogPresets/Source" "$$stage/Source"; \
+		(cd "$$stage" && zip -q -r "$(RELEASE_ZIP)" "$(ORIGINAL_PTF)" "$(PLUS_PTF)" "$(MINI_PTF)" SD Licenses Source); \
 		mv "$$stage/$(RELEASE_ZIP)" "$(OUT_DIR)/$(RELEASE_ZIP)"
 	@echo "-> Output: $(OUT_DIR)/$(RELEASE_ZIP)"
 
 clean:
+	$(MAKE) -C "$(SYNTH_DIR)" clean PLATFORM=IMX PRODUCT=TrackerPlus
 	$(MAKE) -C "$(CORE_DIR)" clean PLATFORM=MK66 PRODUCT=ORIGINAL
 	$(MAKE) -C "$(CORE_DIR)" clean PLATFORM=IMX PRODUCT=PLUS
 	$(MAKE) -C "$(CORE_DIR)" clean PLATFORM=IMX PRODUCT=MINI
 	$(MAKE) -C "$(MK66_DIR)" clean PRODUCT=ORIGINAL
 	$(MAKE) -C "$(IMX_DIR)" clean PRODUCT=PLUS
 	$(MAKE) -C "$(IMX_DIR)" clean PRODUCT=MINI
+	$(MAKE) -C "$(ROOT_DIR)/synth-plugin-sdk" clean
 	rm -rf "$(OUT_DIR)" "$(ROOT_DIR)/editor-fx-sdk/build"
 
 version:

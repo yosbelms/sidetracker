@@ -7,10 +7,13 @@ temp/
 # Build outputs
 /build/
 core/build-*/
+synth/build-*/
 platforms/mk66/build/
 platforms/imx/build-*/
 editor-fx-sdk/build/
+synth-plugin-sdk/build/
 *.axf
+*.elf
 *.lss
 *.ptf
 *.ptfx

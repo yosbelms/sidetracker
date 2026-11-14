@@ -337,8 +337,24 @@ class DesktopPatchStore final : public PatchStore
     }
 
   private:
-    static bool validName(std::string_view name)
+    bool validName(std::string_view name) const
     {
+        // The global patch browser passes full SD paths to the workspace store.
+        if (!typeFolders && name.starts_with('/'))
+        {
+            if (name.size() > 255 || name.find('\\') != std::string_view::npos)
+                return false;
+            name.remove_prefix(1);
+            while (!name.empty())
+            {
+                auto slash = name.find('/');
+                auto segment = name.substr(0, slash);
+                if (segment.empty() || segment == "." || segment == "..") return false;
+                if (slash == std::string_view::npos) return true;
+                name.remove_prefix(slash + 1);
+            }
+            return false;
+        }
         return !name.empty() && name.size() <= 80 && name != "." && name != ".." &&
                name.find_first_of("/\\") == std::string_view::npos;
     }

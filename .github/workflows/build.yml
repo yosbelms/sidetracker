@@ -84,6 +84,17 @@ jobs:
       - name: Check version configuration
         run: make version
 
+      - name: Fetch pinned GPL preset sources
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          mkdir -p temp/fmini-1-2.5.12 temp/obervave-main
+          curl --fail --silent --show-error --location --retry 3 \
+            https://codeload.github.com/ruppert/fmini-1/tar.gz/be48549213d9177336007d2df477aeb0bbad96f6 \
+            | tar xz --strip-components=1 -C temp/fmini-1-2.5.12
+          curl --fail --silent --show-error --location --retry 3 \
+            https://codeload.github.com/zvenson/obervave/tar.gz/099ccd6f30a83591cea3521efaec6d3546004036 \
+            | tar xz --strip-components=1 -C temp/obervave-main
+
       - name: Build Original Tracker, Tracker+, and Tracker Mini firmware
         id: firmware
         env:
@@ -97,11 +108,7 @@ jobs:
           fi
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             release_version="${GITHUB_REF_NAME#v}"
-            synth_patches="$RUNNER_TEMP/SideTracker_0.0.3.zip"
-            curl --fail --silent --show-error --location --retry 3 \
-              https://github.com/yosbelms/sidetracker/releases/download/v0.0.3/SideTracker_0.0.3.zip \
-              --output "$synth_patches"
-            make release-zip RELEASE_VERSION="$release_version" SYNTH_PATCH_ARCHIVE="$synth_patches" 2>&1 | tee build_output.log
+            make release-zip RELEASE_VERSION="$release_version" 2>&1 | tee build_output.log
             echo "release_zip=build/SideTracker_${release_version}.zip" >> "$GITHUB_OUTPUT"
           else
             make all "${POSTFIX_ARGS[@]}" 2>&1 | tee build_output.log
@@ -112,6 +119,15 @@ jobs:
         run: |
           make ptfx
           printf "Copy the Effects/ folder to the root of your Polyend Tracker microSD card.\n" > editor-fx-sdk/build/README.txt
+
+      - name: Bundle .psyn Synth plugins
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          rm -rf synth-plugin-sdk/build/package
+          mkdir -p synth-plugin-sdk/build/package
+          cp -r build/SD/Synths synth-plugin-sdk/build/package/Synths
+          cp synth/prebuilt/LICENSE-PROPRIETARY.txt synth-plugin-sdk/build/package/LICENSE-PROPRIETARY.txt
+          printf "Copy the Synths/ folder to the root directory of your Polyend Tracker+ or Tracker Mini microSD card.\n" > synth-plugin-sdk/build/package/README.txt
 
       - name: Publish Firmware Size & Memory Summary
         if: always()
@@ -169,6 +185,13 @@ jobs:
           name: polyend-tracker-ce-effects
           path: editor-fx-sdk/build/
 
+      - name: Upload Synth Engines Artifact (Synths/*.psyn)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: polyend-tracker-ce-synths
+          path: synth-plugin-sdk/build/package/
+
       - name: Post Firmware Download Links to PR (Same-Repo PRs)
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/github-script@v7
@@ -185,16 +208,18 @@ jobs:
               : '';
 
             const fwUrl = `https://nightly.link/${owner}/${repo}/actions/runs/${runId}/polyend-tracker-ce-firmware.zip`;
+            const synthsUrl = `https://nightly.link/${owner}/${repo}/actions/runs/${runId}/polyend-tracker-ce-synths.zip`;
             const fxUrl = `https://nightly.link/${owner}/${repo}/actions/runs/${runId}/polyend-tracker-ce-effects.zip`;
             const marker = '<!-- polyend-tracker-ce-pr-firmware -->';
 
             const body = [
               marker,
-              '### SideTracker Test Firmware & Sample Editor Effects',
+              '### Polyend Tracker CE Test Firmware, Synth Engines & Sample Editor Effects',
               '',
-              'This pull request passed all build checks. You can download and test the built firmware for **Original Tracker**, **Tracker+**, and **Tracker Mini** (`Build: ' + shortSha + '`) and the `.ptfx` Sample Editor plugins directly using the links below (no GitHub account required):',
+              'This pull request passed all build checks. You can download and test the built firmware for **Original Tracker**, **Tracker+**, and **Tracker Mini** (`Build: ' + shortSha + '`), the `.psyn` Synth engines, and the `.ptfx` Sample Editor plugins directly using the links below (no GitHub account required):',
               '',
               `* **[Download Firmware (.zip)](${fwUrl})**`,
+              `* **[Download Synth Engines (.zip)](${synthsUrl})**`,
               `* **[Download Sample Editor Effects (.zip)](${fxUrl})**`,
               '',
               '<details>',
@@ -213,7 +238,11 @@ jobs:
               `1. Download and unzip **[polyend-tracker-ce-effects.zip](${fxUrl})**.`,
               '2. Copy the **`Effects/`** folder to the root directory of your Tracker\'s microSD card so your `.ptfx` plugins are located at **`/Effects/*.ptfx`**.',
               '',
-              '### 3. Emergency Recovery (Just in Case)',
+              '### 3. Installing Synth Engines (`.psyn` — Tracker+ & Tracker Mini)',
+              `1. Download and unzip **[polyend-tracker-ce-synths.zip](${synthsUrl})**.`,
+              '2. Copy the **`Synths/`** folder to the root directory of your Tracker+ or Tracker Mini microSD card so your `.psyn` plugins are located at **`/Synths/*.psyn`**.',
+              '',
+              '### 4. Emergency Recovery (Just in Case)',
               'The Tracker\'s bootloader is hardware-isolated from the firmware. If a test build ever fails to boot:',
               '1. Place a known-good, stable `.ptf` firmware file inside the **`/Firmware/`** folder on your microSD card (ideally as the only `.ptf` file in that folder).',
               '2. Insert the microSD card and power on your Tracker.',

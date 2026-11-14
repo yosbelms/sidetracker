@@ -40,11 +40,17 @@ enum class InstrumentTypeId
     kDrumSynth,
     kShapingSynth,
     kChiptuneSynth,
+    kModalSynth,
+    kPDSynth,
+    kGranularSynth,
+    kSampleSynth,
+    kLastSynth = kSampleSynth,
+    // Tracker IDs used by existing SideTracker patches. On Wave these are dynamic engines.
     kMiniSynth = 9,
     kOberSynth = 10,
-    kLastSynth = kOberSynth,
     kDelay = 1000,
     kReverb,
+    kModulationFx,
 };
 
 static constexpr int kMaxNumberOfInstruments = 3;

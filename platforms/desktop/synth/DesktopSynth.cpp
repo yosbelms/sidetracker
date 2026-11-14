@@ -1,4 +1,6 @@
 #include "DesktopPatch.h"
+#include "engines/AnalogSynthVoice.h"
+#include "engines/ChiptuneSynthVoice.h"
 
 #include "PolySynth/FileSystem.h"
 #include "PolySynth/Grid.h"
@@ -301,7 +303,10 @@ class DesktopSynth final : public Synth
   public:
     explicit DesktopSynth(const Allocator& allocator)
     {
-        InstrumentTypeRegistry::registerInstrumentTypes(registry, allocator);
+        (void)allocator;
+        registry.addInstrumentType(*InstrumentTypeId::kChiptuneSynth, createChiptuneSynth());
+        registry.addInstrumentType(*InstrumentTypeId::kMiniSynth, createMiniSynth());
+        registry.addInstrumentType(*InstrumentTypeId::kOberSynth, createOberSynth());
     }
 
     std::unique_ptr<PatchStore> createPatchStore(FileSystemId id, bool typeFolders) override

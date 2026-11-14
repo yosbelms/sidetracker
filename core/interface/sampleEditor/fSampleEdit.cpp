@@ -11,6 +11,8 @@
 #include "ptfx_manager.h"
 #include "util_math.h"
 #include "SampleEditorChain.h"
+#include "fileBrowser/GlobalFileBrowser.h"
+#include "VoiceStreamManager.h"
 
 #include <cr_section_macros.h>
 
@@ -53,6 +55,165 @@ static void functSelectStartPoint();
 static void functSelectEndPoint();
 static void functSelectZoom();
 static void functUndo();
+static void functLoadWav()
+{
+    if (mtProject.values.lastUsedInstrument >= kSampleInstrumentsCount)
+    {
+        return;
+    }
+
+    if (sampleChainDeferEditorAction(functLoadWav)) return;
+    SE->avoidStop = true;
+
+    GlobalFileBrowserConfig cfg;
+    cfg.mode = GlobalFileBrowserConfig::Mode::kLoadWav;
+    cfg.title = "Load WAV - Sample Editor";
+    cfg.contextKey = "se_load_wav";
+    cfg.initialDirectory = "/Samples";
+    cfg.extensionFilter = ".wav";
+    cfg.returnModule = SE;
+    cfg.returnModuleOptions = 1;
+    cfg.onConfirm = [](const std::string& fullPath)
+    {
+        auto slashPos = fullPath.find_last_of('/');
+        std::string dirStr = (slashPos != std::string::npos && slashPos > 0)
+                               ? fullPath.substr(0, slashPos)
+                               : "";
+        std::string fileStr = (slashPos != std::string::npos) ? fullPath.substr(slashPos + 1)
+                                                              : fullPath;
+        auto dotPos = fileStr.find_last_of('.');
+        if (dotPos != std::string::npos)
+        {
+            fileStr = fileStr.substr(0, dotPos);
+        }
+
+        char dirBuf[kMaxFilePathLen + 1]{};
+        char nameBuf[kMaxFileNameLen + 1]{};
+        strncpy(dirBuf, dirStr.c_str(), kMaxFilePathLen);
+        strncpy(nameBuf, fileStr.c_str(), kMaxFileNameLen);
+
+        newFileManager.flushWorkspaceSave();
+        if (newFileManager.importSampleToProject(
+              dirBuf, nameBuf, mtProject.values.lastUsedInstrument))
+        {
+            SE->ip->blockAllInputs();
+        }
+        else
+        {
+            mtPopups.show(0, "Error loading WAV");
+        }
+    };
+
+    openGlobalFileBrowser(cfg);
+}
+
+static void functExportWav()
+{
+    if (!SE->editorInstrument->isActive || SE->editorInstrument->sample.length == 0)
+    {
+        return;
+    }
+
+    if (sampleChainDeferEditorAction(functExportWav)) return;
+    SE->avoidStop = true;
+
+    std::string defName = SE->editorInstrument->sample.file_name[0] != '\0'
+                            ? SE->editorInstrument->sample.file_name
+                            : "sample";
+
+    GlobalFileBrowserConfig cfg;
+    cfg.mode = GlobalFileBrowserConfig::Mode::kSaveWav;
+    cfg.title = "Export WAV - Sample Editor";
+    cfg.contextKey = "se_export_wav";
+    cfg.initialDirectory = "/Samples";
+    cfg.defaultFileName = defName;
+    cfg.extensionFilter = ".wav";
+    cfg.returnModule = SE;
+    cfg.returnModuleOptions = 1;
+    cfg.onConfirm = [](const std::string& fullPath)
+    {
+        auto slashPos = fullPath.find_last_of('/');
+        std::string dirStr = (slashPos != std::string::npos && slashPos > 0)
+                               ? fullPath.substr(0, slashPos)
+                               : "/";
+        std::string fileStr = (slashPos != std::string::npos) ? fullPath.substr(slashPos + 1)
+                                                              : fullPath;
+        auto dotPos = fileStr.find_last_of('.');
+        if (dotPos != std::string::npos)
+        {
+            fileStr = fileStr.substr(0, dotPos);
+        }
+
+        char dirBuf[kMaxFilePathLen + 1]{};
+        char nameBuf[kMaxFileNameLen + 1]{};
+        strncpy(dirBuf, dirStr.c_str(), kMaxFilePathLen);
+        strncpy(nameBuf, fileStr.c_str(), kMaxFileNameLen);
+
+        bool isStereo = SE->isCurrentSampleStereo();
+        const int16_t* leftPtr = nullptr;
+        const int16_t* rightPtr = nullptr;
+        uint32_t sampleLen = 0;
+
+        if (SE->currentEffect != nullptr && SE->currentEffect->isDataLoaded())
+        {
+            leftPtr = SE->currentEffect->getAddresToPolyphonicPlay(mtEffect::Channel::kLeft);
+            rightPtr = isStereo
+                         ? SE->currentEffect->getAddresToPolyphonicPlay(mtEffect::Channel::kRight)
+                         : leftPtr;
+            sampleLen = SE->currentEffect->getLengthToPolyphonicPlay();
+        }
+        else
+        {
+            const uint8_t instrIdx = mtProject.values.lastUsedInstrument;
+            if (instrIdx < kSampleInstrumentsCount && mtProject.sampleMemory[instrIdx].isStreamed &&
+                SE->editorInstrument->sample.length > 0 &&
+                SE->editorInstrument->sample.length <= EDIT_BUFF_SIZE / 2)
+            {
+                sampleLen = SE->editorInstrument->sample.length;
+                int16_t* dstLeft = externalRamEffectsBuff;
+                int16_t* dstRight = isStereo ? (externalRamEffectsBuff + EDIT_BUFF_SIZE) : dstLeft;
+                bool ok = voiceStreamManager.readInstrumentFramesBlocking(
+                  instrIdx, mtEffect::Channel::kLeft, 0, sampleLen, dstLeft);
+                if (ok && isStereo)
+                {
+                    ok = voiceStreamManager.readInstrumentFramesBlocking(
+                      instrIdx, mtEffect::Channel::kRight, 0, sampleLen, dstRight);
+                }
+                if (ok)
+                {
+                    leftPtr = dstLeft;
+                    rightPtr = dstRight;
+                }
+            }
+            else
+            {
+                leftPtr = SE->sampleEditorSampleMemory.address[mtEffect::Channel::kLeft];
+                rightPtr = isStereo ? SE->sampleEditorSampleMemory.address[mtEffect::Channel::kRight]
+                                    : leftPtr;
+                sampleLen = SE->editorInstrument->sample.length;
+            }
+        }
+
+        newFileManager.flushWorkspaceSave();
+        if (leftPtr != nullptr && sampleLen > 0 &&
+            newFileManager.saveRecordedSound(dirBuf,
+                                             nameBuf,
+                                             std::nullopt,
+                                             const_cast<int16_t*>(leftPtr),
+                                             const_cast<int16_t*>(rightPtr),
+                                             sampleLen))
+        {
+            SE->ip->blockAllInputs();
+        }
+        else
+        {
+            mtPopups.show(0, "Error exporting WAV");
+        }
+    };
+
+    openGlobalFileBrowser(cfg);
+}
+
 static void functTools() { if (sampleChainDeferEditorAction(functTools)) return; SE->screenType = cSampleEditor::toolsScreen; SE->switchScreen(SE->screenType); }
 static void functToolsBack() { SE->screenType = cSampleEditor::mainScreen; SE->switchScreen(SE->screenType); }
 static void functToolUp() { SE->moveTool(-1); }
@@ -337,6 +498,20 @@ void cSampleEditor::update()
 
     uint8_t fileManagerStatus = newFileManager.getStatus();
 
+    if (fileManagerStatus == fmImportSamplesEnd)
+    {
+        ip->unblockAllInputs();
+        newFileManager.clearStatus();
+        mtPopups.show(0, "WAV loaded");
+        start(0);
+        return;
+    }
+    if (fileManagerStatus == fmSaveRecordedSoundEnd)
+    {
+        ip->unblockAllInputs();
+        newFileManager.clearStatus();
+        mtPopups.show(0, "WAV exported");
+    }
     if (fileManagerStatus == fmImportSampleFromSampleEditorEnd)
     {
         ip->unblockAllInputs();
@@ -456,8 +631,7 @@ void cSampleEditor::setMainScreenFunctions()
         ip->setButtonObj(interfaceButton3, buttonPress, functSelectZoom);
         ip->setButtonObj(interfaceButton4, buttonPress, functUndo);
     }
-    if (editorInstrument->isActive)
-        ip->setButtonObj(interfaceButton6, buttonPress, functTools);
+    ip->setButtonObj(interfaceButton6, buttonPress, functTools);
     if (editorInstrument->isActive || sampleChainHasDraft())
         ip->setButtonObj(interfaceButton0, buttonPress, functWaveformPreview);
     ip->setButtonObj(interfaceButton5, buttonPress, [] { sampleChainOpen(SE); });
@@ -2096,15 +2270,17 @@ namespace
 {
 constexpr uint8_t kEditorTools[] = { editorEffectCut, editorEffectReverse,
     editorEffectNormalizer, editorEffectFadeIn, editorEffectFadeOut,
-    editorEffectWavetableSmoother, editorEffectTimestretchBeat, editorEffectTimestretchNote };
+    editorEffectWavetableSmoother, editorEffectTimestretchBeat, editorEffectTimestretchNote, editorEffectMax, editorEffectMax };
 char* const kEditorToolNames[] = { (char*)"Crop", (char*)"Reverse", (char*)"Normalizer",
     (char*)"Fade In", (char*)"Fade Out", (char*)"WT Smoother",
-    (char*)"Timestretch Beat", (char*)"Timestretch Note" };
+    (char*)"Timestretch Beat", (char*)"Timestretch Note", (char*)"Load WAV", (char*)"Export WAV" };
 static const uint16_t kToolsColumn[4] = { 1, 31, 197, 392 };
 }
 
 void cSampleEditor::showToolsScreen()
 {
+    if (!editorInstrument->isActive)
+        selectedTool = std::size(kEditorTools) - 2;
     hideSpectrum(); hideSpectrumPoints(); hidePlayhead();
     frameData.placesCount = 1;
     frameData.places[0] = kToolsColumn;
@@ -2169,6 +2345,7 @@ void cSampleEditor::setToolsScreenFunctions()
 
 void cSampleEditor::moveTool(int16_t delta)
 {
+    if (!editorInstrument->isActive) return;
     selectedTool = clamp<int>(int(selectedTool) + delta, 0, sizeof(kEditorTools) - 1);
     effectListData.start = selectedTool;
     display.setControlData(effectList, &effectListData);
@@ -2179,6 +2356,9 @@ void cSampleEditor::moveTool(int16_t delta)
 
 void cSampleEditor::selectTool()
 {
+    if (selectedTool == std::size(kEditorTools) - 2) { functLoadWav(); return; }
+    if (!editorInstrument->isActive) return;
+    if (selectedTool == std::size(kEditorTools) - 1) { functExportWav(); return; }
     currentEffectIdx = kEditorTools[selectedTool];
     selectedEffectListIdx = currentEffectIdx;
     reloadCurrentEffect();

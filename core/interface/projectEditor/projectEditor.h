@@ -35,6 +35,10 @@ class cProjectEditor : public ModuleBase
     void showExportWindow();
     void setExportWindowFuncts();
     void showLabelDuringExport();
+#ifndef TRACKER_DESKTOP
+    void showRecordOutputConfirmation();
+    bool recordingOutput = false;
+#endif
 
     //-------------------------------------------------------------
     void showModBrowser(bool reloadList = true);
@@ -54,11 +58,23 @@ class cProjectEditor : public ModuleBase
 
     void cleanupListsData();
 
+    enum class PendingBrowserAction : uint8_t
+    {
+        kNone = 0,
+        kOpenProject,
+        kOpenRecent,
+        kImportMod
+    };
+    PendingBrowserAction pendingBrowserAction = PendingBrowserAction::kNone;
+    char pendingBrowserDir[kMaxFilePathLen + 1]{};
+    char pendingBrowserName[kMaxFileNameLen + 1]{};
+    int pendingRecentIdx = 0;
+    bool preserveAfterSaveOnStop = false;
+
+    void executePendingBrowserOpen();
+
     //-------------------------------------------------------------
     void showClockWarning();
-#ifndef TRACKER_DESKTOP
-    void showRecordOutputConfirmation();
-#endif
     void setClockWarningScreenFunct();
     //-------------------------------------------------------------
 
@@ -161,9 +177,6 @@ class cProjectEditor : public ModuleBase
 
     // export
     void startExport(uint8_t source);
-#ifndef TRACKER_DESKTOP
-    bool recordingOutput = false;
-#endif
 
     // clock for export setup
     bool checkClockConfig(uint8_t source);

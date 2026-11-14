@@ -38,9 +38,9 @@ public:
     }
     uint8_t sendString(const char* string, uint32_t length) override;
     void writeDataToCMD(const uint8_t*, uint32_t) override {}
-    void initStreamDma(uint16_t, uint16_t, uint16_t, uint8_t*, uint32_t) override {}
-    bool updateStreamDma(bool) override { return false; }
-    void stopStreamDma() override {}
+    void writeDisplayList(uint32_t offset, const uint32_t* words, uint32_t count) override;
+    void swapDisplayList() override;
+    bool isDisplayListSwapPending() override { return false; }
 
 private:
     struct Bitmap
@@ -83,6 +83,8 @@ private:
     SDL_Renderer& renderer;
     std::vector<uint8_t> ram;
     std::vector<uint32_t> commands, list;
+    std::array<std::vector<uint32_t>, 2> hardwareLists;
+    unsigned backList = 0;
     std::vector<FrameText> frameTexts;
     std::array<Bitmap, 32> bitmaps{};
     std::vector<Context> contexts;

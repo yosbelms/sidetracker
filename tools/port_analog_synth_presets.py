@@ -14,6 +14,14 @@ from ober_showcase_presets import OBER_SHOWCASE
 
 
 ROOT = Path(__file__).resolve().parents[1]
+DONOR_SOURCES = {
+    "FMini": (
+        "LICENSE", "LICENSING.md", "CREDITS.md",
+        "firmware/src/eng_fmini_presets.h", "firmware/src/eng_fmini_filter.h",
+        "tools/fmini_bank.py", "tools/gen_fmini_presets.py", "tools/fmini_filter.py",
+    ),
+    "Ober": ("LICENSE", "LICENSING.md", "firmware/src/obv_patches.h", "firmware/src/obv_params.h"),
+}
 
 
 def read_array(text, name):
@@ -261,19 +269,47 @@ def main():
         if name == "OBER":
             programs = chain(programs, OBER_SHOWCASE)
         files.extend(write_patches(output / name, engine, schema, programs))
+        for relative in DONOR_SOURCES[donor]:
+            destination = args.output / "Source" / donor / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(folder / relative, destination)
         shutil.copyfile(folder / "LICENSE", args.output / f"{donor}-LICENSE.txt")
+    source_tools = args.output / "Source" / "tools"
+    source_tools.mkdir(parents=True, exist_ok=True)
+    def copy_if_different(source_path, destination):
+        if source_path.resolve() != destination.resolve():
+            shutil.copyfile(source_path, destination)
+
+    for name in ("port_analog_synth_presets.py", "ober_showcase_presets.py"):
+        copy_if_different(ROOT / "tools" / name, source_tools / name)
+    source_schema = args.output / "Source" / "core/synth/engines/AnalogSynthVoice.cpp"
+    source_schema.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(ROOT / "core/synth/engines/AnalogSynthVoice.cpp", source_schema)
+    source_license = ROOT / "LICENSE"
+    if not source_license.is_file():
+        source_license = ROOT / "LICENSE-SideTracker.txt"
+    copy_if_different(source_license, args.output / "Source" / "LICENSE-SideTracker.txt")
     (args.output / "README.txt").write_text(
         "Copy Patches to the SD card root. Select MINI or OBER, then Load in the Synth editor.\n"
-        "Factory preset data from FMini-1 2.5.12 (Guilherme Ruppert) and OberVave 3.3.2 (zvenson).\n"
-        "OBER also includes 30 original SideTracker sounds with SEM and notch pads, filtered keys,\n"
-        "tempo-synced modulation, metallic timbres, percussion, mono leads, and sustained instruments.\n"
-        "Converted patches use title case and each donor's GPL-3.0-only license.\n"
-        "Voice stacks, donor arpeggiator, FX sends and other firmware-specific settings are omitted.\n"
+        "200 presets adapted from FMini-1 2.5.12 by Guilherme Ruppert.\n"
+        "https://github.com/ruppert/fmini-1/tree/be48549213d9177336007d2df477aeb0bbad96f6\n"
+        "70 presets adapted from OberVave 3.3.2 by zvenson.\n"
+        "https://github.com/zvenson/obervave/tree/099ccd6f30a83591cea3521efaec6d3546004036\n"
+        "The converted preset data is provided under GPL-3.0-only; see each donor license.\n"
+        "SideTracker adds 30 original OBER patches, listed in Source/tools/ober_showcase_presets.py.\n"
+        "The converter maps supported parameters and omits donor arpeggiators, FX sends and voice stacks.\n"
+        "The presets are data files. MINI and OBER .psyn engines use independently written DSP.\n"
+        "To regenerate, run python3 Source/tools/port_analog_synth_presets.py\n"
+        "  --fmini Source/FMini --ober Source/Ober --output Converted\n"
+        "The Source directory contains editable preset sources, the converter, and licenses.\n"
     )
     archive = args.output.parent / f"{args.output.name}.zip"
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as package:
         for name in ("README.txt", "FMini-LICENSE.txt", "Ober-LICENSE.txt"):
             package.write(args.output / name, name)
+        for source_file in sorted((args.output / "Source").rglob("*")):
+            if source_file.is_file():
+                package.write(source_file, source_file.relative_to(args.output))
         for patch in files:
             relative = patch.relative_to(args.output)
             package.write(patch, relative)

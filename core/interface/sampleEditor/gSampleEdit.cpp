@@ -198,8 +198,7 @@ void cSampleEditor::showMainScreen()
             {
                 display.setControlColors(
                   label[i],
-                  canApplyCurrentEffect() ? display.getTheme().activeButtonLabelsColors
-                                          : display.getTheme().inactiveLabelsColors);
+                  display.getTheme().activeButtonLabelsColors);
             }
             else if (i == 6)
             {

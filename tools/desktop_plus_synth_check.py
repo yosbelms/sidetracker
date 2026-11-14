@@ -2,6 +2,7 @@
 """Exercise the Tracker+ desktop Instrument picker, synths and patch storage."""
 
 from pathlib import Path
+import shutil
 import struct
 import subprocess
 import sys
@@ -70,13 +71,14 @@ def check_bundled_patches(binary, card):
             raise AssertionError(f"Expected {count} {model} patches, found {len(names)}")
         if uppercase := sorted(name for name in names if name.isupper()):
             raise AssertionError(f"All-uppercase {model} patch names: {uppercase}")
-        commands = (select_part(part) + "button 6\nwait 250\n"
-                    + "encoder 8\nwait 250\n" * ((count + 8) // 8)
+        shutil.copytree(folder, card / "Patches" / model)
+        commands = (select_part(part) + "button 6\nwait 250\nbutton Down\n"
+                    + "button Down\nwait 25\n" * (count - 1)
                     + """reset-audio-peak
-press 5
+press 2
 wait 200
 assert-audio-peak 1
-release 5
+release 2
 button 7
 """)
         frames = run(binary, card, f"{model}-collection", commands)
@@ -107,11 +109,12 @@ release pad 12
             raise AssertionError(f"Missing Instrument picker or synth editor labels: {missing}")
 
     frames = run(binary, card, "load-and-save", select_part(0) + """button 6
+button Down
 reset-audio-peak
-press 5
+press 2
 wait 200
 assert-audio-peak 100
-release 5
+release 2
 button 7
 button 7
 button 0
@@ -126,6 +129,7 @@ wait 200
     (card / "Workspace" / "0.patch").unlink()
 
     frames = run(binary, card, "reload", select_part(0) + """button 6
+button Down
 button 7
 button 7
 reset-audio-peak

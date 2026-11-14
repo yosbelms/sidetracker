@@ -6,9 +6,10 @@ DESKTOP_MODEL ?= plus
 ifeq ($(DESKTOP_MODEL),plus)
 PRODUCT := PLUS
 BIN := sidetracker-desktop
-DESKTOP_CPPFLAGS := -DTRACKER_DESKTOP_PLUS -DPLATFORM_IMX -DFEATURE_SYNTH -DFMT_HEADER_ONLY
+DESKTOP_CPPFLAGS := -DTRACKER_DESKTOP_PLUS -DPLATFORM_IMX -DFEATURE_SYNTH -DFMT_HEADER_ONLY -DPRODUCT=WAVE -DPRODUCT_WAVE
 DESKTOP_CXXFLAGS := -include PolySynthHostCompatibility.h
 SYNTH_HOST := $(wildcard synth/*.cpp)
+CHIP_OBJ := $(OUT)/synth-plugin-sdk/chip.o
 else ifeq ($(DESKTOP_MODEL),original)
 OUT := $(ROOT)/build/desktop-original
 BIN := sidetracker-desktop-original
@@ -50,7 +51,7 @@ endif
 sd:
 	$(MAKE) -C $(ROOT) sd
 
-$(OUT)/$(BIN): $(OBJS) $(HOST)
+$(OUT)/$(BIN): $(OBJS) $(HOST) $(CHIP_OBJ)
 	$(CXX) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
 $(OUT)/core/%.o: $(CORE)/%.cpp Makefile $(ROOT)/version.mk
@@ -65,7 +66,11 @@ $(OUT)/%.o: %.cpp Makefile $(ROOT)/version.mk
 	@mkdir -p $(@D)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
 
--include $(OBJS:.o=.d) $(HOST:.o=.d)
+$(OUT)/synth-plugin-sdk/chip.o: $(ROOT)/synth-plugin-sdk/engines/chip.cpp Makefile
+	@mkdir -p $(@D)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
+
+-include $(OBJS:.o=.d) $(HOST:.o=.d) $(CHIP_OBJ:.o=.d)
 .PHONY: all check sd
 
 CPPFLAGS += -I$(CORE)/effector/stpalette/vendor/clouds
