@@ -36,7 +36,7 @@ Offline export clears effect history and uses sequenced Perf FX, with monitored 
 
 On Tracker, Tracker+, or Tracker Mini, choose **File → Export → Record Output**, then **Record**. The Tracker plays the song once from its first playlist entry using its internal clock and captures the effect tail. It saves `master.wav` in a numbered `Export/<project>/<project>_RecordOutput_NNNN/` folder.
 
-The codec uses the hardware input path for its digital return. Line In and Mic are unavailable during the take. **Cancel** discards the take. The Tracker restores the input route and clock when the take ends. The codec applies Space, Bass Boost, and EQ in that order. [SGTL5000 signal flow, Figure 12](https://www.nxp.com/docs/en/data-sheet/SGTL5000.pdf#page=21)
+The codec uses the hardware input path for its digital return. Line In and Mic are unavailable during the take. **Cancel** discards the take. The Tracker restores the input route and clock when the take ends. Master 1/3 follows the codec order on F6–F8: Space, Bass Boost, then EQ. [SGTL5000 signal flow, Figure 12](https://www.nxp.com/docs/en/data-sheet/SGTL5000.pdf#page=21)
 
 ## Differences from the original Tracker CE
 

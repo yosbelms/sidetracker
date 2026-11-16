@@ -48,6 +48,7 @@ enum class InstrumentTypeId
     // Tracker IDs used by existing SideTracker patches. On Wave these are dynamic engines.
     kMiniSynth = 9,
     kOberSynth = 10,
+    kJ106Synth = 64,
     kDelay = 1000,
     kReverb,
     kModulationFx,

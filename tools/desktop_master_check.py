@@ -3,9 +3,30 @@
 
 import argparse
 from pathlib import Path
+import struct
 import tempfile
 
 from desktop_perf_fx_check import run
+
+
+def check_output_gutters(path):
+    bitmap = path.read_bytes()
+    offset, = struct.unpack_from("<I", bitmap, 10)
+    width, height = struct.unpack_from("<ii", bitmap, 18)
+    depth, = struct.unpack_from("<H", bitmap, 28)
+    pixel_bytes = depth // 8
+    stride = (width * pixel_bytes + 3) & ~3
+
+    def pixel(x, y):
+        row = height - 1 - y if height > 0 else y
+        start = offset + row * stride + x * pixel_bytes
+        return bitmap[start:start + 3]
+
+    for x in (600, 700):
+        # One shared header above two-pixel background gaps.
+        assert len({pixel(col, 33) for col in range(x - 1, x + 3)}) == 1
+        left, first, second, right = (pixel(col, 90) for col in range(x - 1, x + 3))
+        assert first == second and first not in (left, right), (x, left, first, second, right)
 
 
 def check(binary):
@@ -25,10 +46,19 @@ encoder 4
 button 7
 button 4
 button 7
+button 7
+button 7
 button 5
-button 7
+encoder 2
+button Right
+button Up
+button Left
+button Down
+button Delete
 button 6
-button 7
+encoder 3
+button Delete
+button 0
 wait 10500
 """)
         frames = [
@@ -36,11 +66,18 @@ wait 10500
              for x, y, text in [line.split("\t", 2)]]
             for frame in audit.read_text().split("frame\n")[1:]
         ]
-        labels = ("Volume", "Delay", "Reverb", "Saturation", "Limiter", "EQ", "Bass Boost", "Space")
+        check_output_gutters(card / "screen.bmp")
+        labels = ("Volume", "Delay", "Reverb", "Saturation", "Limiter", "Space", "Bass Boost", "EQ")
         master_toolbars = [[(x, text) for x, y, text in frame if y >= 424]
                            for frame in frames if any(text == "Master 1/3" for _, _, text in frame)]
         assert any(all((50 + i * 100, name) in toolbar for i, name in enumerate(labels))
                    for toolbar in master_toolbars)
+        output_values = set()
+        for toolbar in master_toolbars:
+            space = next((int(text) for x, text in toolbar if x == 550 and text.isdigit()), None)
+            bass = next((int(text) for x, text in toolbar if x == 650 and text.isdigit()), None)
+            output_values.add((space, bass))
+        assert {(2, 0), (2, 1), (1, 1), (0, 1), (0, 4), (0, 0)} <= output_values, output_values
         for toolbar in master_toolbars:
             if (350, "Saturation") in toolbar:
                 assert [text for x, text in toolbar if x == 350] == ["Saturation"], toolbar
@@ -69,7 +106,7 @@ button 7
         texts = reload_audit.read_text()
         for text in ("Master Saturation", "Saturate", "2.0 dB", "0.0 dB", "Soft Clip"):
             assert f"\t{text}\n" in texts, text
-    print("Master buttons, saturation reload and reset, and spectrum footprint passed.")
+    print("Master buttons, codec control edits and dividers, saturation reload and reset, and spectrum footprint passed.")
 
 
 if __name__ == "__main__":

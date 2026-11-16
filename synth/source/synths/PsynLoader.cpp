@@ -1953,13 +1953,15 @@ void PsynLoader::scanAndRegister(FileSystem& synthsFs,
             }
         }
 
-        // Keep the existing SideTracker project and patch IDs for these two engines.
+        // Reserve the SideTracker project and patch IDs for the corresponding engines.
         const bool reservedId =
           !isWaveDevice &&
           ((assignedId == static_cast<int>(InstrumentTypeId::kMiniSynth) &&
             std::strcmp(hdr.code_name, "MINI") != 0) ||
            (assignedId == static_cast<int>(InstrumentTypeId::kOberSynth) &&
-            std::strcmp(hdr.code_name, "OBER") != 0));
+            std::strcmp(hdr.code_name, "OBER") != 0) ||
+           (assignedId == static_cast<int>(InstrumentTypeId::kJ106Synth) &&
+            std::strcmp(hdr.code_name, "J106") != 0));
         if (assignedId <= 0 || alreadyUsedByPlugin || reservedId)
         {
             while (registry.getInstrumentType(nextDynamicId) != nullptr && nextDynamicId < 999)

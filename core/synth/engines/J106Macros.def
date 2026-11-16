@@ -1,0 +1,6 @@
+J106_MACRO(0, "Cutoff", Cutoff, 0.65f)
+J106_MACRO(1, "Resonance", Resonance, 0.55f)
+J106_MACRO(2, "Env Depth", FilterEnv, 0.45f)
+J106_MACRO(3, "PWM", Pwm, 0.65f)
+J106_MACRO(4, "Sub Level", SubLevel, 0.65f)
+J106_MACRO(5, "Release", Release, 0.30f)

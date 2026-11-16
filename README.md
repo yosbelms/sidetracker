@@ -2,7 +2,7 @@
 
 SideTracker is a fork of Polyend Tracker Community Edition (Tracker CE). [Upstream repository](https://github.com/polyend/tracker-ce)
 
-It adds a live Performance FX rack, Performance FX sequencing in patterns, and a redesigned Sample Editor with reusable effect chains. Tracker+ and Tracker Mini also gain the MINI and OBER synth engines.
+It adds a live Performance FX rack, Performance FX sequencing in patterns, and a redesigned Sample Editor with reusable effect chains. Tracker+ and Tracker Mini also gain the MINI, OBER, and J106 synth engines. J106 is a Juno-style polysynth with stereo chorus and 12 factory patches.
 
 ### Download SideTracker
 
@@ -92,9 +92,9 @@ From the repository root:
 make all
 
 # Or build a single target:
-make original   # -> build/PolyendTracker_ST_0.0.3.ptf
-make plus       # -> build/TrackerPlus_ST_0.0.3.ptf
-make mini       # -> build/TrackerMini_ST_0.0.3.ptf
+make original   # -> build/PolyendTracker_ST_0.0.7.ptf
+make plus       # -> build/TrackerPlus_ST_0.0.7.ptf
+make mini       # -> build/TrackerMini_ST_0.0.7.ptf
 
 # Build reference .ptfx Sample Editor effects:
 make ptfx
@@ -108,9 +108,13 @@ make clean
 
 Builds stage files for the SD card in `build/SD/`. Merge its `Effects/` and
 `Patches/` folders into the SD card root. Effects patches go in `Effects/Patches/`,
-and `make ptfx` stages the plugins directly in `Effects/`. MINI and OBER
-patches go in `Patches/MINI/` and `Patches/OBER/` when the donor sources
-described in the [Custom Synth SDK guide](docs/custom_synth_sdk.md) are available.
+and `make ptfx` stages the plugins directly in `Effects/`. For J106, copy
+`Synths/J106.psyn` and `Patches/J106/` from the release SD bundle to your card,
+then reboot. Select **J106** in **I. Params → Model** and press **Load** to
+browse the patches. [Synth guide](docs/custom_synth_sdk.md#j106).
+
+MINI and OBER patches go in `Patches/MINI/` and `Patches/OBER/` when their
+donor sources are available.
 
 Build the complete release ZIP with `make release-zip`. It contains the three model-specific firmware files and a fresh `SD/` folder. Copy the contents of `SD/` to your card, using the matching file from `SD/Firmware/` for your model. The ZIP is published as an asset on [GitHub Releases](https://github.com/yosbelms/sidetracker/releases).
 
@@ -130,7 +134,7 @@ make bump-minor TARGET=all        # or TARGET=original | TARGET=plus | TARGET=mi
 
 ### 4. Flashing on Hardware & Emergency Recovery
 
-1. Copy the matching file from `build/SD/Firmware/` to the `/Firmware/` folder on your Tracker's microSD card. Use `PolyendTracker_ST_0.0.3.ptf`, `TrackerPlus_ST_0.0.3.ptf`, or `TrackerMini_ST_0.0.3.ptf` for your model.
+1. Copy the matching file from `build/SD/Firmware/` to the `/Firmware/` folder on your Tracker's microSD card. Use `PolyendTracker_ST_0.0.7.ptf`, `TrackerPlus_ST_0.0.7.ptf`, or `TrackerMini_ST_0.0.7.ptf` for your model.
 2. On the device, open **Config > Firmware > Firmware update**, select the `.ptf` file, and confirm.
 
 > **Bootloader Resilience & Emergency Firmware Recovery**:
@@ -147,7 +151,7 @@ make bump-minor TARGET=all        # or TARGET=original | TARGET=plus | TARGET=mi
 ## SideTracker Desktop
 
 Run `make desktop` and launch `./build/desktop/sidetracker-desktop` to run SideTracker
-as Tracker+ with MINI, OBER, and CHIP. See the [desktop guide](platforms/desktop/README.md)
+as Tracker+ with MINI, OBER, J106, and CHIP. See the [desktop guide](platforms/desktop/README.md)
 for the controls, SD card setup, and headless check.
 
 Run `make host-test` for the sanitized core tests and `make perf-gate` for audio

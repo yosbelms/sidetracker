@@ -409,9 +409,9 @@ void cMasterParams::setMasterScreenFunct()
     ip->setButtonObj(interfaceButton2, buttonPress, functSwitchToReverbWindow);
     ip->setButtonObj(interfaceButton3, buttonPress, functSelectSaturation);
     ip->setButtonObj(interfaceButton4, buttonPress, functSwitchToLimiterScreen);
-    ip->setButtonObj(interfaceButton5, buttonPress, functSwitchToEqualizerScreen);
-    ip->setButtonObj(interfaceButton6, buttonPress, functSelectBassBoost);
-    ip->setButtonObj(interfaceButton7, buttonPress, functSelectStereoBoost);
+    ip->setButtonObj(interfaceButton0 + kSpaceColumn, buttonPress, functSelectStereoBoost);
+    ip->setButtonObj(interfaceButton0 + kBassBoostColumn, buttonPress, functSelectBassBoost);
+    ip->setButtonObj(interfaceButton0 + kEqColumn, buttonPress, functSwitchToEqualizerScreen);
     ip->setButtonObj(interfaceButtonMiniMiddle, functMiniMiddle);
 
     ip->setPotObj(interfacePot0, functEncoder);
@@ -624,8 +624,8 @@ static void functEncoder(int16_t value)
         switch (MP->selectedPlace)
         {
             case 0: changeVolume(value); break;
-            case 6: changeBassBoost(value); break;
-            case 7: changeStereoBoost(value); break;
+            case cMasterParams::kSpaceColumn: changeStereoBoost(value); break;
+            case cMasterParams::kBassBoostColumn: changeBassBoost(value); break;
             default: break;
         }
     }
@@ -683,8 +683,9 @@ static void functLeft()
     }
     else
     {
-        if (MP->selectedPlace == 6) MP->selectedPlace = 0;
-        else if (MP->selectedPlace == 7) MP->selectedPlace = 6;
+        if (MP->selectedPlace == cMasterParams::kSpaceColumn) MP->selectedPlace = 0;
+        else if (MP->selectedPlace == cMasterParams::kBassBoostColumn)
+            MP->selectedPlace = cMasterParams::kSpaceColumn;
         MP->activateLabelsBorder();
     }
 }
@@ -741,8 +742,9 @@ static void functRight()
     }
     else
     {
-        if (MP->selectedPlace == 0) MP->selectedPlace = 6;
-        else if (MP->selectedPlace == 6) MP->selectedPlace = 7;
+        if (MP->selectedPlace == 0) MP->selectedPlace = cMasterParams::kSpaceColumn;
+        else if (MP->selectedPlace == cMasterParams::kSpaceColumn)
+            MP->selectedPlace = cMasterParams::kBassBoostColumn;
         MP->activateLabelsBorder();
     }
 }
@@ -852,8 +854,8 @@ static void functUp()
         switch (MP->selectedPlace)
         {
             case 0: changeVolume(1); break;
-            case 6: changeBassBoost(1); break;
-            case 7: changeStereoBoost(1); break;
+            case cMasterParams::kSpaceColumn: changeStereoBoost(1); break;
+            case cMasterParams::kBassBoostColumn: changeBassBoost(1); break;
             default: break;
         }
     }
@@ -963,8 +965,8 @@ static void functDown()
         switch (MP->selectedPlace)
         {
             case 0: changeVolume(-1); break;
-            case 6: changeBassBoost(-1); break;
-            case 7: changeStereoBoost(-1); break;
+            case cMasterParams::kSpaceColumn: changeStereoBoost(-1); break;
+            case cMasterParams::kBassBoostColumn: changeBassBoost(-1); break;
             default: break;
         }
     }
@@ -1075,8 +1077,8 @@ static void functDelete()
         switch (MP->selectedPlace)
         {
             case 0: setDefaultMasterVolume(); break;
-            case 6: setDefaultBassBoost(); break;
-            case 7: setDefaultStereoBoost(); break;
+            case cMasterParams::kSpaceColumn: setDefaultStereoBoost(); break;
+            case cMasterParams::kBassBoostColumn: setDefaultBassBoost(); break;
             default: break;
         }
     }
@@ -1162,13 +1164,13 @@ static void functSaturationBack()
 
 static void functSelectBassBoost()
 {
-    MP->selectedPlace = 6;
+    MP->selectedPlace = cMasterParams::kBassBoostColumn;
     MP->activateLabelsBorder();
 }
 
 static void functSelectStereoBoost()
 {
-    MP->selectedPlace = 7;
+    MP->selectedPlace = cMasterParams::kSpaceColumn;
     MP->activateLabelsBorder();
 }
 

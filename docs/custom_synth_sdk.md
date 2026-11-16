@@ -13,6 +13,16 @@ are present. The release includes the converted patches, their GPL-3.0-only
 source data and licenses, and the conversion tools. The MINI and OBER DSP
 is independently implemented; the donor code is used only as a sound reference.
 
+### J106
+
+**J106** is a Juno-style synth with a shared saw, pulse and sub oscillator, a resonant four-pole low-pass filter, four high-pass settings, ADSR or gate amplification, and stereo Chorus I, II, and I+II. It supports up to six voices from Tracker's shared eight-voice pool. The LFO can follow project tempo. Use Tracker's sequencer, Delay and Reverb with J106.
+
+On **Tracker+ and Tracker Mini**, copy `SD/Synths/J106.psyn` and `SD/Patches/J106/` from the release bundle to the matching folders on your SD card, then reboot. In a synth slot, select **J106** under **I. Params → Model**, then press **Load**. The 12 factory patches include **Subway Bass**, **Wide Strings**, and **Tempo Pulse**.
+
+For local builds, `make psyn` stages the plugin and `make sd` stages the patches under `build/SD/`.
+
+J106 uses independent DSP, with [FM-106 1.02](https://github.com/PatttF/fm-106/tree/7129ecaf00f8303888896f614a7099bb64e35656) as a sound and control reference. To convert the supplied local factory bank, run `python3 tools/generate_j106_patches.py --fm106-bank temp/fm-106-1.02/tests/factory_presets.json`. The resulting patches are under `build/SD/Patches/J106/FM-106/`. The converter maps the synth voice and chorus controls. The release bundles the original J106 patches.
+
 ## Table of Contents
 
 1. [Architecture Overview (`PsynLoader` & `/Synths/*.psyn`)](#1-architecture-overview-psynloader--synthspsyn)

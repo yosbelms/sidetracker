@@ -87,6 +87,46 @@ button 7
             raise AssertionError(f"Missing {model} patches in browser: {sorted(missing)}")
 
 
+def check_j106(binary, card):
+    patch_name = "Wide Strings"
+    bundled_patch = binary.parent.parent / "SD" / "Patches" / "J106" / f"{patch_name}.patch"
+    if not bundled_patch.is_file():
+        raise AssertionError(f"Missing bundled J106 patch: {bundled_patch}")
+
+    folder = card / "Patches" / "J106"
+    folder.mkdir(parents=True)
+    shutil.copyfile(bundled_patch, folder / bundled_patch.name)
+    # The left four pads in each Patch Editor row select sections.
+    chord = """reset-audio-peak
+press pad 16
+press pad 19
+press pad 23
+wait 450
+assert-audio-peak 100
+release pad 16
+release pad 19
+release pad 23
+"""
+    frames = run(binary, card, "j106-playback", select_part(0) + """button 0
+button 0
+button 1
+encoder 3
+button 6
+button Down
+button 0
+button 7
+""" + chord + """button 0
+wait 12000
+""")
+    expected = {"J106", f"Edit Patch: {patch_name}", "Patch saved"}
+    if missing := expected - frames:
+        raise AssertionError(f"J106 did not load and save its bundled patch: {missing}")
+
+    frames = run(binary, card, "j106-reopen", select_part(0) + "button 7\n" + chord)
+    if f"Edit Patch: {patch_name}" not in frames:
+        raise AssertionError("J106 and its patch did not survive reopening the project")
+
+
 def check(binary, card):
     patches = card / "Patches" / "MINI"
     patches.mkdir(parents=True)
@@ -146,6 +186,7 @@ release pad 16
     bundled_card = card / "bundled"
     bundled_card.mkdir()
     check_bundled_patches(binary, bundled_card)
+    check_j106(binary, card / "j106")
 
 
 if __name__ == "__main__":

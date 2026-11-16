@@ -25,7 +25,7 @@ for the display or 3900 × 2790 with the panel. The firmware still lays out its
 UI in 800 × 480 coordinates and uses the original bitmap fonts.
 
 Hold **Instrument** and select one of the first three entries for MINI, OBER,
-or CHIP. Open **I. Params** to change the model, load a preset, or edit a patch.
+or CHIP. Open **I. Params → Model** to choose J106. Use **Load** to browse the 12 bundled J106 patches, or **Edit** to shape a patch.
 With both donor source folders under `temp/`, `make desktop` generates the full
 MINI and OBER presets as individual `.patch` files in
 `build/SD/Patches/`. The simulator opens them automatically.
@@ -64,8 +64,7 @@ make desktop-check
 
 The check captures Pattern, Config, and Song in `build/desktop` and exercises
 the Sample Editor Effects workflow. It also opens the Instrument picker, plays
-all three synths, and checks that a native patch can be saved and
-reloaded. A single capture can be made
+all four synths, and checks that native patches can be saved and reloaded. A single capture can be made
 with `--sd DIR --screenshot FILE.bmp --tap-button Config`. Add `--panel` for
 the full front panel.
 
@@ -78,7 +77,7 @@ are incomplete. Desktop audio uses the real CE mixer and sequencer with SDL
 stereo output. Physical line-in, radio, USB, MIDI ports, low-level SD sector
 access, and hardware firmware updates are unimplemented. Polyend supplies the
 six factory synth engines as ARM libraries, so the desktop model picker offers
-the native MINI, OBER, and CHIP engines. A project that uses a factory model
+the native MINI, OBER, J106, and CHIP engines. A project that uses a factory model
 loads the desktop default for that slot. Desktop saves synth patches in the
 Tracker `.patch` format under the synth's named folder.
 

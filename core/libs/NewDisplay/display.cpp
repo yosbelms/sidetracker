@@ -427,6 +427,13 @@ void cDisplay::bindFonts()
         API_BITMAP_LAYOUT(fonts[i].format, fonts[i].linestride, fonts[i].height);
         API_BITMAP_SIZE_H(0, 0);
         API_BITMAP_SIZE(NEAREST, BORDER, BORDER, fonts[i].width, fonts[i].height);
+#ifdef TRACKER_DESKTOP
+        // The simulator still renders CMD_TEXT and CMD_NUMBER from the font metrics.
+        displayList::put(CMD_SETFONT2);
+        displayList::put(fonts[i].handle);
+        displayList::put(fonts[i].address);
+        displayList::put(firstCharacter);
+#endif
     }
 
     showScreen();

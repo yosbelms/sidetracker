@@ -40,7 +40,7 @@ LDFLAGS       := -nostartfiles --specs=nano.specs \
 
 all: $(BUILD_DIR)/CHIP.psyn
 
-sidetracker: all $(BUILD_DIR)/MINI.psyn $(BUILD_DIR)/OBER.psyn
+sidetracker: all $(BUILD_DIR)/MINI.psyn $(BUILD_DIR)/OBER.psyn $(BUILD_DIR)/J106.psyn
 
 ANALOG_SRC := $(REPO_ROOT)/core/synth/engines
 ANALOG_SOURCES := $(ANALOG_SRC)/AnalogSynthVoice.cpp $(ANALOG_SRC)/AnalogVoice.cpp
@@ -60,6 +60,15 @@ $(BUILD_DIR)/OBER.psyn: $(BUILD_DIR)/OBER.elf $(SDK_DIR)/tools/psyn_builder.py $
 	$(PYTHON) $(SDK_DIR)/tools/psyn_builder.py --elf $< --out $@ \
 		--code-name OBER --display-name OBER --patch-folder OBER --type-id-play-tracker 10 \
 		--default-voices 4 --max-voices 4 --output-channels 1
+
+$(BUILD_DIR)/J106.elf: $(ANALOG_SRC)/J106Voice.cpp $(ANALOG_SRC)/J106Voice.h $(ANALOG_SRC)/J106Params.def $(ANALOG_SRC)/J106Macros.def $(ANALOG_HEADERS) $(SDK_DIR)/tools/psyn.ld $(SDK_DIR)/Makefile
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -fno-fast-math -DSIDETRACKER_PSYN_J106 $< $(LDFLAGS) -o $@
+
+$(BUILD_DIR)/J106.psyn: $(BUILD_DIR)/J106.elf $(SDK_DIR)/tools/psyn_builder.py $(SDK_DIR)/Makefile
+	$(PYTHON) $(SDK_DIR)/tools/psyn_builder.py --elf $< --out $@ \
+		--code-name J106 --display-name J106 --patch-folder J106 --type-id-play-tracker 64 \
+		--default-voices 4 --max-voices 6 --output-channels 2 --supports-idle-sleep 1
 
 $(BUILD_DIR)/CHIP.elf: $(SDK_DIR)/engines/chip.cpp $(SDK_DIR)/include/psyn/psyn_plugin.h $(SDK_DIR)/include/psyn/psyn_cpp_bridge.h $(SDK_DIR)/tools/psyn.ld
 	@mkdir -p $(BUILD_DIR)

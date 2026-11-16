@@ -70,12 +70,13 @@ endif
 
 
 
-# Keep the original model's UI within its 1 MiB flash budget.
+# Keep the original model within 1 MiB of flash without changing the audio DSP flags.
 ifeq ($(PLATFORM), MK66)
 ifndef DEBUG
-ORIGINAL_UI_OBJECTS := $(filter $(OBJ_DIR)/interface/%,$(OBJS_SORTED))
-$(ORIGINAL_UI_OBJECTS): COMPILER_OPTIONS += -Os
-$(ORIGINAL_UI_OBJECTS): makefile
+ORIGINAL_SIZE_PATHS := interface/% FileManager/% Exporter/% libs/NewDisplay/% libs/FT812/%
+ORIGINAL_SIZE_OBJECTS := $(filter $(addprefix $(OBJ_DIR)/,$(ORIGINAL_SIZE_PATHS)),$(OBJS_SORTED))
+$(ORIGINAL_SIZE_OBJECTS): COMPILER_OPTIONS += -Os
+$(ORIGINAL_SIZE_OBJECTS): makefile
 endif
 endif
 

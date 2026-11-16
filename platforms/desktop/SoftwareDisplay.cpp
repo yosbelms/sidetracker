@@ -414,7 +414,9 @@ void SoftwareDisplay::endCoProList()
                 auto& b = bitmaps.at(next());
                 b.metrics = next();
                 b.firstChar = next();
-                b.font = b.metrics <= ram.size() - 148;
+                b.font = b.metrics <= ram.size() - FT_GPU_FONT_TABLE_SIZE;
+                if (b.font)
+                    b.source = b.metrics + FT_GPU_FONT_TABLE_SIZE;
                 break;
             }
             case CMD_TEXT:

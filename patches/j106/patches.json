@@ -1,0 +1,61 @@
+{
+  "Wide Strings": {
+    "Saw": 1, "Pulse": 1, "Pwm": 0.28, "LfoRate": 0.34, "SubLevel": 0.13,
+    "Cutoff": 1720, "Resonance": 0.16, "FilterEnv": 0.48,
+    "Attack": 0.31, "Decay": 1.4, "Sustain": 0.85, "Release": 1.21, "Chorus": 2
+  },
+  "Glass Keys": {
+    "Saw": 0, "Pulse": 1, "PwmMode": 1, "Pwm": 0.28, "Sub": 0,
+    "Cutoff": 780, "Resonance": 0.59, "FilterEnv": 3.4, "Hpf": 2,
+    "Attack": 0.001, "Decay": 0.61, "Sustain": 0.06, "Release": 0.35, "Chorus": 1
+  },
+  "Subway Bass": {
+    "Range": 0, "Saw": 1, "Pulse": 0, "SubLevel": 0.55,
+    "Cutoff": 210, "Resonance": 0.33, "FilterEnv": 2.8,
+    "Attack": 0.002, "Decay": 0.3, "Sustain": 0.62, "Release": 0.075, "Chorus": 0
+  },
+  "Vibrato Lead": {
+    "Saw": 1, "Pulse": 0, "Sub": 0, "Cutoff": 2800, "Resonance": 0.46, "FilterEnv": 0.9,
+    "Attack": 0.021, "Sustain": 0.92, "Release": 0.22, "Chorus": 0,
+    "LfoRate": 5.2, "PitchLfo": 0.24, "LfoDelay": 0.25
+  },
+  "Copper Brass": {
+    "Saw": 1, "Pulse": 1, "PwmMode": 1, "Pwm": 0.21, "SubLevel": 0.16,
+    "Cutoff": 420, "Resonance": 0.24, "FilterEnv": 3.2,
+    "Attack": 0.10, "Decay": 0.52, "Sustain": 0.73, "Release": 0.36, "Chorus": 1
+  },
+  "Rotary Organ": {
+    "Saw": 0, "Pulse": 1, "SubLevel": 0.68, "PwmMode": 1, "Pwm": 0.09,
+    "Cutoff": 2650, "Resonance": 0.05, "FilterEnv": 0, "Vca": 1, "Chorus": 3
+  },
+  "Soft Reed": {
+    "Saw": 0, "Pulse": 1, "PwmMode": 1, "Pwm": 0.53, "Sub": 0,
+    "Cutoff": 1000, "Resonance": 0.23, "FilterEnv": 1.2, "Hpf": 2,
+    "Attack": 0.06, "Sustain": 0.78, "Release": 0.28, "Chorus": 0
+  },
+  "Tempo Pulse": {
+    "Saw": 0, "Pulse": 1, "Pwm": 0.72, "SubLevel": 0.25,
+    "Cutoff": 660, "Resonance": 0.54, "FilterEnv": 1.8, "FilterLfo": 1.35,
+    "LfoSync": 5, "Attack": 0.03, "Decay": 0.55, "Sustain": 0.77, "Chorus": 2
+  },
+  "Air Sweep": {
+    "Saw": 0, "Pulse": 0, "Sub": 0, "Noise": 0.82, "Cutoff": 390,
+    "Resonance": 0.78, "FilterEnv": 4.4, "FilterLfo": 0.83, "LfoRate": 0.23,
+    "Attack": 1.24, "Decay": 2.75, "Sustain": 0.43, "Release": 2.03, "Chorus": 2
+  },
+  "Resonant Drop": {
+    "Saw": 1, "Pulse": 0, "Sub": 0, "Range": 0, "Cutoff": 4600, "Resonance": 0.86,
+    "FilterEnv": -3.7, "KeyTrack": 0.83, "Attack": 0.003,
+    "Decay": 0.44, "Sustain": 0.17, "Release": 0.35, "Chorus": 0
+  },
+  "Noise Brush": {
+    "Saw": 0, "Pulse": 0, "Sub": 0, "Noise": 1, "Hpf": 3,
+    "Cutoff": 4400, "Resonance": 0.12, "FilterEnv": 1.4, "Attack": 0.004,
+    "Decay": 0.11, "Sustain": 0.01, "Release": 0.08, "Chorus": 0
+  },
+  "Evening Pad": {
+    "Saw": 1, "Pulse": 1, "SubLevel": 0.25, "Noise": 0.06, "Pwm": 0.58,
+    "Cutoff": 580, "Resonance": 0.29, "FilterEnv": 1.9, "FilterLfo": 0.15,
+    "LfoSync": 2, "Attack": 0.69, "Decay": 2.1, "Sustain": 0.81, "Release": 2.4, "Chorus": 1
+  }
+}

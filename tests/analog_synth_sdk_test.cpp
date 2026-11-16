@@ -1,4 +1,5 @@
 #include "AnalogSynthVoice.h"
+#include "J106Voice.h"
 #include "PolySynth/MidiEvent.h"
 #include "PolySynth/sdk/InstrumentVoice.h"
 
@@ -6,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 
 namespace
 {
@@ -144,4 +146,76 @@ TEST(AnalogSynthSDK, ListsAndLoadsBuiltInPatches)
     };
     check(*createMiniSynth(), InstrumentTypeId::kMiniSynth, "Ladder Bass", 270.0f);
     check(*createOberSynth(), InstrumentTypeId::kOberSynth, "Pulse Glass", 1420.0f);
+}
+
+TEST(J106SynthSDK, ChorusWidensTheVoiceAndDryOutputRemainsCentered)
+{
+    const auto j106 = createJ106Synth();
+    TestPatch wide(*j106);
+    EXPECT_EQ(j106->name, "J106");
+    EXPECT_EQ(wide.getMetadata().instrumentTypeId, static_cast<int>(InstrumentTypeId::kJ106Synth));
+    EXPECT_EQ(wide.getMetadata().maxVoices, 6);
+    EXPECT_EQ(wide.getMetadata().outputChannels, Patch::Metadata::OutputChannels::kStereo);
+    ASSERT_GE(wide.id("Chorus"), 0);
+
+    TestPatch dry(*j106);
+    dry.setParamValue(dry.id("Chorus"), 0.f, Patch::ParamChangeSource::kPatchAssign);
+    auto chorus = j106->createVoice(0);
+    auto center = j106->createVoice(0);
+    assign(*chorus, wide);
+    assign(*center, dry);
+    note(*chorus, 60);
+    note(*center, 60);
+
+    float wideDifference = 0.f;
+    float dryPeak = 0.f;
+    for (unsigned i = 0; i < 48; ++i)
+    {
+        Block left{}, right{};
+        AudioBufferStereoRef output{left, right};
+        chorus->renderVoiceAudio({120.f}, std::nullopt, output, {});
+        chorus->renderPostProcessAudio({120.f}, output);
+        for (size_t frame = 0; frame < left.size(); ++frame)
+            wideDifference += std::abs(left[frame] - right[frame]);
+
+        center->renderVoiceAudio({120.f}, std::nullopt, output, {});
+        center->renderPostProcessAudio({120.f}, output);
+        ASSERT_EQ(left, right);
+        for (auto value : left)
+            dryPeak = std::max(dryPeak, std::abs(value));
+    }
+    EXPECT_GT(wideDifference, 0.1f);
+    EXPECT_GT(dryPeak, 0.02f);
+}
+
+TEST(J106SynthSDK, FilterStaysBoundedAndVoicesReleaseIndependently)
+{
+    const auto j106 = createJ106Synth();
+    TestPatch patch(*j106);
+    patch.setParamValue(patch.id("Resonance"), 1.f, Patch::ParamChangeSource::kPatchAssign);
+    patch.setParamValue(patch.id("Release"), 0.02f, Patch::ParamChangeSource::kPatchAssign);
+    auto first = j106->createVoice(0);
+    auto second = j106->createVoice(1);
+    assign(*first, patch);
+    assign(*second, patch);
+    note(*first, 60);
+    note(*second, 67);
+    float peak = 0.f;
+    for (int i = 0; i < 192; ++i)
+    {
+        first->onParamChange(patch.id("Cutoff"), 20.f + (i % 16) * 1000.f);
+        for (float sample : block(*first))
+        {
+            ASSERT_TRUE(std::isfinite(sample));
+            peak = std::max(peak, std::abs(sample));
+        }
+    }
+    EXPECT_GT(peak, 0.02f);
+    EXPECT_LT(peak, 1.f);
+    note(*first, 60, false);
+    for (int i = 0; i < 40; ++i)
+        block(*first);
+    EXPECT_FALSE(first->isActive());
+    EXPECT_TRUE(second->handlesNote(67));
+    EXPECT_TRUE(second->isActive());
 }

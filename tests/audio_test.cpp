@@ -201,12 +201,12 @@ TEST_F(AudioGraphTest, SharedAndPrivateFilterPathsHaveIdenticalAudioAcrossContro
             random = random * 1664525u + 1013904223u;
             sample = int16_t(int(random % 12000) - 6000);
         }
-        graph->render(input);
-        const Samples expected = graph->delay.samples;
+        // An update with no input advances a filter through a block of silence.
+        ASSERT_TRUE(graph->source.push(input));
         ASSERT_TRUE(shared.source.push(input));
         AudioStream::update_all();
         EXPECT_EQ(shared.original.samples, input) << block;
-        EXPECT_EQ(shared.filtered.samples, expected) << block;
+        EXPECT_EQ(shared.filtered.samples, graph->delay.samples) << block;
         EXPECT_EQ(AudioMemoryUsage(), 0) << block;
     }
 }

@@ -930,9 +930,10 @@ bool PatchImpl::deserialize(Patch& patch,
     const int engineId = patch.getMetadata().instrumentTypeId;
     const size_t currentParamCount = patch.getMetadata().params.size();
     const auto* engine = findRegisteredSynthEngine(engineId);
-    const bool sideTrackerAnalog = engine != nullptr &&
-      (std::strcmp(engine->codeName, "MINI") == 0 || std::strcmp(engine->codeName, "OBER") == 0);
-    if (sideTrackerAnalog)
+    const bool sideTrackerEngine = engine != nullptr &&
+      (std::strcmp(engine->codeName, "MINI") == 0 || std::strcmp(engine->codeName, "OBER") == 0 ||
+       std::strcmp(engine->codeName, "J106") == 0);
+    if (sideTrackerEngine)
     {
         if (patchData.instrumentTypeId != engineId || patchData.params_count > currentParamCount)
             return false;

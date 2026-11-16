@@ -190,18 +190,18 @@ def display_name(name):
     return name
 
 
-def write_patches(folder, engine, schema, presets):
+def write_patches(folder, engine, schema, presets, *, macros=None):
     ids = {key: i for i, (key, _, _, _) in enumerate(schema)}
-    macros = (
-        ("Cutoff", "Cutoff", 0.65),
-        ("Resonance", "Resonance", 0.65),
-        ("Drive", "Drive", 0.60),
-        ("Filter Env", "ContourAmount", 0.55),
-        ("Osc 3 Mix", "Level3", 0.65) if folder.name == "MINI" else ("PWM", "PWM", 0.65),
-        ("Release", "AmpRelease", 0.15),
-        ("Velocity", None, 0),
-        ("Pressure", None, 0),
-    )
+    if macros is None:
+        macros = (
+            ("Cutoff", "Cutoff", 0.65),
+            ("Resonance", "Resonance", 0.65),
+            ("Drive", "Drive", 0.60),
+            ("Filter Env", "ContourAmount", 0.55),
+            ("Osc 3 Mix", "Level3", 0.65) if folder.name == "MINI" else ("PWM", "PWM", 0.65),
+            ("Release", "AmpRelease", 0.15),
+        )
+    macros = (*macros, ("Velocity", None, 0), ("Pressure", None, 0))
     macro_messages = bytearray()
     for label, key, amount in macros:
         payload = message(1, label.encode("ascii"))

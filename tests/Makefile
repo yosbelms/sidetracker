@@ -31,7 +31,7 @@ CORE_SOURCES := $(addprefix libs/Audio/,AudioStream.cpp filter_variable.cpp ampl
     mtEffectBitcrusher.cpp mtEffectFadeIn.cpp mtEffectFadeOut.cpp mtEffectCompresor.cpp \
     mtEffectLimiter.cpp mtEffectOverdrive.cpp)
 CORE_SOURCES += $(patsubst $(CORE)/%,%,$(shell find $(CORE)/effector/stpalette -name '*.cpp'))
-CORE_SOURCES += synth/engines/AnalogVoice.cpp synth/engines/AnalogSynthVoice.cpp
+CORE_SOURCES += $(addprefix synth/engines/,AnalogVoice.cpp AnalogSynthVoice.cpp J106Voice.cpp)
 CORE_OBJECTS := $(addprefix $(OUT)/core/,$(CORE_SOURCES:.cpp=.o))
 TEST_SOURCES := $(wildcard *_test.cpp)
 TEST_BINS := $(patsubst %.cpp,$(OUT)/%,$(TEST_SOURCES))
@@ -121,7 +121,7 @@ perf-gate: $(BENCH_OUT)/audio_bench
 
 CPPFLAGS += -I$(CORE)/effector/stpalette/vendor/clouds
 CPPFLAGS += -I$(CORE)/synth/engines
-$(OUT)/core/synth/engines/AnalogSynthVoice.o $(OUT)/analog_synth_sdk_test.o: CPPFLAGS += -I$(ROOT)/synth/include -DFEATURE_SYNTH -DFMT_HEADER_ONLY -include analog_synth_host_compat.h
+$(OUT)/core/synth/engines/AnalogSynthVoice.o $(OUT)/core/synth/engines/J106Voice.o $(OUT)/analog_synth_sdk_test.o: CPPFLAGS += -I$(ROOT)/synth/include -DFEATURE_SYNTH -DFMT_HEADER_ONLY -include analog_synth_host_compat.h
 
 STPALETTE_SOURCES := $(shell find $(CORE)/effector/stpalette -name '*.cpp')
 STPALETTE_HEADERS := $(shell find $(CORE)/effector/stpalette -name '*.h')

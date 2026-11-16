@@ -1395,8 +1395,10 @@ bool Synth::loadPatchByPath(int part, const std::string& fullSdPath)
     bool compatible = false;
     if (activePlugin != nullptr)
     {
-        const bool sideTrackerAnalog = activePlugin->codeName == "MINI" || activePlugin->codeName == "OBER";
-        if (sideTrackerAnalog)
+        const bool sideTrackerEngine = activePlugin->codeName == "MINI" ||
+                                      activePlugin->codeName == "OBER" ||
+                                      activePlugin->codeName == "J106";
+        if (sideTrackerEngine)
         {
             // These patches use the existing Tracker IDs; a Wave ID alone is ambiguous.
             compatible = wireInfo.rawTypeId == activePlugin->playTrackerTypeId &&
@@ -1506,7 +1508,8 @@ std::string Synth::describePatchFile(int part, const std::string& fullSdPath)
 
     for (const auto& info : pluginTypes)
     {
-        const bool sideTrackerAnalog = info.codeName == "MINI" || info.codeName == "OBER";
+        const bool sideTrackerEngine = info.codeName == "MINI" || info.codeName == "OBER" ||
+                                      info.codeName == "J106";
         const bool trackerIdMatches = *info.trackerTypeId == wireInfo.rawTypeId ||
                                       info.playTrackerTypeId == wireInfo.rawTypeId;
         const bool idMatches = trackerIdMatches ||
@@ -1515,7 +1518,7 @@ std::string Synth::describePatchFile(int part, const std::string& fullSdPath)
           info.paramCount > 0 && info.paramCount == wireInfo.paramCount;
         const bool baseCountMatches =
           info.baseParamCount > 0 && info.baseParamCount == wireInfo.paramCount;
-        if (sideTrackerAnalog ? !trackerIdMatches || wireInfo.paramCount > info.paramCount
+        if (sideTrackerEngine ? !trackerIdMatches || wireInfo.paramCount > info.paramCount
                              : !idMatches && !exactCountMatches && !baseCountMatches)
         {
             continue;

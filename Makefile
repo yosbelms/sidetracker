@@ -45,10 +45,11 @@ psyn:
 	$(MAKE) -C "$(ROOT_DIR)/synth-plugin-sdk" sidetracker TOOLCHAIN="$(TOOLCHAIN)"
 	@mkdir -p "$(SD_DIR)/Synths"
 	@cp "$(SYNTH_DIR)"/prebuilt/*.psyn "$(SD_DIR)/Synths/"
-	@cp $(addprefix "$(ROOT_DIR)"/synth-plugin-sdk/build/,$(addsuffix .psyn,CHIP MINI OBER)) "$(SD_DIR)/Synths/"
+	@cp $(addprefix "$(ROOT_DIR)"/synth-plugin-sdk/build/,$(addsuffix .psyn,CHIP MINI OBER J106)) "$(SD_DIR)/Synths/"
 
 sd:
 	python3 "$(ROOT_DIR)/tools/generate_stpalette_patches.py" --sd "$(SD_DIR)"
+	python3 "$(ROOT_DIR)/tools/generate_j106_patches.py" --sd "$(SD_DIR)"
 ifeq ($(words $(wildcard $(SYNTH_PATCH_INPUTS))),$(words $(SYNTH_PATCH_INPUTS)))
 	python3 "$(ROOT_DIR)/tools/port_analog_synth_presets.py" \
 		--fmini "$(MINI_DONOR)" --ober "$(OBER_DONOR)" --output "$(SYNTH_PATCH_DIR)" --sd "$(SD_DIR)"
@@ -165,7 +166,8 @@ release-zip:
 		cmp "$$stage/$(ORIGINAL_PTF)" "$$stage/SD/Firmware/$(ORIGINAL_PTF)"; \
 		cmp "$$stage/$(PLUS_PTF)" "$$stage/SD/Firmware/$(PLUS_PTF)"; \
 		cmp "$$stage/$(MINI_PTF)" "$$stage/SD/Firmware/$(MINI_PTF)"; \
-		for engine in CHIP MINI OBER; do test -s "$$stage/SD/Synths/$$engine.psyn"; done; \
+		for engine in CHIP MINI OBER J106; do test -s "$$stage/SD/Synths/$$engine.psyn"; done; \
+		test -s "$$stage/SD/Patches/J106/Wide Strings.patch"; \
 		mkdir "$$stage/Licenses"; \
 		cp "$(ROOT_DIR)/LICENSE" "$(ROOT_DIR)/NOTICE.md" "$(SYNTH_DIR)/prebuilt/LICENSE-PROPRIETARY.txt" "$$stage/Licenses/"; \
 		test -s "$$stage/SideTrackerAnalogPresets.zip"; \

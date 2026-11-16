@@ -45,7 +45,11 @@ class cMasterParams : public ModuleBase
 
     void changeSelectionInGroup(int16_t value, uint8_t groupNum);
     void shiftHandler();
-    // master
+    // Master 1/3 output controls follow the codec DSP order.
+    static constexpr uint8_t kSpaceColumn = 5;
+    static constexpr uint8_t kBassBoostColumn = 6;
+    static constexpr uint8_t kEqColumn = 7;
+
     void showVolume();
     void showFinalOutputLevel();
     void showBassBoost();

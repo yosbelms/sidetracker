@@ -1,6 +1,7 @@
 #include "DesktopPatch.h"
 #include "engines/AnalogSynthVoice.h"
 #include "engines/ChiptuneSynthVoice.h"
+#include "engines/J106Voice.h"
 
 #include "PolySynth/FileSystem.h"
 #include "PolySynth/Grid.h"
@@ -58,6 +59,7 @@ class DesktopInstrument final : public Instrument
         patch = std::static_pointer_cast<DesktopPatch>(std::move(newPatch));
         for (auto& slot : voices) slot = {};
         voiceCount = 0;
+        postProcessBlocks = 0;
         resizeVoices();
     }
 
@@ -90,21 +92,29 @@ class DesktopInstrument final : public Instrument
             applyParams(slot);
         }
         noteOrder = 0;
+        postProcessBlocks = 0;
     }
 
     bool isIdle() const
     {
-        return std::ranges::none_of(std::span(voices).first(voiceCount),
+        if (voiceCount == 0) return true;
+        const auto sleepParam = patch->getMetadata().voiceSleepParamId;
+        if (sleepParam >= 0 && patch->getParamValue(sleepParam).value_or(1.f) == 0.f)
+            return false;
+        return postProcessBlocks == 0 &&
+               std::ranges::none_of(std::span(voices).first(voiceCount),
                                     [](const Slot& slot) { return slot.voice->isActive(); });
     }
 
     void render(AudioBufferStereoRef output, std::span<AudioBufferRef> aux)
     {
         const bool stereo = patch->getMetadata().outputChannels == Patch::Metadata::OutputChannels::kStereo;
+        bool renderedVoice = false;
         for (auto& slot : activeSlots())
         {
             auto& voice = *slot.voice;
             if (!voice.isActive()) continue;
+            renderedVoice = true;
             applyParams(slot);
             MonoBuffer left{}, right{};
             voice.renderVoiceAudio(context, std::nullopt, {left, right}, aux);
@@ -114,7 +124,17 @@ class DesktopInstrument final : public Instrument
                 output[1][i] += stereo ? right[i] : left[i];
             }
         }
-        if (voiceCount) voices[0].voice->renderPostProcessAudio(context, output);
+        if (voiceCount && voices[0].voice->hasPostProcess())
+        {
+            if (renderedVoice)
+                postProcessBlocks = kPostProcessTailBlocks;
+            else if (postProcessBlocks > 0)
+                --postProcessBlocks;
+            else
+                return;
+            applyParams(voices[0]);
+            voices[0].voice->renderPostProcessAudio(context, output);
+        }
     }
 
   private:
@@ -143,6 +163,8 @@ class DesktopInstrument final : public Instrument
             applyParams(slot);
         }
         voiceCount = count;
+        if (count == 0)
+            postProcessBlocks = 0;
     }
 
     void applyParams(Slot& slot)
@@ -306,6 +328,8 @@ class DesktopInstrument final : public Instrument
     std::shared_ptr<DesktopPatch> patch;
     std::shared_ptr<MidiSource::MidiEventCallback> callback;
     std::array<Slot, 8> voices;
+    static constexpr unsigned kPostProcessTailBlocks = 16;
+    unsigned postProcessBlocks = 0;
     uint64_t noteOrder = 0;
     int voiceCount = 0;
     int requestedVoices = 0;
@@ -325,6 +349,7 @@ class DesktopSynth final : public Synth
         registry.addInstrumentType(*InstrumentTypeId::kChiptuneSynth, createChiptuneSynth());
         registry.addInstrumentType(*InstrumentTypeId::kMiniSynth, createMiniSynth());
         registry.addInstrumentType(*InstrumentTypeId::kOberSynth, createOberSynth());
+        registry.addInstrumentType(*InstrumentTypeId::kJ106Synth, createJ106Synth());
     }
 
     std::unique_ptr<PatchStore> createPatchStore(FileSystemId id, bool typeFolders) override

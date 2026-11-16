@@ -32,6 +32,38 @@ def waveform_center(path: Path):
         for y in range(170 * scale, 270 * scale))
 
 
+
+def check_chain_text_pixels(path: Path):
+    """Check the visible glyphs as well as the display command audit."""
+    data = path.read_bytes()
+    offset, = struct.unpack_from("<I", data, 10)
+    width, height = struct.unpack_from("<ii", data, 18)
+    depth, = struct.unpack_from("<H", data, 28)
+    pixel_bytes = depth // 8
+    stride = (width * pixel_bytes + 3) & ~3
+
+    # Scale 1 and the default theme. Keep each box inside the label area and
+    # clear of outlines, separators, and other light pixels.
+    labels = (
+        ("title", 8, 4, 215, 25),
+        ("Effects", 118, 36, 183, 54),
+        ("Chain", 368, 36, 432, 54),
+        ("Parameter", 555, 36, 644, 54),
+        ("Value", 722, 36, 780, 54),
+        ("parameter value", 717, 453, 784, 473),
+    )
+    for label, x0, y0, x1, y1 in labels:
+        bright = 0
+        for y in range(y0, y1):
+            row = height - y - 1 if height > 0 else y
+            start = offset + row * stride
+            for x in range(x0, x1):
+                pixel = start + x * pixel_bytes
+                bright += min(data[pixel:pixel + 3]) >= 100
+        if bright < 24:
+            raise AssertionError(f"Missing rendered text for {label} in {path.name}")
+
+
 def check_chain_frames(path: Path):
     frames = []
     for line in path.read_text().splitlines():
@@ -769,6 +801,7 @@ assert-chain closed
         if result.returncode:
             raise RuntimeError(result.stdout + result.stderr)
         check_chain_frames(output / "sample-fx-frames.tsv")
+        check_chain_text_pixels(output / "sample-fx-columns.bmp")
         instruments = card / "Workspace/instruments"
         for index, expected in [(1, original), (2, processed), (3, processed)]:
             actual = (instruments / f"instrument_{index:02d}.pti").read_bytes()

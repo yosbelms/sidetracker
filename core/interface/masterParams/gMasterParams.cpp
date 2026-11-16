@@ -24,7 +24,8 @@ constexpr int kMasterBarHeight = 394;
 constexpr int kMasterHeadingTop = 38;
 constexpr int kMasterHeadingHeight = 24;
 constexpr int kOutputBarTop = 64;
-constexpr int kCodecDividerX = 800 / 8 * 5; // Between Limiter and EQ.
+constexpr int kMasterColumnWidth = 800 / 8;
+constexpr int kCodecDividerX = kMasterColumnWidth * cMasterParams::kSpaceColumn;
 constexpr int kCodecDividerWidth = 2;
 // cBar's fill area has a 10 px top inset and a 15 px bottom inset.
 constexpr int kMasterFaderBottom = kMasterBarTop + kMasterBarHeight - 15;
@@ -267,18 +268,19 @@ void cMasterParams::initDisplayControls()
     prop2.h = 394;
     blankSpaceCover[0] = display.createControl<cLabel>(&prop2);
 
-    prop2.value = 0;
-    prop2.data = nullptr;
-    prop2.text = nullptr;
-    prop2.colors = display.getTheme().blankSpaceCoverLabelColors;
-    prop2.style = controlStyleBackground |
-                  (display.getTheme().bottomScreenShadow > 0 ? controlStyleBottomShadow : 0);
-    prop2.x = (800 / 8) * 4 + 2;
-    prop2.w = (800 / 8) * 1 - 4;
-    prop2.y = 64;
-    prop2.h = 359;
+    // Share the Out heading background. Below it, the Space and Bass Boost
+    // bars and the EQ cover leave the same gutters as the recorder bars.
+    prop2.style = controlStyleBackground;
+    prop2.x = kCodecDividerX + kCodecDividerWidth;
+    prop2.w = 800 - prop2.x - 1;
+    prop2.y = kMasterBarTop;
+    prop2.h = kOutputBarTop - kMasterBarTop - 1;
     blankSpaceCover[1] = display.createControl<cLabel>(&prop2);
-    prop2.x = (800 / 8) * 5 + 2;
+
+    prop2.x = kMasterColumnWidth * kEqColumn + 2;
+    prop2.w = kMasterColumnWidth - 3;
+    prop2.y = kOutputBarTop;
+    prop2.h = kMasterBarTop + kMasterBarHeight - kOutputBarTop;
     blankSpaceCover[2] = display.createControl<cLabel>(&prop2);
 
     pingpongEnableData.linesCount = 2;
@@ -397,11 +399,10 @@ void cMasterParams::showMasterScreen()
     display.setControlText2(label[3], "");
     display.setControlText(label[4], "Limiter");
     display.setControlText2(label[4], "");
-    display.setControlText(label[5], "EQ");
-    display.setControlText2(label[5], "");
-    display.setControlText(label[6], "Bass Boost");
-    display.setControlText(label[7], "Space");
-    display.setControlText2(label[7], " ");
+    display.setControlText(label[kSpaceColumn], "Space");
+    display.setControlText(label[kBassBoostColumn], "Bass Boost");
+    display.setControlText(label[kEqColumn], "EQ");
+    display.setControlText2(label[kEqColumn], "");
 
     resizeToDefaultMaster();
 
@@ -413,7 +414,7 @@ void cMasterParams::showMasterScreen()
         display.setControlShow(label[i]);
         display.refreshControl(label[i]);
 
-        if ((i == 0) || (i == 6) || (i == 7))
+        if (i == 0 || i == kSpaceColumn || i == kBassBoostColumn)
         {
             display.setControlShow(barControl[i]);
         }
@@ -428,7 +429,7 @@ void cMasterParams::showMasterScreen()
     display.setControlValue(label[2], 0);
     display.setControlValue(label[3], 0);
     display.setControlValue(label[4], 0);
-    display.setControlValue(label[5], 0);
+    display.setControlValue(label[kEqColumn], 0);
 
     display.refreshControl(bgLabel);
     display.setControlValue(bgLabel, 255);
@@ -451,7 +452,7 @@ void cMasterParams::showMasterScreen()
     activateLabelsBorder();
 
     resizeBarControl(displayMode::masterValues);
-    for (unsigned i : {6u, 7u})
+    for (const auto i : {kSpaceColumn, kBassBoostColumn})
     {
         display.setControlPosition(barControl[i], -1, kOutputBarTop);
         display.setControlSize(barControl[i], -1, kMasterBarTop + kMasterBarHeight - kOutputBarTop);
@@ -471,14 +472,11 @@ void cMasterParams::showMasterScreen()
     display.setControlShow(blankSpaceCover[0]);
     display.refreshControl(blankSpaceCover[0]);
 
-    display.setControlPosition(blankSpaceCover[1], kCodecDividerX + kCodecDividerWidth, kMasterBarTop);
-    // The full Out panel shares one flat background above the faders.
-    display.setControlSize(blankSpaceCover[1], 800 - kCodecDividerX - kCodecDividerWidth - 1,
-                           kMasterBarHeight);
-    display.setControlStyle(blankSpaceCover[1], controlStyleBackground);
-    display.setControlShow(blankSpaceCover[1]);
-    display.refreshControl(blankSpaceCover[1]);
-    display.setControlHide(blankSpaceCover[2]);
+    for (unsigned i : {1u, 2u})
+    {
+        display.setControlShow(blankSpaceCover[i]);
+        display.refreshControl(blankSpaceCover[i]);
+    }
 
     showSpectrum(displayType == displayMode::masterValues && !isDelayScreen && !isReverbScreen &&
                  !isLimiterScreen && !isEqualizerScreen && !isSaturationScreen);
@@ -1427,11 +1425,11 @@ void cMasterParams::showBassBoost()
 {
     sprintf(bassBoostVal, "%d", mtProject.values.bassBoost);
 
-    display.setControlValue(barControl[6], mtProject.values.bassBoost);
-    display.refreshControl(barControl[6]);
+    display.setControlValue(barControl[kBassBoostColumn], mtProject.values.bassBoost);
+    display.refreshControl(barControl[kBassBoostColumn]);
 
-    display.setControlText2(label[6], bassBoostVal);
-    display.refreshControl(label[6]);
+    display.setControlText2(label[kBassBoostColumn], bassBoostVal);
+    display.refreshControl(label[kBassBoostColumn]);
 }
 
 void cMasterParams::showStereoBoost()
@@ -1440,11 +1438,11 @@ void cMasterParams::showStereoBoost()
 
     sprintf(stereoBoostVal, "%d", mtProject.values.stereoBoost);
 
-    display.setControlValue(barControl[7], barValue);
-    display.refreshControl(barControl[7]);
+    display.setControlValue(barControl[kSpaceColumn], barValue);
+    display.refreshControl(barControl[kSpaceColumn]);
 
-    display.setControlText2(label[7], stereoBoostVal);
-    display.refreshControl(label[7]);
+    display.setControlText2(label[kSpaceColumn], stereoBoostVal);
+    display.refreshControl(label[kSpaceColumn]);
 }
 
 // delay

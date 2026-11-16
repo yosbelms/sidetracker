@@ -16,7 +16,7 @@ Welcome to the official documentation for **Polyend Tracker Community Edition (C
   * Software and codec effects, master and stem capture points, and USB audio.
 * **[Sample Editor, ST effects, and patches](sample_editor.md)**
   * Waveform tools, effect chains, and installing the showcase pack.
-* **[MINI and OBER synths and patches](custom_synth_sdk.md)**
+* **[MINI, OBER, and J106 synths and patches](custom_synth_sdk.md)**
   * Select the SideTracker synths and install their SD patch packs.
 * **[Custom Themes & Fonts (`docs/custom_themes_and_fonts.md`)](custom_themes_and_fonts.md)**
   * How to install and create custom JSON color themes (`/Themes/*.json`) and custom antialiased bitmap fonts (`/Fonts/*.ptfont`) using the [Web Theme & Font Editor](https://polyend.github.io/tracker-theme-editor/) ([`polyend/tracker-theme-editor`](https://github.com/polyend/tracker-theme-editor)), plus full color key reference tables.
