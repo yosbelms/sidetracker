@@ -928,19 +928,23 @@ bool PatchImpl::deserialize(Patch& patch,
                             bool loadSampleSlots)
 {
     const int engineId = patch.getMetadata().instrumentTypeId;
+    const size_t currentParamCount = patch.getMetadata().params.size();
     const auto* engine = findRegisteredSynthEngine(engineId);
     const bool sideTrackerAnalog = engine != nullptr &&
       (std::strcmp(engine->codeName, "MINI") == 0 || std::strcmp(engine->codeName, "OBER") == 0);
     if (sideTrackerAnalog)
     {
-        if (patchData.instrumentTypeId != engineId ||
-            patchData.params_count > patch.getMetadata().params.size())
+        if (patchData.instrumentTypeId != engineId || patchData.params_count > currentParamCount)
             return false;
     }
-    else if (!areCompatibleInstrumentTypes(engineId, patchData.instrumentTypeId) &&
-             patchData.params_count != patch.getMetadata().params.size())
+    else
     {
-        return false;
+        const bool matchesInjectedVoiceSleepCount =
+          patch.getMetadata().voiceSleepParamId >= 0 && currentParamCount > 0 &&
+          patchData.params_count == currentParamCount - 1;
+        if (!areCompatibleInstrumentTypes(engineId, patchData.instrumentTypeId) &&
+            patchData.params_count != currentParamCount && !matchesInjectedVoiceSleepCount)
+            return false;
     }
 
     const auto paramCount = std::min(static_cast<int>(patch.getMetadata().params.size()),

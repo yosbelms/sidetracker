@@ -26,50 +26,76 @@
 
 #include "monoToStereo.h"
 #include "dspApplyGain.h"
+#include "dspApplyGainCopy.h"
 
 AUDIO_CORE_FLASH void MonoToStereo::update(void)
 {
+    audio_block_t* in = receiveReadOnly(0);
+
+    if (in == nullptr)
+    {
+#ifdef AUDIO_NULL_IS_SILENCE
+        for (int channel = 0; channel < Channel::channelCount; channel++)
+        {
+            previous_multiplier[channel] = multiplier[channel];
+        }
+#endif
+        return;
+    }
+
     if (multiplier[Channel::left] == multiplier[Channel::right] &&
         previous_multiplier[Channel::left] == previous_multiplier[Channel::right])
     {
-        const bool unityGain = multiplier[Channel::left] == MULTI_UNITYGAIN &&
-                               previous_multiplier[Channel::left] == MULTI_UNITYGAIN;
-        audio_block_t* shared = unityGain ? receiveReadOnly(0) : receiveWritable(0);
-        if (shared == nullptr)
+        const bool unity = multiplier[Channel::left] == MULTI_UNITYGAIN &&
+                           previous_multiplier[Channel::left] == MULTI_UNITYGAIN;
+        audio_block_t* shared = unity || in->ref_count == 1 ? in : allocate();
+        if (shared != nullptr)
         {
+            if (!unity)
+            {
+                if (shared == in)
+                    applyGain(in->data, multiplier[Channel::left], previous_multiplier[Channel::left]);
+                else
+                    gain_copy::applyGainCopy16<AUDIO_BLOCK_SAMPLES>(
+                      shared->data, in->data, multiplier[Channel::left], previous_multiplier[Channel::left]);
+            }
+            previous_multiplier[Channel::right] = previous_multiplier[Channel::left];
+            transmit(shared, Channel::left);
+            transmit(shared, Channel::right);
+            if (shared != in)
+                release(shared);
+        }
+        release(in);
+        return;
+    }
+
+    audio_block_t* out[Channel::channelCount] = { nullptr, nullptr };
+    for (int channel = 0; channel < Channel::channelCount; channel++)
+    {
+        if (multiplier[channel] == MULTI_UNITYGAIN &&
+            previous_multiplier[channel] == MULTI_UNITYGAIN)
+            continue;
+        out[channel] = allocate();
+        if (out[channel] == nullptr)
+        {
+            if (out[Channel::left])
+                release(out[Channel::left]);
+            release(in);
             return;
         }
-
-        applyGain(shared->data, multiplier[Channel::left], previous_multiplier[Channel::left]);
-        previous_multiplier[Channel::right] = previous_multiplier[Channel::left];
-        transmit(shared, Channel::left);
-        transmit(shared, Channel::right);
-        release(shared);
-        return;
     }
-
-    audio_block_t* block[Channel::channelCount];
-
-    block[Channel::left] = receiveWritable(0);
-
-    if (block[Channel::left] == nullptr)
-    {
-        return;
-    }
-
-    block[Channel::right] = allocate();
-    if (block[Channel::right] == nullptr)
-    {
-        release(block[Channel::left]);
-        return;
-    }
-
-    memcpy(block[Channel::right]->data, block[Channel::left]->data, AUDIO_BLOCK_SAMPLES * 2);
 
     for (int channel = 0; channel < Channel::channelCount; channel++)
     {
-        applyGain(block[channel]->data, multiplier[channel], previous_multiplier[channel]);
-        transmit(block[channel], channel);
-        release(block[channel]);
+        if (out[channel] == nullptr)
+        {
+            transmit(in, channel);
+            continue;
+        }
+        gain_copy::applyGainCopy16<AUDIO_BLOCK_SAMPLES>(
+          out[channel]->data, in->data, multiplier[channel], previous_multiplier[channel]);
+        transmit(out[channel], channel);
+        release(out[channel]);
     }
+    release(in);
 }

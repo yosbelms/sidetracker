@@ -13,6 +13,7 @@
 * **[Sample-editor FX Chain](sample_editor_fx_chain)**
 
 #### Developer & SDK Guides
+* **[Memory Map & Resource Limits](memory_map)**
 * **[Architecture, Limits & Gotchas](developer_guide)**
 * **[Global File Browser](global_file_browser)**
 * **[Custom Synth Engine SDK (.psyn)](custom_synth_sdk)**

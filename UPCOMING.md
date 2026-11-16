@@ -51,8 +51,16 @@
 	* **~5×–10× Lower Display CPU Overhead (Tracker+ & Tracker Mini) / ~3×–5× Lower (Original Tracker)**: Display transfers on Tracker+ and Tracker Mini now run in the background via hardware DMA (and idle screens no longer poll the display bus at all), freeing CPU headroom for tighter pad/encoder response, MIDI timing, and SD sample streaming.
 	* **Instant Recovery After Screenshots & General Speedups**: Taking SD card screenshots no longer stalls to rebuild the screen afterwards, audio sequencer state and SD file loading were streamlined for faster project/sample loads, and leftover display video-stream code from the removed NES emulator was cleaned up.
 
-* **`CHIP` Synth Engine Performance Overhaul (Tracker+ & Tracker Mini)**:
-	* Optimized the `CHIP` synth engine's real-time audio math so playing dense 8-voice `CHIP` chords no longer causes audio dropouts or freezes.
+* **Lower Real-Time Audio CPU Usage (All 3 Devices)**:
+	* Average ~36% less Audio CPU consumption on OG Tracker
+	* Average ~30% less on Tracker+ & Tracker Mini
+	* Silent sample tracks, idle `PolySynth` slots (once voice envelopes and post-FX tails finish), disconnected USB Audio outputs, disabled Limiter sidechains, and decayed Master FX (`Delay`, `Reverb`, `Limiter`, filters) now sleep without allocating or mixing silent audio buffers, waking seamlessly on the next note.
+	* Added per-patch `Voice Sleep` (`On` by default, in the synth `Voice` layout) and `.psyn` idle-sleep support (`PSYN_FLAG_SUPPORTS_IDLE_SLEEP`, `PSYN_FLAG_HAS_VOICE_TICK_IDLE` / `tickIdle()`): when `Voice Sleep` is `On`, idle voices enter full zero-CPU sleep once active voices and any post-FX tails finish (engines without global post-FX sleep immediately on voice release); when `Off`, engines providing `tickIdle()` (all bundled factory `.psyn` engines and `CHIP.psyn`) run lightweight phase/modulation advancement without full audio rendering or silent block allocation, while engines without `tickIdle()` run full legacy rendering (unflagged ABI v1 plugins stay active for backwards compatibility).
+	* Faster Sample Playback, Envelopes, Master FX & `Q38.26` Sequencer Clock; DSP output remains within `<= 1 LSB` (synth soft-clip reciprocal), `<= 3 LSB` (SVF sub-LSB tail sleep), and `<= 7 LSB` (`Polyverb` tail sleep/wake) of `main`.
+
+* **Factory & `CHIP` Synth Engine Performance Overhaul (Tracker+ & Tracker Mini)**:
+	* Overhauled real-time oscillator, filter (`SVF`, `Ladder`, `Diode`, `Biquad`), envelope, and modulation math across all factory `.psyn` synth engines (`ACD`, `FAT`, `VAP`, `WTFM`, `PERC`, `DIRT`) and `CHIP` for **~1.5×–3.3× faster** active voice rendering, zero silent-tail denormals, improved low-cutoff `Diode` filter precision, and clean `PERC` voice sleep termination while preserving original patch sound (`<= 1 LSB` typical RMS difference).
+	* Playing dense 8-voice chords and multi-synth arrangements (including `CHIP`) runs with significantly lower CPU load without audio dropouts or freezes.
 
 * **Safer USB Storage Mode (Tracker+ & Tracker Mini)**:
 	* Entering USB Storage mode now cleanly stops playback, armed recordings, held notes, and SD sample streaming, and saves any pending changes first so the Tracker and your computer never write to the SD card at the same time.
@@ -65,6 +73,9 @@
 
 * **Audio Engine & Playback Fixes**:
 	* **Fixed Delay/Reverb Echo Bleed After Stop (Tracker+ & Tracker Mini)**: Fixed a bug where an instrument with no Delay or Reverb send could briefly echo in the right channel on the first note played after stopping playback.
+	* **Fixed Initial Delay Feedback & Reverb Damping on Boot (All 3 Devices)**: Fixed `audioEngine::init()` passing unscaled Delay feedback and un-inverted Reverb damping before a project load refreshes them (`mtProject.values` starts zeroed at boot).
+	* **Delay Crossfading, Saturation & Project Reset (All 3 Devices)**: `AudioEffectShortDelay` now crossfades delay-time changes smoothly while sounding and switches immediately with zero blend when quiet, saturates feedback peaks with `clamp16` instead of wrapping at full scale, and clears its buffer on project load.
+	* **Stale Block, Tail State & Tempo Safety Fixes (All 3 Devices / Tracker+ & Mini)**: Drains unselected `AudioOutput` channels when switching output sources, releases right-channel `Polyverb` input blocks when the left input is `nullptr`, settles/resets per-track filter state across silent/blocked instrument transitions, and guards `InternalTickClock` against non-positive or non-finite tempo values so invalid project tempos do not freeze the audio ISR or build catch-up bursts.
 	* **Fixed Noise Bursts on Very Short Loops & Grains (All 3 Devices)**: Prevented high-pitched notes on tiny backward loops, ping-pong loops, and granular grains from stepping past the loop boundaries and producing noise bursts.
 	* **Fixed Sequencer `Tune` Modulation (All 3 Devices)**: Fixed a bug where sequencer modulation assigned to `Tune` did not work unless `Wavetable Position` modulation was active.
 

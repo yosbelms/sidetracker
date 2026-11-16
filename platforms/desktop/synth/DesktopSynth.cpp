@@ -92,6 +92,12 @@ class DesktopInstrument final : public Instrument
         noteOrder = 0;
     }
 
+    bool isIdle() const
+    {
+        return std::ranges::none_of(std::span(voices).first(voiceCount),
+                                    [](const Slot& slot) { return slot.voice->isActive(); });
+    }
+
     void render(AudioBufferStereoRef output, std::span<AudioBufferRef> aux)
     {
         const bool stereo = patch->getMetadata().outputChannels == Patch::Metadata::OutputChannels::kStereo;
@@ -395,6 +401,14 @@ class DesktopSynth final : public Synth
     void addMidiSource(const std::string&, std::shared_ptr<MidiSource>) override {}
     void addMidiSink(const std::string&, std::unique_ptr<MidiSink>) override {}
     void initSamplePool(size_t, std::shared_ptr<SampleStore>) override {}
+    bool isInstrumentIdle(int id) const override
+    {
+        return id < 0 || id >= std::ssize(instruments) || !instruments[id] ||
+               instruments[id]->isIdle();
+    }
+
+    bool prepareSilentInstrument(int id) override { return isInstrumentIdle(id); }
+
     void updateAudio() override {}
     void updateMain() override {}
 

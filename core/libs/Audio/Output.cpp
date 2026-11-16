@@ -21,12 +21,18 @@ AUDIO_CORE_RAM void AudioOutputStream::update()
     const int leftSource = source[0];
     const int rightSource = source[1];
 #endif
-    audio_block_t* blockLeft = receiveReadOnly(kOutChannels * leftSource);
-    audio_block_t* blockRight = receiveReadOnly(kOutChannels * rightSource + 1);
-#ifdef PLATFORM_IMX
-    if (auto* unusedLeft = receiveReadOnly(kOutChannels * (1 - leftSource))) release(unusedLeft);
-    if (auto* unusedRight = receiveReadOnly(kOutChannels * (1 - rightSource) + 1)) release(unusedRight);
-#endif
+    const int leftIdx = kOutChannels * leftSource;
+    const int rightIdx = kOutChannels * rightSource + 1;
+
+    audio_block_t* blockLeft = receiveReadOnly(leftIdx);
+    audio_block_t* blockRight = receiveReadOnly(rightIdx);
+    for (int ch = 0; ch < kOutChannels * kSources; ++ch)
+    {
+        if (ch == leftIdx || ch == rightIdx)
+            continue;
+        if (auto* stale = receiveReadOnly(ch))
+            release(stale);
+    }
 
     if (blockLeft)
     {

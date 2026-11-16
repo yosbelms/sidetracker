@@ -148,6 +148,7 @@ class audioEngine
     void soloDelaySend(uint8_t state);
     void soloReverbSend(uint8_t state);
     void clearDelay();
+    void resetDelay();
     void clearReverb();
     void resetLimiter();
     void performanceModeEndAll();
