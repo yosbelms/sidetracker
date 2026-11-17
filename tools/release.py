@@ -10,16 +10,14 @@ import re
 import subprocess
 import tempfile
 import time
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
 from zipfile import ZipFile
 
 
 ROOT = Path(__file__).resolve().parents[1]
 MODELS = ("PolyendTracker", "TrackerPlus", "TrackerMini")
 VERSION_PATTERN = re.compile(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)")
-API_HEADERS = {"Accept": "application/vnd.github+json", "User-Agent": "SideTracker release tool"}
+USER_AGENT = "SideTracker release tool"
 
 
 def run(*args, capture=False):
@@ -81,14 +79,20 @@ def verify_archive(path, version):
 
 
 def api(repo, path):
-    try:
-        with urlopen(Request(f"https://api.github.com/repos/{repo}/{path}", headers=API_HEADERS),
-                     timeout=20) as response:
-            return json.load(response)
-    except HTTPError as error:
-        if error.code == 404:
-            return {}
-        raise
+    response = subprocess.run(
+        ["curl", "--silent", "--show-error", "--connect-timeout", "8", "--max-time", "20",
+         "-H", "Accept: application/vnd.github+json", "-A", USER_AGENT,
+         "--write-out", "\n%{http_code}", f"https://api.github.com/repos/{repo}/{path}"],
+        check=False, text=True, capture_output=True,
+    )
+    if response.returncode:
+        raise OSError(response.stderr.strip())
+    body, status = response.stdout.rsplit("\n", 1)
+    if status == "404":
+        return {}
+    if status != "200":
+        raise OSError(f"GitHub returned HTTP {status}")
+    return json.loads(body)
 
 
 def wait_for_release(repo, tag, commit, archive_name):
@@ -97,21 +101,22 @@ def wait_for_release(repo, tag, commit, archive_name):
     previous_status = None
     while time.monotonic() < deadline:
         try:
-            release = api(repo, f"releases/tags/{tag}")
-            if release and not release["draft"]:
-                for asset in release["assets"]:
-                    if asset["name"] == archive_name and asset["state"] == "uploaded" and asset["size"]:
-                        return release, asset
             runs = api(repo, f"actions/workflows/build.yml/runs?{query}").get("workflow_runs", [])
             workflow = next((item for item in runs if item["head_branch"] == tag), None)
             if workflow:
                 status = workflow["status"]
-                if status == "completed" and workflow["conclusion"] != "success":
-                    raise RuntimeError(f"GitHub release workflow {workflow['conclusion']}: {workflow['html_url']}")
+                if status == "completed":
+                    if workflow["conclusion"] != "success":
+                        raise RuntimeError(f"GitHub release workflow {workflow['conclusion']}: {workflow['html_url']}")
+                    release = api(repo, f"releases/tags/{tag}")
+                    if release and not release["draft"]:
+                        for asset in release["assets"]:
+                            if asset["name"] == archive_name and asset["state"] == "uploaded" and asset["size"]:
+                                return release, asset
                 message = f"GitHub workflow {status}: {workflow['html_url']}"
             else:
                 message = f"Waiting for the GitHub workflow for {tag}"
-        except (TimeoutError, URLError) as error:
+        except OSError as error:
             message = f"Waiting for GitHub: {error}"
         if message != previous_status:
             print(message, flush=True)
@@ -123,9 +128,9 @@ def wait_for_release(repo, tag, commit, archive_name):
 def verify_download(asset, version):
     with tempfile.TemporaryDirectory(prefix="sidetracker-release-") as directory:
         archive = Path(directory) / asset["name"]
-        request = Request(asset["browser_download_url"], headers={"User-Agent": API_HEADERS["User-Agent"]})
-        with urlopen(request, timeout=60) as response:
-            archive.write_bytes(response.read())
+        run("curl", "--fail", "--location", "--silent", "--show-error", "--retry", "2",
+            "--connect-timeout", "8", "--max-time", "60", "-A", USER_AGENT,
+            "--output", str(archive), asset["browser_download_url"])
         if archive.stat().st_size != asset["size"]:
             raise ValueError("Downloaded archive size differs from the published asset")
         digest = asset.get("digest")
@@ -159,7 +164,7 @@ def release(args):
     if args.resume:
         if current != version:
             raise ValueError("--resume requires version.mk to already match the requested version")
-        if local_tag and git("rev-list", "-n", "1", tag) != git("rev-parse", "HEAD"):
+        if local_tag and not remote_tag and git("rev-parse", f"{tag}^{{commit}}") != git("rev-parse", "HEAD"):
             raise ValueError(f"{tag} belongs to a different commit")
         if remote_tag and (not local_tag or remote_tag.split()[0] != git("rev-parse", ref)):
             raise ValueError(f"The remote {tag} differs from the local tag")
@@ -169,7 +174,7 @@ def release(args):
         bump_version(version, current, text)
 
     archive_name = f"SideTracker_{args.version}.zip"
-    commit = git("rev-parse", "HEAD")
+    commit = git("rev-parse", f"{tag}^{{commit}}" if remote_tag else "HEAD")
     if not remote_tag:
         run("make", f"-j{args.jobs}", "host-test")
         run("make", f"-j{args.jobs}", "desktop-check")
