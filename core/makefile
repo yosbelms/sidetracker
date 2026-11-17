@@ -73,7 +73,9 @@ endif
 # Keep the original model within 1 MiB of flash without changing the audio DSP flags.
 ifeq ($(PLATFORM), MK66)
 ifndef DEBUG
-ORIGINAL_SIZE_PATHS := interface/% FileManager/% Exporter/% libs/NewDisplay/% libs/FT812/%
+ORIGINAL_SIZE_PATHS := interface/% FileManager/% Exporter/% libs/NewDisplay/% libs/FT812/% \
+                       source/ThemeManager.o source/FileBrowser.o source/mtConfig.o \
+                       source/mtKeyboardManager.o source/mtTest.o effector/ptfx_manager.o
 ORIGINAL_SIZE_OBJECTS := $(filter $(addprefix $(OBJ_DIR)/,$(ORIGINAL_SIZE_PATHS)),$(OBJS_SORTED))
 $(ORIGINAL_SIZE_OBJECTS): COMPILER_OPTIONS += -Os
 $(ORIGINAL_SIZE_OBJECTS): makefile
