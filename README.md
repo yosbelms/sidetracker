@@ -118,6 +118,8 @@ donor sources are available.
 
 Build the complete release ZIP with `make release-zip`. It contains the three model-specific firmware files and a fresh `SD/` folder. Copy the contents of `SD/` to your card, using the matching file from `SD/Firmware/` for your model. The ZIP is published as an asset on [GitHub Releases](https://github.com/yosbelms/sidetracker/releases).
 
+To publish from a clean `main`, run `python3 tools/release.py 0.0.10 --notes /path/to/release-notes.md`. The script bumps all three firmware versions, checks the firmware and desktop builds, pushes the version tag, and verifies the ZIP published by GitHub Actions. Use `--resume` to continue an already bumped version after a recoverable error.
+
 The bundle includes **Snes** and **Win98** under `SD/Themes/` and their matching bitmap fonts under `SD/Fonts/`. Select them independently under **Config → General → Display theme** and **Display font**.
 
 ### 3. Version Management (`version.mk`)
