@@ -1,6 +1,7 @@
 #include "FT812.h"
 
 #include "display.h"
+#include "themeBevel.h"
 #include "displayControls.h"
 #include "paramValueList.h"
 
@@ -191,6 +192,10 @@ void cParamValueList::update()
         API_VERTEX2F(posX, posY);
         API_VERTEX2F(posX + width, posY + height);
         API_END();
+
+        const auto& theme = display.getTheme();
+        if (theme.beveledControls)
+            drawBeveledFrame(theme, posX, posY, width, height, true);
 
         API_BLEND_FUNC(SRC_ALPHA, ZERO);
 

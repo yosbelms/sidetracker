@@ -100,6 +100,22 @@ static constexpr ColorKeyMapping kQuadMap[] = {
     { "text2", 3 },
 };
 
+static constexpr size_t kTopBarColorCount = 4;
+static constexpr ColorKeyMapping kTopBarMap[] = {
+    kQuadMap[0],
+    kQuadMap[1],
+    kQuadMap[2],
+    kQuadMap[3],
+    { "_stBackgroundGradientEnd", kTopBarColorCount },
+};
+
+static constexpr ColorKeyMapping kBevelMap[] = {
+    { "highlight", 0 },
+    { "shadow", 1 },
+    { "darkShadow", 2 },
+    { "face", 3 },
+};
+
 static constexpr ColorKeyMapping kTripleMap[] = {
     { "text", 0 },
     { "background", 1 },
@@ -554,7 +570,17 @@ bool ThemeManager::parseThemeJson(const char* jsonText, size_t jsonLen, Theme& o
         }
         else if (strcasecmp(key, "topBar") == 0)
         {
-            r.readMapped(outTheme.topBarLabelColors, 4, kQuadMap);
+            uint32_t palette[kTopBarColorCount + 1];
+            memcpy(palette, outTheme.topBarLabelColors, sizeof(outTheme.topBarLabelColors));
+            palette[kTopBarColorCount] = outTheme.titleBarGradientEnd;
+            // The array form still accepts the four standard colors.
+            r.readMapped(palette, kTopBarColorCount, kTopBarMap);
+            memcpy(outTheme.topBarLabelColors, palette, sizeof(outTheme.topBarLabelColors));
+            outTheme.titleBarGradientEnd = palette[kTopBarColorCount];
+        }
+        else if (strcasecmp(key, "_stBevel") == 0)
+        {
+            outTheme.beveledControls = r.readMapped(outTheme.bevelColors, 4, kBevelMap);
         }
         else if (strcasecmp(key, "songTimer") == 0)
         {

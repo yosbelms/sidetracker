@@ -25,7 +25,7 @@ for the display or 3900 × 2790 with the panel. The firmware still lays out its
 UI in 800 × 480 coordinates and uses the original bitmap fonts.
 
 Hold **Instrument** and select one of the first three entries for MINI, OBER,
-or CHIP. Open **I. Params → Model** to choose J106. Use **Load** to browse the 12 bundled J106 patches, or **Edit** to shape a patch.
+or CHIP. Open **I. Params → Model** to choose J106. Use **Load** to browse the 100 bundled J106 patches, or **Edit** to shape a patch.
 With both donor source folders under `temp/`, `make desktop` generates the full
 MINI and OBER presets as individual `.patch` files in
 `build/SD/Patches/`. The simulator opens them automatically.

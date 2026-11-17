@@ -1,0 +1,109 @@
+{
+  "name": "Win98",
+  "base": "Original",
+  "background": "#008684",
+  "topBar": {
+    "text": "#FFFFFF",
+    "background": "#000080",
+    "_stBackgroundGradientEnd": "#1084D0",
+    "frame": "#808080",
+    "text2": "#FFFFFF"
+  },
+  "_stBevel": {"highlight": "#FFFFFF", "shadow": "#808080", "darkShadow": "#0A0A0A", "face": "#DFDFDF"},
+  "songTimer": {"text": "#FFFFFF", "background": "#000080", "frame": "#808080", "text2": "#FFFFFF"},
+  "blankSpace": {"text": "#111111", "background": "#C0C0C0", "frame": "#737373", "text2": "#111111"},
+  "bottomButtons": {"text": "#111111", "background": "#C0C0C0", "lines": "#767676"},
+  "frames": {"active": "#000080", "inactive": "#686868", "green": "#006758"},
+  "labels": {
+    "active": {"text": "#111111", "background": "#C0C0C0", "frame": "#000080", "text2": "#111111"},
+    "inactive": {"text": "#4D4D4D", "background": "#C0C0C0", "frame": "#686868", "text2": "#4D4D4D"},
+    "activeButton": {"text": "#111111", "background": "#C0C0C0", "frame": "#000080", "text2": "#111111"},
+    "inactiveButton": {"text": "#4D4D4D", "background": "#C0C0C0", "frame": "#767676", "text2": "#4D4D4D"},
+    "highlightedButton": {"text": "#000062", "background": "#BDD4F0", "frame": "#000080", "text2": "#000062"},
+    "redButton": {"text": "#FFFFFF", "background": "#861B22", "frame": "#581014", "text2": "#FFFFFF"},
+    "masterEditTrackName": {"text": "#000062", "background": "#BDD4F0", "frame": "#000080", "text2": "#000062"},
+    "performActiveTrack": {"text": "#111111", "background": "#C0C0C0", "frame": "#767676", "text2": "#111111"},
+    "performMutedTrack": {"text": "#4D4D4D", "background": "#C0C0C0", "frame": "#767676", "text2": "#4D4D4D"},
+    "defaultText": {"text": "#111111", "background": "#C0C0C0", "frame": "#767676", "text2": "#111111"},
+    "moreButton": {"text": "#111111", "background": "#C0C0C0", "activeDot": "#000080", "inactiveDot": "#686868"}
+  },
+  "patternTracker": {
+    "trackName": "#111111",
+    "background": "#FFFFFF",
+    "note": "#00403A",
+    "instrument": "#332915",
+    "fx1": "#43304E",
+    "fx2": "#000080",
+    "inactiveNote": "#53625F",
+    "inactiveInstrument": "#665D49",
+    "inactiveFx1": "#66566C",
+    "inactiveFx2": "#525F70",
+    "selection": "#000080",
+    "gridDivider": "#ECECEC",
+    "inactiveTrack": "#727272",
+    "playhead": "#D5E4F4",
+    "selectionText": "#FFFFFF",
+    "verticalDivider": "#929292",
+    "stepNumber": "#484848",
+    "greenMode": "#003D76",
+    "unfocusedTrack": "#505B6D",
+    "activeTrack": "#C0C0C0",
+    "trackEnd": "#007575"
+  },
+  "songPlayer": {
+    "text": "#111111",
+    "activeBlock": "#8EB7E2",
+    "scrollbar": "#777777",
+    "background": "#F4F4F2",
+    "inactiveText": "#4D4D4D",
+    "editMode": "#D9BDE2",
+    "scrollbarBackground": "#D0D0D0",
+    "playhead": "#D5D5D5",
+    "emptyTrack": "#E0E0E0",
+    "playheadActive": "#94C8BC"
+  },
+  "lists": {
+    "default": ["#808080", "#000080", "#808080", "#FFFFFF", "#000000", "#000080", "#C0C0C0"],
+    "inactive": {"textNormal": "#4A4A4A", "textSelect": "#373737"}
+  },
+  "bars": {
+    "background": "#C0C0C0",
+    "container": "#AFAFAF",
+    "active": {"primary": "#000080", "accent1": "#9B2830", "accent2": "#005F56"},
+    "inactive": {"primary": "#565656", "accent1": "#9B2830", "accent2": "#005F56"},
+    "sampleLoaderNormal": {"primary": "#006758", "accent1": "#000080", "accent2": "#005F56"},
+    "sampleLoaderFull": {"primary": "#9B2830", "accent1": "#000080", "accent2": "#005F56"}
+  },
+  "popups": {
+    "stepTitle": {"text": "#FFFFFF", "background": "#000080", "frame": "#6262B0", "text2": "#FFFFFF"},
+    "stepBackground": {"text": "#111111", "background": "#F4F4F2", "frame": "#767676", "text2": "#111111"},
+    "stepDescription": {"text": "#111111", "background": "#F4F4F2", "frame": "#767676"},
+    "dialog": {"text": "#111111", "background": "#C0C0C0", "frame": "#515151"},
+    "progressPopup": ["#C0C0C0", "#767676", "#000080"],
+    "horizontalBar": ["#C0C0C0", "#767676", "#000080", "#F4F4F2"],
+    "note": {"padBackground": "#C0C0C0", "padText": "#111111", "selectionFrame": "#000080"},
+    "noteKeyboard": {"text": "#111111", "background": "#C0C0C0", "activeText": "#000080"},
+    "keyboard": {"keyBackground": "#C0C0C0", "text": "#111111", "activeKey": "#BDD4F0"},
+    "editBox": {"text": "#111111", "boxBackground": "#FFFFFF", "frame": "#767676", "selection": "#BDD4F0", "outerBackground": "#C0C0C0"},
+    "configConfirm": {"text": "#111111", "background": "#C0C0C0", "frame": "#000080", "text2": "#111111"},
+    "miniMenu": {"text": "#111111", "boxBackground": "#C0C0C0", "selectedBox": "#BDD4F0", "background": "#C0C0C0", "frame": "#767676", "inactiveDot": "#767676", "activeDot": "#000080"}
+  },
+  "waveform": {
+    "audio": "#000080",
+    "background": "#444C54",
+    "points": {"text": "#000080", "background": "#E8E8E8", "frame": "#767676", "text2": "#006758"},
+    "progress": ["#006758", "#9B2830"],
+    "granular": ["#006758", "#9B2830"],
+    "wavetablePosition": ["#000080", "#006758"],
+    "sliceMarker": "#006758",
+    "activeSlice": "#000080",
+    "slicePlayhead": "#9B2830"
+  },
+  "performance": {
+    "fxName": {"text": "#080808", "background": "#C0C0C0", "frame": "#808080", "text2": "#080808"},
+    "valueNormal": {"text": "#111111", "background": "#C0C0C0", "frame": "#767676", "text2": "#111111"},
+    "valueEdit": {"text": "#000062", "background": "#BDD4F0", "frame": "#000080", "text2": "#000062"}
+  },
+  "accents": {"white": "#000080", "red": "#9B2830", "orange": "#934716", "yellow": "#785400", "green": "#006758", "cyan": "#004E83", "grey": "#686868"},
+  "shadows": {"bottomScreen": "#000000", "bar": "#000000", "patternEditorPlayhead": "#000000", "patternEditorBottomButtonsLines": "#767676"}
+}

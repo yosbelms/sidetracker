@@ -118,6 +118,9 @@ struct Theme
     uint32_t patternEditorPlayheadShadow;
     uint32_t patternEditorBottomButtonsLines;
     uint32_t moreButtonColors[4];
+    uint32_t titleBarGradientEnd = 0;
+    uint32_t bevelColors[4] = {0xFFFFFF, 0x808080, 0x0A0A0A, 0xDFDFDF}; // Highlight, shadow, dark shadow, face
+    bool beveledControls = false;
 };
 
 extern const Theme themeDefault;

@@ -369,15 +369,27 @@ void SoftwareDisplay::endCoProList()
                 const auto rgb0 = next();
                 const auto b = next();
                 const auto rgb1 = next();
+                const int x0 = int16_t(a), x1 = int16_t(b);
                 const int y0 = int16_t(a >> 16), y1 = int16_t(b >> 16);
-                for (int y = state.clip.y; y < std::min(height, state.clip.y + state.clip.h); ++y)
+                const bool horizontal = y0 == y1 && x0 != x1;
+                const int from = horizontal ? x0 : y0;
+                const int to = horizontal ? x1 : y1;
+                const auto& clip = state.clip;
+                const int right = std::min(width, clip.x + clip.w);
+                const int bottom = std::min(height, clip.y + clip.h);
+                const int first = horizontal ? clip.x : clip.y;
+                const int end = horizontal ? right : bottom;
+                for (int line = first; line < end; ++line)
                 {
-                    const float t = y0 == y1 ? 0 : std::clamp(float(y - y0) / (y1 - y0), 0.f, 1.f);
+                    const float t = from == to ? 0 : std::clamp(float(line - from) / (to - from), 0.f, 1.f);
                     uint32_t rgb = 0;
                     for (int shift = 0; shift < 24; shift += 8)
                         rgb |= uint32_t(((rgb0 >> shift) & 255) * (1 - t) + ((rgb1 >> shift) & 255) * t) << shift;
                     color(rgb);
-                    SDL_RenderDrawLine(&renderer, state.clip.x, y, state.clip.x + state.clip.w - 1, y);
+                    if (horizontal)
+                        SDL_RenderDrawLine(&renderer, line, clip.y, line, bottom - 1);
+                    else
+                        SDL_RenderDrawLine(&renderer, clip.x, line, right - 1, line);
                 }
                 break;
             }

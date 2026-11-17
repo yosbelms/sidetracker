@@ -17,7 +17,7 @@ is independently implemented; the donor code is used only as a sound reference.
 
 **J106** is a Juno-style synth with a shared saw, pulse and sub oscillator, a resonant four-pole low-pass filter, four high-pass settings, ADSR or gate amplification, and stereo Chorus I, II, and I+II. It supports up to six voices from Tracker's shared eight-voice pool. The LFO can follow project tempo. Use Tracker's sequencer, Delay and Reverb with J106.
 
-On **Tracker+ and Tracker Mini**, copy `SD/Synths/J106.psyn` and `SD/Patches/J106/` from the release bundle to the matching folders on your SD card, then reboot. In a synth slot, select **J106** under **I. Params → Model**, then press **Load**. The 12 factory patches include **Subway Bass**, **Wide Strings**, and **Tempo Pulse**.
+On **Tracker+ and Tracker Mini**, copy `SD/Synths/J106.psyn` and `SD/Patches/J106/` from the release bundle to the matching folders on your SD card, then reboot. In a synth slot, select **J106** under **I. Params → Model**, then press **Load**. The 100 factory patches go from **Ebony Sub**, **Cedar Keys**, and **Wide Strings** to tempo-synced **Bar Scanner**, percussive **Felt Kick**, and evolving **Polar Wind**.
 
 For local builds, `make psyn` stages the plugin and `make sd` stages the patches under `build/SD/`.
 

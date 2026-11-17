@@ -2,7 +2,7 @@
 
 SideTracker is a fork of Polyend Tracker Community Edition (Tracker CE). [Upstream repository](https://github.com/polyend/tracker-ce)
 
-It adds a live Performance FX rack, Performance FX sequencing in patterns, and a redesigned Sample Editor with reusable effect chains. Tracker+ and Tracker Mini also gain the MINI, OBER, and J106 synth engines. J106 is a Juno-style polysynth with stereo chorus and 12 factory patches.
+It adds a live Performance FX rack, Performance FX sequencing in patterns, and a redesigned Sample Editor with reusable effect chains. Tracker+ and Tracker Mini also gain the MINI, OBER, and J106 synth engines. J106 is a Juno-style polysynth with stereo chorus and 100 factory patches.
 
 ### Download SideTracker
 
@@ -92,9 +92,9 @@ From the repository root:
 make all
 
 # Or build a single target:
-make original   # -> build/PolyendTracker_ST_0.0.7.ptf
-make plus       # -> build/TrackerPlus_ST_0.0.7.ptf
-make mini       # -> build/TrackerMini_ST_0.0.7.ptf
+make original   # -> build/PolyendTracker_ST_0.0.8.ptf
+make plus       # -> build/TrackerPlus_ST_0.0.8.ptf
+make mini       # -> build/TrackerMini_ST_0.0.8.ptf
 
 # Build reference .ptfx Sample Editor effects:
 make ptfx
@@ -118,6 +118,8 @@ donor sources are available.
 
 Build the complete release ZIP with `make release-zip`. It contains the three model-specific firmware files and a fresh `SD/` folder. Copy the contents of `SD/` to your card, using the matching file from `SD/Firmware/` for your model. The ZIP is published as an asset on [GitHub Releases](https://github.com/yosbelms/sidetracker/releases).
 
+The bundle includes **Snes** and **Win98** under `SD/Themes/` and their matching bitmap fonts under `SD/Fonts/`. Select them independently under **Config → General → Display theme** and **Display font**.
+
 ### 3. Version Management (`version.mk`)
 All firmware version numbers are defined in [`version.mk`](version.mk). The **Build** identifier displayed on the hardware under **Config > Firmware > Build** is automatically populated from the short Git commit hash (`git rev-parse --short=7 HEAD`):
 
@@ -134,7 +136,7 @@ make bump-minor TARGET=all        # or TARGET=original | TARGET=plus | TARGET=mi
 
 ### 4. Flashing on Hardware & Emergency Recovery
 
-1. Copy the matching file from `build/SD/Firmware/` to the `/Firmware/` folder on your Tracker's microSD card. Use `PolyendTracker_ST_0.0.7.ptf`, `TrackerPlus_ST_0.0.7.ptf`, or `TrackerMini_ST_0.0.7.ptf` for your model.
+1. Copy the matching file from `build/SD/Firmware/` to the `/Firmware/` folder on your Tracker's microSD card. Use `PolyendTracker_ST_0.0.8.ptf`, `TrackerPlus_ST_0.0.8.ptf`, or `TrackerMini_ST_0.0.8.ptf` for your model.
 2. On the device, open **Config > Firmware > Firmware update**, select the `.ptf` file, and confirm.
 
 > **Bootloader Resilience & Emergency Firmware Recovery**:

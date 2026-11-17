@@ -55,7 +55,10 @@ class cSamplePlayback : public ModuleBase
         spectrumControl[1] = -1;
         pointsControl = -1;
         slicePointsControl = -1;
-        label[8] = { -1 };
+        for (auto& control : label)
+        {
+            control = -1;
+        }
         // popupLabel = -1;
         lastSampleLength = 0;
     }

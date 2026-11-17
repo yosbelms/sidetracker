@@ -1,0 +1,15 @@
+SideTracker Win98 font
+
+The proportional bitmap text in Win98.ptfont derives from the FontStruction
+“MS Sans Serif” and “MS Sans Serif Bold” by lou, distributed with 98.css.
+Both original fonts and this bitmap adaptation are licensed under Creative
+Commons Attribution-ShareAlike 3.0 Unported.
+
+Regular source: https://fontstruct.com/fontstructions/show/1384746
+Bold source: https://fontstruct.com/fontstructions/show/1384862
+License: https://creativecommons.org/licenses/by-sa/3.0/legalcode
+98.css source: https://github.com/jdan/98.css
+
+The glyphs were rasterized at five Tracker UI sizes and packed as L4
+bitmaps. Missing ASCII symbols and eight transport glyph cells were drawn
+for the Tracker interface. FontStruct is copyright ©2017 Rob Meek.

@@ -115,6 +115,10 @@ A common question is whether loading custom themes affects available audio sampl
 
 Themes are standard JSON text files with human-readable keys and `#RRGGBB` hex colors.
 
+The optional `topBar._stBackgroundGradientEnd` color adds a left-to-right gradient starting at `topBar.background`. The optional `_stBevel` object supplies `highlight`, `shadow`, `darkShadow`, and `face` colors for raised toolbar buttons and recessed lists and pattern grids.
+
+The bundled [Snes theme](../themes/Snes.json) follows the [snes.css palette](https://github.com/devMiguelCarrero/snes.css). The [Win98 theme](../themes/Win98.json) follows the [98.css palette and bevels](https://github.com/jdan/98.css). Copy the matching font and its notice from the bundle’s `SD/Fonts/` folder and select **Snes** or **Win98** under **Display font**.
+
 ### Minimal Theme (Overrides Only)
 You do not need to specify every color. Any omitted color will automatically inherit from the `"base"` theme (`"Original"`, `"Monochrome"`, or `"Anniversary"`):
 
@@ -143,7 +147,7 @@ You do not need to specify every color. Any omitted color will automatically inh
 | Section | Keys | Description |
 | :--- | :--- | :--- |
 | **Root** | `name`, `base`, `background` | Theme name, fallback base theme, main screen background color. |
-| **`topBar`** | `text`, `background`, `frame`, `text2` | Header / title bar colors. |
+| **`topBar`** | `text`, `background`, `frame`, `text2`, `_stBackgroundGradientEnd` | Title bar colors with an optional SideTracker gradient. |
 | **`songTimer`** | `text`, `background`, `frame`, `text2` | Song timer widget. |
 | **`labels`** | `active`, `inactive`, `activeButton`, `inactiveButton`, `highlightedButton`, `redButton`, `performActiveTrack`, `performMutedTrack`, `defaultText` | Buttons, text labels, and performance indicators across all screens. |
 | **`patternTracker`** | `trackName`, `background`, `note`, `instrument`, `fx1`, `fx2`, `inactiveNote`, `inactiveInstrument`, `inactiveFx1`, `inactiveFx2`, `selection`, `gridDivider`, `inactiveTrack`, `playhead`, `selectionText`, `verticalDivider`, `stepNumber`, `greenMode`, `activeTrack`, `trackEnd` | Main tracker sequencing grid. |

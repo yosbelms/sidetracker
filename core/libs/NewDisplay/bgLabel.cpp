@@ -2,6 +2,7 @@
 
 #include "commonControls.h"
 #include "display.h"
+#include "themeBevel.h"
 #include "displayControls.h"
 
 #include <string.h>
@@ -103,6 +104,29 @@ void cBgLabel::update()
     API_VERTEX2F(border_x + 1, border_y);
     API_VERTEX2F(border_x + width - 2, border_y + height);
     API_END();
+
+    const auto& theme = display.getTheme();
+    if (theme.beveledControls)
+    {
+        API_COLOR(theme.bevelColors[0]);
+        API_LINE_WIDTH(8);
+        API_BEGIN(LINES);
+        API_VERTEX2F(border_x, border_y);
+        API_VERTEX2F(border_x + width - 1, border_y);
+        API_END();
+
+        const int buttonWidth = width / 8;
+        int start = 0;
+        for (int index = 1; index <= 8; ++index)
+        {
+            if (index != 8 && (value & (1 << index)) == 0)
+                continue;
+            drawBeveledFrame(theme, border_x + start * buttonWidth + 2, border_y + 3,
+                             (index - start) * buttonWidth - 4, height - 5, false);
+            start = index;
+        }
+        return;
+    }
 
     API_COLOR(colors[0]);
     API_LINE_WIDTH(8);

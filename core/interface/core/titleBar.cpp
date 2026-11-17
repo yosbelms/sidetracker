@@ -1,11 +1,48 @@
 #include "titleBar.h"
 #include "core/interfaceDefs.h"
 #include "display.h"
+#include "themeBevel.h"
 
 #if GUI_HANDLE_SYNTH
 #include "Profiler.h"
 #include "Synth.h"
 #endif
+
+namespace
+{
+class TitleBarBackground : public cLabel
+{
+  public:
+    using cLabel::cLabel;
+
+    void update() override
+    {
+        const auto& theme = display.getTheme();
+        if (theme.titleBarGradientEnd == 0)
+        {
+            cLabel::update();
+            return;
+        }
+
+        API_COLOR(theme.bottomButtonsBgColors[1]);
+        API_LINE_WIDTH(16);
+        API_BEGIN(RECTS);
+        API_VERTEX2F(posX, posY);
+        API_VERTEX2F(posX + width, posY + height);
+        API_END();
+        if (theme.beveledControls)
+            drawBeveledFrame(theme, posX, posY, width, height, false);
+
+        constexpr int inset = 3;
+        API_SAVE_CONTEXT();
+        API_SCISSOR_XY(posX + inset, posY + inset);
+        API_SCISSOR_SIZE(width - 2 * inset, height - 2 * inset);
+        API_CMD_GRADIENT(posX + inset, posY, colors[1],
+                         posX + width - inset - 1, posY, theme.titleBarGradientEnd);
+        API_RESTORE_CONTEXT();
+    }
+};
+}
 
 TitleBar titleBar;
 
@@ -80,7 +117,7 @@ void TitleBar::initControls()
     prop.h = 28;
     prop.value = 0;
     prop.data = &barLabelData;
-    bar = display.createControl<cLabel>(&prop);
+    bar = display.createControl<TitleBarBackground>(&prop);
 }
 
 void TitleBar::refreshColors()

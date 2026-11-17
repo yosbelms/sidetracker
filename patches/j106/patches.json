@@ -57,5 +57,461 @@
     "Saw": 1, "Pulse": 1, "SubLevel": 0.25, "Noise": 0.06, "Pwm": 0.58,
     "Cutoff": 580, "Resonance": 0.29, "FilterEnv": 1.9, "FilterLfo": 0.15,
     "LfoSync": 2, "Attack": 0.69, "Decay": 2.1, "Sustain": 0.81, "Release": 2.4, "Chorus": 1
+  },
+  "Ebony Sub": {
+    "Range": 0, "Saw": 0, "SubLevel": 0.86, "Cutoff": 385, "Resonance": 0.06,
+    "FilterEnv": 0.18, "KeyTrack": 0.19, "Attack": 0.016, "Sustain": 0.9,
+    "Release": 0.09, "Level": 0.83, "Chorus": 0
+  },
+  "Rubber Current": {
+    "Range": 0, "Saw": 0, "Pulse": 1, "Pwm": 0.77, "LfoRate": 0.69, "SubLevel": 0.42,
+    "Cutoff": 320, "Resonance": 0.45, "FilterEnv": 2.4, "Attack": 0.004,
+    "Decay": 0.16, "Sustain": 0.54, "Release": 0.072, "Chorus": 0
+  },
+  "Relay Bass": {
+    "Range": 0, "Saw": 1, "Pulse": 1, "PwmMode": 1, "Pwm": 0.42, "SubLevel": 0.25,
+    "Cutoff": 880, "Resonance": 0.28, "FilterEnv": 1.5, "Attack": 0.002,
+    "Decay": 0.11, "Sustain": 0.26, "Release": 0.048, "Chorus": 0
+  },
+  "Velvet Octave": {
+    "Saw": 1, "SubLevel": 0.81, "Hpf": 0, "Cutoff": 450, "Resonance": 0.12,
+    "FilterEnv": 0.9, "Attack": 0.011, "Decay": 0.28, "Sustain": 0.74,
+    "Release": 0.14, "Level": 0.68, "Chorus": 1
+  },
+  "Squelch Driver": {
+    "Range": 0, "Sub": 0, "Cutoff": 150, "Resonance": 0.87, "FilterEnv": 4.35,
+    "KeyTrack": 0.28, "Attack": 0.001, "Decay": 0.19, "Sustain": 0.18,
+    "Release": 0.057, "BendFilter": 1.7, "Chorus": 0
+  },
+  "Voltage Thump": {
+    "Range": 0, "Saw": 0, "Pulse": 1, "PwmMode": 1, "Pwm": 0.13, "SubLevel": 0.72,
+    "Cutoff": 260, "Resonance": 0.18, "FilterEnv": 1.9, "KeyTrack": 0.15,
+    "Attack": 0.002, "Decay": 0.21, "Sustain": 0.02, "Release": 0.038, "Chorus": 0
+  },
+  "Hollow Circuit": {
+    "Range": 0, "Saw": 0, "Pulse": 1, "Sub": 0, "PwmMode": 1, "Pwm": 0.87,
+    "Cutoff": 1750, "Resonance": 0.32, "FilterEnv": 0.2, "Attack": 0.003,
+    "Decay": 0.29, "Sustain": 0.82, "Release": 0.081, "Chorus": 0
+  },
+  "Worn Conveyor": {
+    "Range": 0, "Saw": 1, "Pulse": 1, "SubLevel": 0.26, "Pwm": 0.37, "Noise": 0.055,
+    "Cutoff": 560, "Resonance": 0.51, "FilterEnv": 0.95, "FilterLfo": 0.65,
+    "LfoRate": 2.9, "Attack": 0.018, "Sustain": 0.78, "Chorus": 0
+  },
+  "Lemon Laser": {
+    "Range": 2, "Saw": 1, "Sub": 0, "Cutoff": 1640, "Resonance": 0.71,
+    "FilterEnv": 2.6, "KeyTrack": 0.92, "Attack": 0.002, "Decay": 0.21,
+    "Sustain": 0.29, "Release": 0.125, "BendPitch": 7, "Chorus": 0
+  },
+  "Neon Portico": {
+    "Saw": 1, "Pulse": 1, "SubLevel": 0.12, "Pwm": 0.58, "Cutoff": 3450,
+    "Resonance": 0.23, "FilterEnv": 0.72, "Attack": 0.009, "Sustain": 0.9,
+    "Release": 0.19, "LfoRate": 4.6, "PitchLfo": 0.17, "Chorus": 2
+  },
+  "Thin Chrome": {
+    "Range": 2, "Saw": 0, "Pulse": 1, "PwmMode": 1, "Pwm": 0.91, "Sub": 0,
+    "Hpf": 3, "Cutoff": 6350, "Resonance": 0.18, "FilterEnv": 0,
+    "Attack": 0.003, "Decay": 0.4, "Sustain": 0.73, "Release": 0.065, "Chorus": 0
+  },
+  "Parkside Whistle": {
+    "Range": 2, "Saw": 0, "Pulse": 1, "Sub": 0, "PwmMode": 1, "Pwm": 0.1,
+    "Cutoff": 820, "KeyTrack": 1, "Resonance": 0.81, "FilterEnv": 0.4,
+    "Attack": 0.065, "LfoRate": 5.7, "PitchLfo": 0.34, "LfoDelay": 0.23,
+    "Sustain": 0.95, "Release": 0.2, "Chorus": 0
+  },
+  "Tangerine Solo": {
+    "Saw": 1, "SubLevel": 0.48, "Hpf": 0, "Cutoff": 930, "Resonance": 0.26,
+    "FilterEnv": 1.4, "KeyTrack": 0.42, "Attack": 0.047, "Decay": 0.7,
+    "Sustain": 0.82, "Release": 0.3, "PitchLfo": 0.28, "LfoDelay": 0.42, "Chorus": 1
+  },
+  "Singing Wire": {
+    "Saw": 0, "Pulse": 1, "Sub": 0, "Pwm": 0.86, "LfoRate": 6.4,
+    "PitchLfo": 0.55, "Cutoff": 3200, "Resonance": 0.41, "FilterEnv": -0.8,
+    "FilterLfo": 0.94, "Attack": 0.017, "Sustain": 0.83, "Release": 0.24, "Chorus": 2
+  },
+  "Soapbox Lead": {
+    "Saw": 1, "Pulse": 1, "PwmMode": 1, "Pwm": 0.48, "Sub": 0, "Noise": 0.055,
+    "Hpf": 2, "Cutoff": 970, "Resonance": 0.64, "FilterEnv": 1.35, "Vca": 1,
+    "Attack": 0.04, "Decay": 0.34, "Sustain": 0.47, "Release": 0.08, "Chorus": 0
+  },
+  "Analog Fife": {
+    "Range": 2, "Saw": 0, "Pulse": 1, "PwmMode": 1, "Pwm": 0.04, "Sub": 0,
+    "Noise": 0.14, "Hpf": 2, "Cutoff": 1170, "KeyTrack": 0.94, "Resonance": 0.06,
+    "FilterEnv": 0.08, "Attack": 0.12, "Sustain": 0.67, "Release": 0.19, "Chorus": 0
+  },
+  "Cedar Keys": {
+    "Saw": 1, "Pulse": 0, "SubLevel": 0.39, "Cutoff": 900, "Resonance": 0.13,
+    "FilterEnv": 1.9, "Attack": 0.005, "Decay": 1.07, "Sustain": 0.12,
+    "Release": 0.26, "Chorus": 1
+  },
+  "Static Tines": {
+    "Range": 2, "Saw": 0, "Pulse": 1, "PwmMode": 1, "Pwm": 0.65, "SubLevel": 0.29,
+    "Noise": 0.07, "Cutoff": 2400, "Resonance": 0.49, "FilterEnv": 1.85,
+    "Attack": 0.003, "Decay": 0.31, "Sustain": 0.19, "Release": 0.39, "Chorus": 2
+  },
+  "Daybreak Piano": {
+    "Saw": 1, "Pulse": 1, "PwmMode": 1, "Pwm": 0.22, "SubLevel": 0.2,
+    "Cutoff": 1270, "Resonance": 0.06, "FilterEnv": 2.8, "KeyTrack": 0.85,
+    "Attack": 0.004, "Decay": 1.4, "Sustain": 0.11, "Release": 0.23, "Chorus": 0
+  },
+  "Plume Clav": {
+    "Saw": 1, "Pulse": 1, "PwmMode": 1, "Pwm": 0.73, "Sub": 0, "Hpf": 2,
+    "Cutoff": 2050, "Resonance": 0.41, "FilterEnv": 2.1, "KeyTrack": 0.68,
+    "Attack": 0.001, "Decay": 0.18, "Sustain": 0.22, "Release": 0.06, "Chorus": 0
+  },
+  "Room Chime": {
+    "Range": 2, "Saw": 0, "Pulse": 1, "PwmMode": 1, "Pwm": 0.17, "Sub": 0, "Hpf": 2,
+    "Cutoff": 1490, "KeyTrack": 0.98, "Resonance": 0.7, "FilterEnv": 0.7,
+    "Attack": 0.002, "Decay": 2.8, "Sustain": 0, "Release": 1.2, "Chorus": 1
+  },
+  "Porcelain Keys": {
+    "Range": 2, "Saw": 0, "Pulse": 1, "Pwm": 0.23, "LfoRate": 1.1, "SubLevel": 0.46,
+    "Cutoff": 720, "Resonance": 0.24, "FilterEnv": 0.46, "KeyTrack": 0.76,
+    "Attack": 0.013, "Decay": 0.67, "Sustain": 0.42, "Release": 0.43, "Chorus": 3
+  },
+  "Treble Glass": {
+    "Range": 2, "Saw": 1, "Sub": 0, "Hpf": 3, "Cutoff": 1890, "Resonance": 0.58,
+    "FilterEnv": 2.45, "KeyTrack": 0.93, "Attack": 0.001, "Decay": 0.77,
+    "Sustain": 0.03, "Release": 0.77, "Level": 0.64, "Chorus": 2
+  },
+  "Library Keys": {
+    "Saw": 0, "Pulse": 1, "SubLevel": 0.17, "PwmMode": 1, "Pwm": 0.31,
+    "Cutoff": 1160, "Resonance": 0.08, "FilterEnv": -0.72, "Attack": 0.037,
+    "Decay": 1.65, "Sustain": 0.39, "Release": 0.62, "Chorus": 0
+  },
+  "Nylon Sparks": {
+    "Saw": 0, "Pulse": 1, "PwmMode": 1, "Pwm": 0.55, "SubLevel": 0.28,
+    "Cutoff": 820, "Resonance": 0.2, "FilterEnv": 2.2, "Attack": 0.001,
+    "Decay": 0.36, "Sustain": 0.045, "Release": 0.18, "Chorus": 0
+  },
+  "Marble Mallet": {
+    "Range": 2, "Saw": 0, "Pulse": 1, "PwmMode": 1, "Pwm": 0.03, "Sub": 0,
+    "Cutoff": 820, "KeyTrack": 1, "Resonance": 0.34, "FilterEnv": 0.36,
+    "Attack": 0.002, "Decay": 0.34, "Sustain": 0, "Release": 0.095, "Chorus": 0
+  },
+  "Paper Kalimba": {
+    "Range": 2, "Saw": 0, "Pulse": 1, "PwmMode": 1, "Pwm": 0.28, "SubLevel": 0.36,
+    "Noise": 0.085, "Cutoff": 1370, "Resonance": 0.22, "FilterEnv": 0.74,
+    "Attack": 0.001, "Decay": 0.25, "Sustain": 0, "Release": 0.065, "Chorus": 0
+  },
+  "Magnetic Harp": {
+    "Saw": 1, "Pulse": 1, "Sub": 0, "Pwm": 0.33, "LfoRate": 0.63, "Hpf": 2,
+    "Cutoff": 1060, "Resonance": 0.26, "FilterEnv": 2.4, "KeyTrack": 0.96,
+    "Attack": 0.009, "Decay": 1.26, "Sustain": 0.04, "Release": 1.04, "Chorus": 2
+  },
+  "Acrylic Drops": {
+    "Range": 2, "Saw": 1, "Sub": 0, "Cutoff": 610, "Resonance": 0.83,
+    "FilterEnv": 3.92, "KeyTrack": 0.65, "Attack": 0.001, "Decay": 0.115,
+    "Sustain": 0.03, "Release": 0.31, "Hpf": 2, "Chorus": 1
+  },
+  "Flicker String": {
+    "Saw": 0, "Pulse": 1, "Pwm": 0.69, "LfoRate": 9.3, "Sub": 0, "Hpf": 2,
+    "Cutoff": 3160, "Resonance": 0.37, "FilterEnv": -1.4, "FilterLfo": 0.24,
+    "Attack": 0.005, "Decay": 0.48, "Sustain": 0.06, "Release": 0.34, "Chorus": 0
+  },
+  "Bridge Pick": {
+    "Saw": 1, "Pulse": 1, "SubLevel": 0.21, "PwmMode": 1, "Pwm": 0.11,
+    "Noise": 0.13, "Cutoff": 1670, "Resonance": 0.11, "FilterEnv": 1.52,
+    "Attack": 0.001, "Decay": 0.4, "Sustain": 0.1, "Release": 0.095, "Chorus": 0
+  },
+  "Resonant Seed": {
+    "Saw": 1, "Sub": 0, "Cutoff": 475, "KeyTrack": 0.88, "Resonance": 0.94,
+    "FilterEnv": 1.1, "Attack": 0.003, "Decay": 0.52, "Sustain": 0.08,
+    "Release": 0.54, "Chorus": 0
+  },
+  "Jet Drawbar": {
+    "Range": 2, "Saw": 0, "Pulse": 1, "PwmMode": 1, "Pwm": 0.16, "SubLevel": 0.95,
+    "Cutoff": 3100, "Resonance": 0.04, "FilterEnv": 0, "Vca": 1, "Chorus": 0
+  },
+  "Sunday Haze": {
+    "Saw": 0, "Pulse": 1, "Pwm": 0.31, "SubLevel": 0.38, "Cutoff": 1190,
+    "Resonance": 0.12, "FilterEnv": 0, "FilterLfo": 0.58, "LfoRate": 4.6,
+    "PitchLfo": 0.09, "Attack": 0.04, "Sustain": 0.94, "Release": 0.46, "Chorus": 2
+  },
+  "Pocket Squeeze": {
+    "Saw": 1, "Pulse": 1, "PwmMode": 1, "Pwm": 0.41, "Sub": 0, "Hpf": 2,
+    "Cutoff": 2150, "Resonance": 0.34, "FilterEnv": 0.76, "FilterLfo": 0.13,
+    "LfoRate": 5.2, "Attack": 0.072, "Sustain": 0.88, "Release": 0.11, "Chorus": 0
+  },
+  "Farfield Horns": {
+    "Range": 0, "Saw": 1, "Pulse": 0, "SubLevel": 0.21, "Cutoff": 670,
+    "Resonance": 0.16, "FilterEnv": 2.72, "Attack": 0.21, "Decay": 0.98,
+    "Sustain": 0.6, "Release": 0.74, "Chorus": 1
+  },
+  "Curbside Sax": {
+    "Saw": 0, "Pulse": 1, "PwmMode": 1, "Pwm": 0.57, "Sub": 0, "Noise": 0.21,
+    "Hpf": 2, "Cutoff": 990, "Resonance": 0.45, "FilterEnv": 0.97,
+    "Attack": 0.043, "Decay": 0.34, "Sustain": 0.72, "Release": 0.13, "Chorus": 0
+  },
+  "Split Brass": {
+    "Range": 2, "Saw": 1, "Pulse": 1, "Pwm": 0.65, "SubLevel": 0.31,
+    "Cutoff": 510, "Resonance": 0.32, "FilterEnv": 3.75, "KeyTrack": 0.77,
+    "Attack": 0.024, "Decay": 0.42, "Sustain": 0.3, "Release": 0.26, "Chorus": 2
+  },
+  "Lantern Flutes": {
+    "Saw": 0, "Pulse": 1, "PwmMode": 1, "Pwm": 0.0, "SubLevel": 0.28, "Noise": 0.23,
+    "Cutoff": 820, "Resonance": 0.11, "FilterEnv": 0.28, "KeyTrack": 0.91,
+    "Attack": 0.087, "Sustain": 0.85, "Release": 0.22, "Chorus": 1
+  },
+  "Blue Chapel": {
+    "Range": 0, "Saw": 0, "Pulse": 1, "SubLevel": 0.73, "PwmMode": 1, "Pwm": 0.26,
+    "Hpf": 0, "Cutoff": 1360, "Resonance": 0.09, "FilterEnv": 0.2,
+    "Attack": 0.16, "Sustain": 0.98, "Release": 0.74, "Level": 0.63, "Chorus": 3
+  },
+  "Linen Ensemble": {
+    "Saw": 1, "Pulse": 1, "Pwm": 0.53, "LfoRate": 0.48, "Sub": 0, "Hpf": 2,
+    "Cutoff": 1540, "Resonance": 0.09, "FilterEnv": 0.74, "Attack": 0.19,
+    "Decay": 1.6, "Sustain": 0.76, "Release": 0.94, "Chorus": 1
+  },
+  "Silver Bow": {
+    "Range": 2, "Saw": 1, "Pulse": 0, "SubLevel": 0.12, "Noise": 0.13,
+    "Cutoff": 1850, "Resonance": 0.33, "FilterEnv": 0.6, "Hpf": 2,
+    "Attack": 0.078, "Sustain": 0.86, "Release": 0.68, "LfoRate": 4.8,
+    "PitchLfo": 0.18, "LfoDelay": 0.32, "Chorus": 0
+  },
+  "Small Cinema": {
+    "Range": 0, "Saw": 1, "Pulse": 1, "Pwm": 0.42, "LfoRate": 0.28, "SubLevel": 0.18,
+    "Cutoff": 720, "Resonance": 0.22, "FilterEnv": 2.2, "Attack": 0.52,
+    "Decay": 2.2, "Sustain": 0.65, "Release": 1.9, "Chorus": 2
+  },
+  "Civic Strings": {
+    "Saw": 1, "Pulse": 0, "Sub": 0, "Cutoff": 2850, "Resonance": 0.12,
+    "FilterEnv": 0.52, "KeyTrack": 0.73, "Attack": 0.04,
+    "Decay": 0.79, "Sustain": 0.84, "Release": 0.27, "Chorus": 0
+  },
+  "Stratosphere": {
+    "Range": 2, "Saw": 1, "Pulse": 1, "Sub": 0, "Pwm": 0.35, "LfoRate": 0.36,
+    "Hpf": 3, "Cutoff": 2810, "Resonance": 0.16, "FilterEnv": 0.34,
+    "Attack": 0.55, "Sustain": 0.97, "Release": 2.68, "Level": 0.64, "Chorus": 3
+  },
+  "Chorus Cello": {
+    "Range": 0, "Saw": 1, "Pulse": 0, "Sub": 0, "Noise": 0.07,
+    "Cutoff": 870, "Resonance": 0.25, "FilterEnv": 1.2, "KeyTrack": 0.64,
+    "Attack": 0.155, "Decay": 1.1, "Sustain": 0.79, "Release": 0.48, "Chorus": 1
+  },
+  "Bandstand": {
+    "Saw": 1, "Pulse": 1, "PwmMode": 1, "Pwm": 0.19, "SubLevel": 0.3, "Hpf": 0,
+    "Cutoff": 2190, "Resonance": 0.06, "FilterEnv": 0.35, "Attack": 0.028,
+    "Decay": 0.66, "Sustain": 0.61, "Release": 0.31, "Level": 0.66, "Chorus": 2
+  },
+  "Snowfield Strings": {
+    "Saw": 0, "Pulse": 1, "SubLevel": 0.09, "Pwm": 0.81, "LfoRate": 0.19, "Noise": 0.16,
+    "Cutoff": 1930, "Resonance": 0.32, "FilterEnv": 0.5, "FilterLfo": 0.45,
+    "Attack": 0.76, "Decay": 2.05, "Sustain": 0.76, "Release": 2.95, "Chorus": 2
+  },
+  "Deep Fjord": {
+    "Range": 0, "Saw": 0, "Pulse": 1, "SubLevel": 0.75, "Pwm": 0.49, "LfoRate": 0.116,
+    "Cutoff": 480, "Resonance": 0.19, "FilterEnv": 1.1, "FilterLfo": 0.78,
+    "Attack": 1.21, "Decay": 3.2, "Sustain": 0.82, "Release": 4.35, "Chorus": 2
+  },
+  "Honeycomb Sky": {
+    "Saw": 1, "Pulse": 1, "SubLevel": 0.12, "Pwm": 0.85, "LfoRate": 0.28,
+    "Cutoff": 1340, "Resonance": 0.19, "FilterEnv": 1.5, "FilterLfo": 0.28,
+    "Attack": 1.1, "Decay": 2.4, "Sustain": 0.78, "Release": 2.05, "Chorus": 3
+  },
+  "Blackwater": {
+    "Range": 0, "Saw": 1, "Pulse": 0, "SubLevel": 0.54, "Noise": 0.22,
+    "Cutoff": 370, "Resonance": 0.57, "FilterEnv": -1.6, "FilterLfo": 1.07,
+    "KeyTrack": 0.3, "LfoRate": 0.14, "Attack": 1.4, "Sustain": 0.61,
+    "Release": 3.7, "Chorus": 1
+  },
+  "Warm Atrium": {
+    "Saw": 1, "Pulse": 0, "SubLevel": 0.45, "Hpf": 0, "Cutoff": 1140,
+    "Resonance": 0.03, "FilterEnv": 0.33, "Attack": 0.41, "Decay": 2.6,
+    "Sustain": 0.73, "Release": 1.45, "Level": 0.65, "Chorus": 1
+  },
+  "Pale Aurora": {
+    "Range": 2, "Saw": 0, "Pulse": 1, "SubLevel": 0.34, "Pwm": 0.81, "Noise": 0.11,
+    "LfoRate": 0.31, "FilterLfo": 0.73, "Cutoff": 1310, "Resonance": 0.32,
+    "FilterEnv": 0.62, "Hpf": 2, "Attack": 1.71, "Decay": 3.2, "Sustain": 0.84,
+    "Release": 5.6, "Chorus": 2
+  },
+  "Orbital Dust": {
+    "Saw": 0, "Pulse": 1, "Pwm": 0.23, "SubLevel": 0.14, "Noise": 0.37,
+    "LfoRate": 0.45, "PitchLfo": 0.29, "Cutoff": 1960, "Resonance": 0.58,
+    "FilterEnv": -0.65, "Hpf": 2, "Attack": 2.1, "Decay": 4.9,
+    "Sustain": 0.78, "Release": 4.8, "Chorus": 3
+  },
+  "Chalk Clouds": {
+    "Saw": 1, "Pulse": 0, "Sub": 0, "Noise": 0.48, "Hpf": 3,
+    "Cutoff": 2180, "Resonance": 0.19, "FilterEnv": 0.84, "FilterLfo": 0.56,
+    "LfoRate": 0.23, "Attack": 0.94, "Sustain": 0.7, "Release": 3.25, "Chorus": 1
+  },
+  "Rose Quartz": {
+    "Range": 2, "Saw": 0, "Pulse": 1, "Sub": 0, "PwmMode": 1, "Pwm": 0.77,
+    "Cutoff": 980, "KeyTrack": 0.94, "Resonance": 0.55, "FilterEnv": 1.62,
+    "Attack": 0.47, "Decay": 3.1, "Sustain": 0.65, "Release": 2.65,
+    "LfoRate": 0.73, "PitchLfo": 0.19, "Chorus": 2
+  },
+  "Clockwork Eighths": {
+    "Saw": 0, "Pulse": 1, "SubLevel": 0.38, "Pwm": 0.84, "LfoSync": 5,
+    "Cutoff": 930, "Resonance": 0.42, "FilterEnv": 0.6, "FilterLfo": 1.32,
+    "Attack": 0.008, "Sustain": 0.9, "Release": 0.16, "Chorus": 0
+  },
+  "Sixteenth Teeth": {
+    "Range": 2, "Saw": 1, "Pulse": 1, "Sub": 0, "Pwm": 0.67, "LfoSync": 6,
+    "Hpf": 2, "Cutoff": 980, "Resonance": 0.67, "FilterEnv": 0.3, "FilterLfo": 1.9,
+    "Attack": 0.003, "Decay": 0.29, "Sustain": 0.82, "Release": 0.07, "Chorus": 0
+  },
+  "Half Note Tide": {
+    "Range": 0, "Saw": 1, "SubLevel": 0.41, "Cutoff": 510, "Resonance": 0.53,
+    "FilterEnv": 0.8, "FilterLfo": 1.82, "LfoSync": 3,
+    "Attack": 0.27, "Sustain": 0.81, "Release": 1.35, "Chorus": 1
+  },
+  "Bar Scanner": {
+    "Saw": 1, "Pulse": 1, "SubLevel": 0.08, "Pwm": 0.9, "LfoSync": 2, "Hpf": 2,
+    "Cutoff": 820, "Resonance": 0.74, "FilterEnv": 0.0, "FilterLfo": 2.05,
+    "Vca": 1, "Chorus": 2
+  },
+  "Two Bar Drift": {
+    "Saw": 0, "Pulse": 1, "SubLevel": 0.25, "Pwm": 0.67, "LfoSync": 1,
+    "Cutoff": 1360, "Resonance": 0.21, "FilterEnv": 0.75, "FilterLfo": 0.91,
+    "PitchLfo": 0.42, "Attack": 0.69, "Sustain": 0.86, "Release": 2.2, "Chorus": 2
+  },
+  "Step Lantern": {
+    "Range": 2, "Saw": 0, "Pulse": 1, "Pwm": 0.4, "Sub": 0, "LfoSync": 4,
+    "Cutoff": 1480, "Resonance": 0.45, "FilterEnv": 0.67, "FilterLfo": 0.93,
+    "Attack": 0.013, "Decay": 0.34, "Sustain": 0.36, "Release": 0.21, "Chorus": 1
+  },
+  "Sync Semaphore": {
+    "Saw": 1, "Sub": 0, "Hpf": 2, "Cutoff": 1160, "Resonance": 0.76,
+    "FilterEnv": -0.7, "FilterLfo": 2.4, "PitchLfo": 0.95, "LfoSync": 5,
+    "Attack": 0.035, "Sustain": 0.91, "Release": 0.37, "Chorus": 0
+  },
+  "Motor Keys": {
+    "Range": 0, "Saw": 0, "Pulse": 1, "Pwm": 0.71, "Sub": 0, "LfoSync": 6,
+    "Cutoff": 1860, "Resonance": 0.23, "FilterEnv": 0.54, "FilterLfo": 0.91,
+    "PitchLfo": 0.24, "LfoDelay": 0.3, "Attack": 0.026, "Sustain": 0.73,
+    "Release": 0.48, "Chorus": 3
+  },
+  "Felt Kick": {
+    "Range": 0, "Saw": 0, "Pulse": 0, "SubLevel": 0.99, "Hpf": 0, "Cutoff": 170,
+    "Resonance": 0.34, "FilterEnv": 1.58, "KeyTrack": 0.08,
+    "Attack": 0.001, "Decay": 0.155, "Sustain": 0, "Release": 0.075, "Chorus": 0
+  },
+  "Wire Snare": {
+    "Range": 0, "Saw": 0, "Pulse": 1, "PwmMode": 1, "Pwm": 0.34, "Sub": 0, "Noise": 0.93,
+    "Hpf": 2, "Cutoff": 4450, "Resonance": 0.1, "FilterEnv": 0.92, "KeyTrack": 0.08,
+    "Attack": 0.001, "Decay": 0.155, "Sustain": 0, "Release": 0.052, "Chorus": 0
+  },
+  "Cardboard Tom": {
+    "Range": 0, "Saw": 0, "Pulse": 1, "PwmMode": 1, "Pwm": 0.16, "SubLevel": 0.45,
+    "Noise": 0.16, "Cutoff": 390, "Resonance": 0.52, "FilterEnv": 1.45,
+    "Attack": 0.001, "Decay": 0.23, "Sustain": 0, "Release": 0.08, "Chorus": 0
+  },
+  "Dust Hat": {
+    "Saw": 0, "Pulse": 0, "Sub": 0, "Noise": 1, "Hpf": 3, "Cutoff": 9000,
+    "Resonance": 0.09, "FilterEnv": 0.4, "KeyTrack": 0,
+    "Attack": 0.001, "Decay": 0.045, "Sustain": 0, "Release": 0.037, "Chorus": 0
+  },
+  "Vent Clap": {
+    "Saw": 0, "Pulse": 0, "Sub": 0, "Noise": 1, "Hpf": 3, "Cutoff": 2260,
+    "Resonance": 0.52, "FilterEnv": 1.33, "KeyTrack": 0.1,
+    "Attack": 0.003, "Decay": 0.143, "Sustain": 0, "Release": 0.105, "Chorus": 3
+  },
+  "Droplet Rim": {
+    "Range": 2, "Saw": 1, "Pulse": 1, "PwmMode": 1, "Pwm": 0.88, "Sub": 0,
+    "Hpf": 3, "Cutoff": 1270, "Resonance": 0.84, "FilterEnv": 1.15,
+    "Attack": 0.001, "Decay": 0.064, "Sustain": 0, "Release": 0.046, "Chorus": 0
+  },
+  "Cracked Shaker": {
+    "Saw": 0, "Pulse": 0, "Sub": 0, "Noise": 1, "Hpf": 3, "Cutoff": 3170,
+    "Resonance": 0.29, "FilterEnv": 1.65, "FilterLfo": 0.83, "LfoRate": 21,
+    "KeyTrack": 0, "Attack": 0.026, "Decay": 0.15, "Sustain": 0,
+    "Release": 0.069, "Chorus": 0
+  },
+  "Copper Block": {
+    "Range": 2, "Saw": 0, "Pulse": 1, "PwmMode": 1, "Pwm": 0.29, "SubLevel": 0.75,
+    "Hpf": 3, "Cutoff": 4720, "Resonance": 0.19, "FilterEnv": 0.43,
+    "Attack": 0.001, "Decay": 0.19, "Sustain": 0, "Release": 0.17, "Chorus": 0
+  },
+  "Polar Wind": {
+    "Saw": 0, "Pulse": 0, "Sub": 0, "Noise": 0.94, "Hpf": 2, "Cutoff": 1330,
+    "Resonance": 0.72, "FilterEnv": 1.25, "FilterLfo": 1.35, "LfoRate": 0.082,
+    "KeyTrack": 0, "Attack": 2.35, "Decay": 4.4, "Sustain": 0.73,
+    "Release": 5.8, "Chorus": 2
+  },
+  "Lift Shaft": {
+    "Range": 0, "Saw": 1, "Pulse": 0, "SubLevel": 0.84, "Noise": 0.23, "Cutoff": 248,
+    "Resonance": 0.61, "FilterEnv": 0.65, "FilterLfo": 0.72, "LfoRate": 0.28,
+    "PitchLfo": 0.46, "Attack": 1.65, "Sustain": 0.79, "Release": 3.8, "Chorus": 0
+  },
+  "Cassette Breath": {
+    "Saw": 0, "Pulse": 0, "Sub": 0, "Noise": 0.9, "Hpf": 3, "Cutoff": 2630,
+    "Resonance": 0.28, "FilterEnv": -1.04, "FilterLfo": 0.46, "LfoRate": 0.38,
+    "Attack": 0.81, "Decay": 7.4, "Sustain": 0.5, "Release": 1.65, "Chorus": 3
+  },
+  "Foundation Drone": {
+    "Range": 0, "Saw": 0, "SubLevel": 0.93, "Hpf": 0, "Cutoff": 345, "Resonance": 0.22,
+    "FilterEnv": 0.65, "KeyTrack": 0.1, "PitchLfo": 0.12, "LfoRate": 0.073,
+    "Attack": 2.9, "Sustain": 0.97, "Release": 6.2, "Level": 0.65, "Chorus": 1
+  },
+  "Shortwave Fog": {
+    "Range": 2, "Saw": 0, "Pulse": 1, "Pwm": 0.67, "Sub": 0, "Noise": 0.8, "Hpf": 3,
+    "Cutoff": 845, "Resonance": 0.9, "FilterEnv": 0.92, "FilterLfo": 1.44,
+    "LfoRate": 0.42, "PitchLfo": 0.72, "Attack": 1.38, "Sustain": 0.77,
+    "Release": 3.5, "Chorus": 0
+  },
+  "Night Insects": {
+    "Range": 2, "Saw": 0, "Pulse": 1, "Pwm": 0.96, "Sub": 0, "Noise": 0.34, "Hpf": 3,
+    "Cutoff": 1780, "Resonance": 0.65, "FilterEnv": 0.2, "FilterLfo": 1.38,
+    "LfoRate": 13.5, "PitchLfo": 1.75, "Attack": 0.59, "Sustain": 0.56,
+    "Release": 1.2, "Chorus": 1
+  },
+  "Deep Vents": {
+    "Saw": 0, "Pulse": 0, "Sub": 0, "Noise": 1, "Cutoff": 970, "Resonance": 0.88,
+    "FilterEnv": -0.71, "FilterLfo": 0.24, "KeyTrack": 0.4, "LfoRate": 0.22,
+    "Attack": 1.58, "Sustain": 0.94, "Release": 1.5, "Level": 0.88, "Chorus": 0
+  },
+  "Radio Aurora": {
+    "Saw": 1, "Pulse": 1, "Pwm": 0.92, "SubLevel": 0.18, "Noise": 0.47,
+    "Cutoff": 1180, "Resonance": 0.66, "FilterEnv": 0.72, "FilterLfo": 1.55,
+    "LfoRate": 0.097, "PitchLfo": 0.77, "Attack": 3.4, "Decay": 7.2,
+    "Sustain": 0.85, "Release": 7.5, "Chorus": 3
+  },
+  "Voltage Crackle": {
+    "Saw": 0, "Pulse": 1, "Sub": 0, "Noise": 0.64, "Pwm": 0.98, "Hpf": 3,
+    "Cutoff": 3040, "Resonance": 0.57, "FilterEnv": -1.3, "FilterLfo": 1.96,
+    "LfoRate": 24, "PitchLfo": 2.6, "Attack": 0.002, "Decay": 0.56,
+    "Sustain": 0.83, "Release": 0.24, "Chorus": 0
+  },
+  "Ozone Dive": {
+    "Range": 0, "Saw": 1, "SubLevel": 0.22, "Cutoff": 1420, "Resonance": 0.89,
+    "FilterEnv": 2.9, "FilterLfo": 1.65, "LfoRate": 0.47, "PitchLfo": 9.8,
+    "LfoDelay": 0.18, "Attack": 0.011, "Decay": 1.1, "Sustain": 0.75,
+    "Release": 1.05, "Chorus": 2
+  },
+  "Siren Bend": {
+    "Range": 2, "Saw": 0, "Pulse": 1, "Sub": 0, "PwmMode": 1, "Pwm": 0.24,
+    "Cutoff": 2310, "Resonance": 0.47, "FilterEnv": 0.12, "FilterLfo": 1.05,
+    "LfoRate": 0.74, "PitchLfo": 6.1, "BendPitch": 12, "BendFilter": 3.4,
+    "Attack": 0.13, "Sustain": 0.89, "Release": 0.69, "Chorus": 0
+  },
+  "Hollow Bloom": {
+    "Saw": 1, "Pulse": 1, "PwmMode": 1, "Pwm": 0.58, "Sub": 0, "Cutoff": 4450,
+    "Resonance": 0.91, "FilterEnv": -4.75, "Attack": 0.53, "Decay": 2.65,
+    "Sustain": 0.36, "Release": 1.65, "BendFilter": 2.65, "Chorus": 1
+  },
+  "Reversed Light": {
+    "Range": 2, "Saw": 1, "Pulse": 1, "Pwm": 0.44, "Sub": 0, "Noise": 0.2,
+    "Hpf": 2, "Cutoff": 480, "Resonance": 0.7, "FilterEnv": 4.1, "Attack": 1.83,
+    "Decay": 0.119, "Sustain": 0.035, "Release": 0.26, "Chorus": 2
+  },
+  "Laser Retrieval": {
+    "Range": 2, "Saw": 1, "Pulse": 0, "Sub": 0, "Hpf": 2, "Cutoff": 1580,
+    "Resonance": 0.62, "FilterEnv": 0.9, "FilterLfo": 1.55, "LfoRate": 7.3,
+    "PitchLfo": 10.5, "Attack": 0.001, "Decay": 0.41, "Sustain": 0,
+    "Release": 0.46, "Level": 0.64, "Chorus": 0
+  },
+  "Ice Fracture": {
+    "Range": 2, "Saw": 0, "Pulse": 1, "Pwm": 0.93, "Sub": 0, "Noise": 0.51,
+    "Hpf": 3, "Cutoff": 790, "Resonance": 0.95, "FilterEnv": 2.35,
+    "FilterLfo": 1.53, "LfoSync": 3, "PitchLfo": 0.57, "Attack": 0.35,
+    "Decay": 4.4, "Sustain": 0.52, "Release": 4.9, "Chorus": 3
+  },
+  "Faulty Beacon": {
+    "Range": 2, "Saw": 0, "Pulse": 1, "Pwm": 0.81, "SubLevel": 0.25, "Hpf": 2,
+    "Cutoff": 690, "Resonance": 0.77, "FilterEnv": 0.35, "FilterLfo": 3.65,
+    "PitchLfo": 1.8, "LfoRate": 2.39, "Vca": 1, "Chorus": 2
   }
 }

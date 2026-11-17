@@ -32,7 +32,10 @@ class cConfigEditor : public ModuleBase
 
     cConfigEditor()
     {
-        label[8] = { -1 };
+        for (auto& control : label)
+        {
+            control = -1;
+        }
         editorInstrument = nullptr;
         frameControl = -1;
         popoutWindowLabel = -1;

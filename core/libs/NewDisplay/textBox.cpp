@@ -160,33 +160,30 @@ void cTextBox::update()
         API_END();
     }
 
+    if (!text || !*text)
+        return;
+
     textLength = strlen(text);
     position = text;
 
     API_COLOR(colors[0]);
 
-    if (text != nullptr && text[0] != 0 && textLength > 0)
+    for (uint8_t line = 0; line < lines_max; line++)
     {
+        int16_t length = getNextLineLength();
+        if (length > 0)
+            API_CMD_TEXT(posX + 5,
+                         posY + 5 + (line * lines_step),
+                         font->handle,
+                         textStyle,
+                         position,
+                         length);
+        else if (length < 0)
+            break;
 
-        for (uint8_t line = 0; line < lines_max; line++)
-        {
-            int16_t length = getNextLineLength();
-            if (length > 0)
-                API_CMD_TEXT(posX + 5,
-                             posY + 5 + (line * lines_step),
-                             font->handle,
-                             textStyle,
-                             position,
-                             length);
-            else if (length < 0)
-                break;
-            // else if 0 = pusta linia
-
-            position += length + 1;
-
-            if ((uint32_t)(position - text) > textLength)
-                break;
-        }
+        if (uint32_t(position - text + length) >= textLength)
+            break;
+        position += length + 1;
     }
 }
 

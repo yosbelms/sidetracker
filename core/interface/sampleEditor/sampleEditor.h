@@ -359,8 +359,14 @@ class cSampleEditor : public ModuleBase
     //*******************
     cSampleEditor()
     {
-        label[8] = { -1 };
-        bar[8] = { -1 };
+        for (auto& control : label)
+        {
+            control = -1;
+        }
+        for (auto& control : bar)
+        {
+            control = -1;
+        }
         for (int i = 0; i < kEffectPageParams; i++)
         {
             paramList[i] = -1;

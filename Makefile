@@ -48,6 +48,11 @@ psyn:
 	@cp $(addprefix "$(ROOT_DIR)"/synth-plugin-sdk/build/,$(addsuffix .psyn,CHIP MINI OBER J106)) "$(SD_DIR)/Synths/"
 
 sd:
+	@mkdir -p "$(SD_DIR)/Themes"
+	@cp "$(ROOT_DIR)"/themes/*.json "$(SD_DIR)/Themes/"
+	@mkdir -p "$(SD_DIR)/Fonts"
+	@cp "$(ROOT_DIR)/fonts/Win98.ptfont" "$(ROOT_DIR)/fonts/Win98-NOTICE.txt" \
+	    "$(ROOT_DIR)/fonts/Snes.ptfont" "$(ROOT_DIR)/fonts/Snes-OFL.txt" "$(SD_DIR)/Fonts/"
 	python3 "$(ROOT_DIR)/tools/generate_stpalette_patches.py" --sd "$(SD_DIR)"
 	python3 "$(ROOT_DIR)/tools/generate_j106_patches.py" --sd "$(SD_DIR)"
 ifeq ($(words $(wildcard $(SYNTH_PATCH_INPUTS))),$(words $(SYNTH_PATCH_INPUTS)))
@@ -168,6 +173,7 @@ release-zip:
 		cmp "$$stage/$(MINI_PTF)" "$$stage/SD/Firmware/$(MINI_PTF)"; \
 		for engine in CHIP MINI OBER J106; do test -s "$$stage/SD/Synths/$$engine.psyn"; done; \
 		test -s "$$stage/SD/Patches/J106/Wide Strings.patch"; \
+		for theme in Snes Win98; do test -s "$$stage/SD/Themes/$$theme.json" && test -s "$$stage/SD/Fonts/$$theme.ptfont" || exit 1; done; \
 		mkdir "$$stage/Licenses"; \
 		cp "$(ROOT_DIR)/LICENSE" "$(ROOT_DIR)/NOTICE.md" "$(SYNTH_DIR)/prebuilt/LICENSE-PROPRIETARY.txt" "$$stage/Licenses/"; \
 		test -s "$$stage/SideTrackerAnalogPresets.zip"; \

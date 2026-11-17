@@ -2,6 +2,7 @@
 #include "FT812.h"
 
 #include "display.h"
+#include "themeBevel.h"
 #include "trackerControl.h"
 
 #include <cstring>
@@ -379,6 +380,10 @@ void cTracker::update()
 #endif
 
     selection();
+
+    const auto& theme = display.getTheme();
+    if (theme.beveledControls)
+        drawBeveledFrame(theme, posX, posY, width, height, true);
 }
 
 //------------------------------------------------------------------------------------------

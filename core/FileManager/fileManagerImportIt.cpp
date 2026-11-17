@@ -176,23 +176,15 @@ void cFileManager::importItFile_ProcessSong()
 
     mtProject.values.globalTempo = clamp<float>(IT, 10.0f, 400.0f);
 
-    uint8_t byteBuffer[OrdNum];
-
-    uint8_t loadStatus = fileTransfer.loadFileToMemory(impFileData.path,
-                                                       (uint8_t*)byteBuffer,
-                                                       sizeof(byteBuffer),
-                                                       0x00C0,         // offset
-                                                       fileWholeOnce); // fileDivIntoParts
+    // Keep OrdNum for the offsets of the tables after the order list.
+    uint8_t byteBuffer[SONG_MAX];
+    const uint16_t ordersToRead = OrdNum < SONG_MAX ? OrdNum : SONG_MAX;
+    const auto loadStatus = fileTransfer.loadFileToMemory(
+      impFileData.path, byteBuffer, ordersToRead, 0x00C0, fileWholeOnce);
 
     if (loadStatus == fileTransferEnd)
     {
-        //		Serial.println("song:");
-        //		for (uint8_t &a : byteBuffer)
-        //		{
-        //			Serial.println(a);
-        //		}
-
-        for (uint8_t a = 0; (a < SONG_MAX) && a < OrdNum; a++)
+        for (uint16_t a = 0; a < ordersToRead; a++)
         {
             mtProject.song.playlist[a] = byteBuffer[a];
 
