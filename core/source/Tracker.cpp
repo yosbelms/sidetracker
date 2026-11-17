@@ -114,9 +114,7 @@ void TrackerImpl::init(Platform* platform)
     elapsedMillis::init(timer);
     elapsedMicrosAudio::init(timer);
     elapsedMillisAudio::init(timer);
-#ifdef PLATFORM_IMX
     AudioStream::setUsbAudio(platform->getUsbAudio());
-#endif
 
     midiInit(platform->getUartMidi(), platform->getUsbMidi());
 
@@ -145,10 +143,7 @@ void TrackerImpl::init(Platform* platform)
     mtInterface.begin(platform, nullptr);
 #endif
 
-    bool stereoSampleMode = false;
-#ifdef PLATFORM_IMX
-    stereoSampleMode = true;
-#endif
+    bool stereoSampleMode = true;
 
 #ifdef FEATURE_SYNTH
     newFileManager.init(platform->getFileSystem(), &synth, stereoSampleMode);

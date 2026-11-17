@@ -243,7 +243,7 @@ void Interface::doStartTasks()
     display.processDisplayUpdateImmediate();
 
     engine.setHeadphonesVolume(mtConfig.audioCodecConfig.volume);
-    engine.setLineInOutType(mtConfig.general.lineInOutType);
+    engine.setLineInOutType(AudioStereoToMono::OutSignalType::stereo);
     engine.setPreviewVolume(mtConfig.general.previewVolume);
 }
 

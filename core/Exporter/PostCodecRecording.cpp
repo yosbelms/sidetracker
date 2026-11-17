@@ -88,9 +88,7 @@ bool PostCodecRecording::start(FileSystem& fs, const char* projectName)
     songEnded.store(false, std::memory_order_relaxed);
     isolated.store(true, std::memory_order_release);
     engine.disableLineInImpact();
-#ifdef PLATFORM_IMX
     engine.forceRegularOutputForCapture(true);
-#endif
 
     phase = Phase::Settling;
     if (!engine.routePostCodecToI2s(true))
@@ -232,9 +230,7 @@ void PostCodecRecording::stop(const char* reason, bool save)
     if (sequencer.isPlay()) sequencer.stop();
     mtConfig.midi.clkIn = savedClock;
     mtConfig.metronome.state = savedMetronome;
-#ifdef PLATFORM_IMX
     engine.forceRegularOutputForCapture(false);
-#endif
     retryInput = !engine.routePostCodecToI2s(false);
     routeTimer = 0;
     received.store(0, std::memory_order_relaxed);

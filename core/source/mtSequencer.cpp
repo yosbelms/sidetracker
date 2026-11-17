@@ -159,13 +159,8 @@ AUDIO_CORE_RAM bool Sequencer::isMetronomeApplicableForActualRecordingSource(voi
 {
     return SR->recorderConfig.source == SR->sourceTypeMicLG ||
            SR->recorderConfig.source == SR->sourceTypeMicHG ||
-           SR->recorderConfig.source == SR->sourceTypeLineIn
-
-#ifdef PLATFORM_IMX
-           || SR->recorderConfig.source == SR->sourceTypeUsb
-#endif
-
-      ;
+           SR->isLineInSource() ||
+           SR->isUsbSource();
 }
 
 AUDIO_CORE_RAM void Sequencer::tick_uStep(void)
@@ -257,7 +252,6 @@ AUDIO_CORE_FLASH void Sequencer::play_microStep(int row)
     strPlayer::strPlayerTrack::strSendStep& stepSent = player.track[row].stepSent;
 
     bool forceFirstRollWhenNoNote = 0; // potrzebne jak rolka wchodzi jako efekt bez nuty
-    int forceFirstRollWhenNoNote_fxIndex = 0;
 
     if (row == 0 && playerRow.uStep == 1 && isRec())
     {
@@ -495,6 +489,15 @@ AUDIO_CORE_FLASH void Sequencer::play_microStep(int row)
                     instrumentPlayer[row].setStepVelocity(stepToSend.volume);
                 }
             }
+            else if (stepToSend.volume == STEP_VELO_OFF)
+            {
+                stepToSend.volume = STEP_VELO_DEFAULT;
+                stepSent.volume = STEP_VELO_DEFAULT;
+                if (stepToSend.note == STEP_NOTE_EMPTY && isSampleTrack(row))
+                {
+                    instrumentPlayer[row].setStepVelocity(STEP_VELO_DEFAULT);
+                }
+            }
         }
 
         for (int8_t fxIndex = 1; fxIndex >= 0; fxIndex--)
@@ -546,8 +549,11 @@ AUDIO_CORE_FLASH void Sequencer::play_microStep(int row)
                         killFxOnSlot(row, fxIndex);
                         atLeastOneFx = 1;
 
-                        stepToSend.volume = _fx.value;
-                        stepSent.volume = stepToSend.volume;
+                        if (!isSampleInstrument(stepToSend.instrument))
+                        {
+                            stepToSend.volume = _fx.value;
+                            stepSent.volume = stepToSend.volume;
+                        }
                     }
                     break;
                 case fx.FX_TYPE_GATE_LENGTH:
@@ -720,9 +726,12 @@ AUDIO_CORE_FLASH void Sequencer::play_microStep(int row)
                         killFxOnSlot(row, fxIndex);
                         atLeastOneFx = 1;
 
-                        stepToSend.volume =
-                          clamp<int>(utilMathRandom::random(0, _fx.value + 1), 0, 127);
-                        stepSent.volume = stepToSend.volume;
+                        if (!isSampleInstrument(stepToSend.instrument))
+                        {
+                            stepToSend.volume =
+                              clamp<int>(utilMathRandom::random(0, _fx.value + 1), 0, 127);
+                            stepSent.volume = stepToSend.volume;
+                        }
                     }
                     break;
 
@@ -744,7 +753,6 @@ AUDIO_CORE_FLASH void Sequencer::play_microStep(int row)
                             break;
 
                         forceFirstRollWhenNoNote = 1;
-                        forceFirstRollWhenNoNote_fxIndex = fxIndex;
 
                         playerRow.roll.isOn = 1;
                         playerRow.roll.fxSlot = fxIndex;
@@ -757,7 +765,15 @@ AUDIO_CORE_FLASH void Sequencer::play_microStep(int row)
                         {
                             playerRow.roll.length = calcStepLength(row, playerRow.actual_pos);
 
-                            playerRow.roll.startingVolume = stepSent.volume;
+                            if (isSampleInstrument(stepSent.instrument) && isSampleTrack(row))
+                            {
+                                playerRow.roll.startingVolume =
+                                  instrumentPlayer[row].getMostSignificantVolume();
+                            }
+                            else
+                            {
+                                playerRow.roll.startingVolume = stepSent.volume;
+                            }
                         }
 
                         break;
@@ -870,7 +886,14 @@ AUDIO_CORE_FLASH void Sequencer::play_microStep(int row)
                     {
                         playerRow.roll.length = calcStepLength(row, playerRow.actual_pos);
 
-                        playerRow.roll.startingVolume = stepToSend.volume;
+                        if (_fxBis.type == fx.FX_TYPE_VOLUME)
+                        {
+                            playerRow.roll.startingVolume = _fxBis.value;
+                        }
+                        else
+                        {
+                            playerRow.roll.startingVolume = stepToSend.volume;
+                        }
                     }
 
                     break;
@@ -989,7 +1012,16 @@ AUDIO_CORE_FLASH void Sequencer::play_microStep(int row)
             }
             if (playerRow.roll.isOn && playerRow.roll.volumeOption != rollVolumeOption_const)
             {
-                stepToSend.volume = getRollVelo(row, &stepToSend);
+                uint8_t rollVelo = getRollVelo(row, &stepToSend);
+                if (isSampleInstrument(stepToSend.instrument))
+                {
+                    stepToSend.fx[playerRow.roll.fxSlot].type = fx.FX_TYPE_VOLUME;
+                    stepToSend.fx[playerRow.roll.fxSlot].value = rollVelo > 100 ? 100 : rollVelo;
+                }
+                else
+                {
+                    stepToSend.volume = rollVelo;
+                }
             }
 
             if ((isMidiInstrument(stepToSend.instrument) ||
@@ -1127,15 +1159,15 @@ AUDIO_CORE_FLASH void Sequencer::play_microStep(int row)
                         playerRow.roll.volumeOption != rollVolumeOption_const)
                     {
                         uint8_t rollVelo = getRollVelo(row, &playerRow.stepContRoll);
-                        playerRow.stepContRoll.volume = rollVelo > 127 ? 127 : rollVelo;
-
-                        if (forceFirstRollWhenNoNote)
+                        if (isSampleInstrument(playerRow.stepContRoll.instrument))
                         {
-                            auto& fxItem =
-                              playerRow.stepContRoll.fx[forceFirstRollWhenNoNote_fxIndex];
-                            // instrumentPlayer needs to know about roll to change volume
-                            fxItem.type = fx.FX_TYPE_ROLL;
-                            fxItem.value = 0; // instrumentPlayer do not cares about this value
+                            auto& fxItem = playerRow.stepContRoll.fx[playerRow.roll.fxSlot];
+                            fxItem.type = fx.FX_TYPE_VOLUME;
+                            fxItem.value = rollVelo > 100 ? 100 : rollVelo;
+                        }
+                        else
+                        {
+                            playerRow.stepContRoll.volume = rollVelo > 127 ? 127 : rollVelo;
                         }
                     }
 
@@ -2665,10 +2697,10 @@ AUDIO_CORE_FLASH void Sequencer::handleNoteOn(
             instrumentPlayer[sel->firstTrack].noteOn(step->instrument,
                                                      step->note,
                                                      velocityToVolume(velocity),
-                                                     fx.FX_TYPE_VOLUME,
                                                      0,
                                                      0,
-                                                     0); // wartość FX1 volume z velocity u gory
+                                                     0,
+                                                     0);
 
             engine.setLastUsedVoice(sel->firstTrack);
         }
@@ -2820,10 +2852,10 @@ AUDIO_CORE_FLASH void Sequencer::handleNoteOn(
                         instrumentPlayer[tr].noteOn(inst,
                                                     note,
                                                     velocityToVolume(velocity),
-                                                    fx.FX_TYPE_VOLUME,
                                                     0,
                                                     0,
-                                                    0); // wartość FX1 volume z velocity u gory
+                                                    0,
+                                                    0);
 
                         engine.setLastUsedVoice(tr);
                     }
@@ -2871,10 +2903,10 @@ AUDIO_CORE_FLASH void Sequencer::handleNoteOn(
                     instrumentPlayer[trackIdx].noteOn(mtProject.values.lastUsedInstrument,
                                                       note,
                                                       velocityToVolume(velocity),
-                                                      fx.FX_TYPE_VOLUME,
                                                       0,
                                                       0,
-                                                      0); // wartość FX1 volume z velocity u gory
+                                                      0,
+                                                      0);
 
                     engine.setLastUsedVoice(trackIdx);
                 }

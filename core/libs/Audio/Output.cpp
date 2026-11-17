@@ -13,7 +13,7 @@ AUDIO_CORE_RAM void AudioOutputStream::update()
         return;
     }
 
-#if defined(PLATFORM_IMX) && !defined(TRACKER_DESKTOP)
+#ifndef TRACKER_DESKTOP
     const bool regular = forceRegular;
     const int leftSource = regular ? 0 : source[0];
     const int rightSource = regular ? 0 : source[1];

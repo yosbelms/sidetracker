@@ -21,13 +21,10 @@ constexpr uint8_t projectMenuGroupCount = 10;
 
 #ifdef TRACKER_MINI
 constexpr uint8_t baseMenuGroupCount = 8;
-constexpr uint8_t generalMenuGroupCount = 9;
-#elif defined(PLATFORM_IMX)
-constexpr uint8_t baseMenuGroupCount = 7;
-constexpr uint8_t generalMenuGroupCount = 12;
+constexpr uint8_t generalMenuGroupCount = 8;
 #else
-constexpr uint8_t baseMenuGroupCount = 6;
-constexpr uint8_t generalMenuGroupCount = 12;
+constexpr uint8_t baseMenuGroupCount = 7;
+constexpr uint8_t generalMenuGroupCount = 11;
 #endif
 
 // baza baz
@@ -44,9 +41,7 @@ cMenuGroup menuProject(menuBase, "Project Settings", projectMenuGroupCount);
 cMenuGroup menuGeneral(menuBase, "General", generalMenuGroupCount);
 cMenuGroup menuMidi(menuBase, "MIDI", 11);
 
-#ifdef PLATFORM_IMX
 cMenuGroup menuUsb(menuBase, "USB", 2);
-#endif
 
 cMenuGroup menuMetro(menuBase, "Metronome", 5);
 cMenuGroup menuFirmware(menuBase, "Firmware", 4);
@@ -103,7 +98,6 @@ const strItemTypeListText setupHexMode{ &mtConfig.general.numberingMode, std::si
 const strItemTypeListText setupPadPreviewInPatternEdit{ &mtConfig.general.padPreviewInPatternEdit, 3, padPreviewInPatternEditTexts };
 const strItemTypeListText setupPatternArrangement{ &mtConfig.general.patternArrangement, 3, patternArrangementTexts };
 const strItemTypeListText setupPatternInfo{ &mtConfig.general.patternInfo, 3, patternInfoTexts };
-const strItemTypeListTextWithAction setupLineInOutType{ &mtConfig.general.lineInOutType, 3,  lineInOutType, setLineInOutType };
 
 #ifndef TRACKER_MINI
 cMenuItem melRadioReg(menuGeneral,
@@ -165,11 +159,6 @@ cMenuItem melPatternInfo(menuGeneral,
                          patternInfo,
                          menuTypeItemListText,
                          &setupPatternInfo);
-cMenuItem melLinInOutType(menuGeneral,
-                          "Line in channel",
-                          lineInChannelDesc,
-                          menuTypeItemListTextWithAction,
-                          &setupLineInOutType);
 
 //==================================================================================================================================================================
 // Metroneome
@@ -278,7 +267,6 @@ cMenuItem melResetConfig(menuFirmware,
 //==================================================================================================================================================================
 // USB
 
-#ifdef PLATFORM_IMX
 const strItemTypeActionButton usbStorageSetup{ usbStorageEnter, nullptr };
 const strItemTypeListTextWithAction usbAudioSetup{ &mtConfig.common.usbAudioMode,
                                               sizeof(kUsbAudioList)/sizeof(kUsbAudioList[0]), kUsbAudioList, usbAudioChange };
@@ -294,7 +282,6 @@ cMenuItem melUsbAudio(menuUsb,
 						  usbAudioDesc,
 						  menuTypeItemListTextWithAction,
                           &usbAudioSetup);
-#endif
 //==================================================================================================================================================================
 // File transfer
 // const strItemTypeActionButton startfileTransferSetup 		{ startFileTransferMode, nullptr};
@@ -818,7 +805,7 @@ void cConfigEditor::configListConfirm(uint8_t list_pos)
 // wykonywanie akcji/edycji na elemencie menu
 void cMenuGroup::executeItem()
 {
-    if (childs[selectedItem]->type != menuTypeItem)
+    if (childs[selectedItem] == nullptr || childs[selectedItem]->type != menuTypeItem)
         return;
 
     cMenuItem* selected_child = (cMenuItem*)childs[selectedItem];
