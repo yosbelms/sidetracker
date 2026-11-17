@@ -10,6 +10,7 @@ Bold source: https://fontstruct.com/fontstructions/show/1384862
 License: https://creativecommons.org/licenses/by-sa/3.0/legalcode
 98.css source: https://github.com/jdan/98.css
 
-The glyphs were rasterized at five Tracker UI sizes and packed as L4
-bitmaps. Missing ASCII symbols and eight transport glyph cells were drawn
-for the Tracker interface. FontStruct is copyright ©2017 Rob Meek.
+The glyphs were rasterized with 4-bit antialiasing at five Tracker UI
+sizes. The small regular styles use slightly larger, heavier glyphs.
+Missing ASCII symbols and eight transport glyph cells were drawn for
+the Tracker interface. FontStruct is copyright ©2017 Rob Meek.

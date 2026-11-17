@@ -3,13 +3,11 @@
 #include "FT812.h"
 #include "Themes.h"
 
-inline void drawBeveledFrame(const Theme& theme, int x, int y, int w, int h, bool recessed)
+inline void drawBeveledEdges(const Theme& theme, int x, int y, int w, int h, bool recessed)
 {
     const int right = x + w - 1;
     const int bottom = y + h - 1;
     const auto* colors = theme.bevelColors;
-    API_SAVE_CONTEXT();
-    API_LINE_WIDTH(8);
     API_BEGIN(LINE_STRIP);
     API_COLOR(recessed ? colors[1] : colors[0]);
     API_VERTEX2F(x, bottom - 1);
@@ -55,5 +53,12 @@ inline void drawBeveledFrame(const Theme& theme, int x, int y, int w, int h, boo
         API_VERTEX2F(right - 2, y + 1);
     }
     API_END();
+}
+
+inline void drawBeveledFrame(const Theme& theme, int x, int y, int w, int h, bool recessed)
+{
+    API_SAVE_CONTEXT();
+    API_LINE_WIDTH(8);
+    drawBeveledEdges(theme, x, y, w, h, recessed);
     API_RESTORE_CONTEXT();
 }

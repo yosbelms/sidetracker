@@ -1,7 +1,7 @@
 {
   "name": "Win98",
   "base": "Original",
-  "background": "#008684",
+  "background": "#C0C0C0",
   "topBar": {
     "text": "#FFFFFF",
     "background": "#000080",
@@ -91,7 +91,7 @@
   "waveform": {
     "audio": "#000080",
     "background": "#444C54",
-    "points": {"text": "#000080", "background": "#E8E8E8", "frame": "#767676", "text2": "#006758"},
+    "points": {"text": "#000080", "background": "#18283C", "frame": "#767676", "text2": "#006758"},
     "progress": ["#006758", "#9B2830"],
     "granular": ["#006758", "#9B2830"],
     "wavetablePosition": ["#000080", "#006758"],

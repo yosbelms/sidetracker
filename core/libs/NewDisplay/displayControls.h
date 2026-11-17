@@ -55,6 +55,8 @@ class cDisplayControl
     const control_id_t id;
     const uint8_t stagesCount;
     uint16_t ramSize;
+    // Size of a complete drawing at the start of the list, before optional decoration.
+    uint16_t essentialFrameBytes = 0;
     bool autoRefresh;
     bool highPrioRefresh;
 

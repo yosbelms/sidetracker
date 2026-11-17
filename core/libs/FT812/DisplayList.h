@@ -23,6 +23,7 @@ typedef const uint8_t* (*FontMetrics)(uint8_t handle);
 void setFontMetrics(FontMetrics lookup);
 
 void capture(uint32_t* buffer, uint32_t capacityWords);
+uint32_t capturedWords();
 // Ends the capture and returns the number of words written. A list that did
 // not fit is discarded as a whole (returns 0), because a truncated one would
 // leave the graphics context unbalanced for whatever is drawn after it.

@@ -157,7 +157,8 @@ const strBitmap bitmaps[displayBitmapsCount] = {
     { synthbadges::smallBackground.data(), 132200, synthbadges::smallBackground.size(), 80, 28, L2, 20 },
     { synthbadges::mediumBackground.data(), 133400, synthbadges::mediumBackground.size(), 108, 40, L2, 27 },
 #endif
-    { kSideTrackerMonogram, 80000, sizeof(kSideTrackerMonogram), kSideTrackerMonogramWidth,
+    // Keep the splash bitmap clear of the fonts at the start of RAM_G.
+    { kSideTrackerMonogram, 136000, sizeof(kSideTrackerMonogram), kSideTrackerMonogramWidth,
       kSideTrackerMonogramHeight, L4, kSideTrackerMonogramWidth / 2 },
 };
 
@@ -805,6 +806,7 @@ void cDisplay::buildControl(hControl handle)
 {
     cDisplayControl* control = controlsTable[handle];
 
+    control->essentialFrameBytes = 0;
     displayList::capture(buildWords, kFragmentWords);
     control->update();
     if (control->stagesCount > 1)
@@ -830,6 +832,8 @@ void cDisplay::buildControl(hControl handle)
         words = 0;
     }
     control->ramSize = words * 4;
+    if (words == 0)
+        control->essentialFrameBytes = 0;
     control->refresh = 1;
 
     bool shown = (control->style & controlStyleShow) != 0;
@@ -846,6 +850,26 @@ uint32_t cDisplay::composeFrame()
     frameWords[count++] = CLEAR(1, 1, 1);
     frameWords[count++] = VERTEX_FORMAT(0);
 
+    uint32_t fullFrameBytes = 0;
+    uint32_t reservedBytes = 0;
+    if (theme->beveledControls)
+    {
+        for (const auto* control : controlsTable)
+        {
+            if (control && (control->style & controlStyleShow) && control->refresh)
+            {
+                fullFrameBytes += control->ramSize;
+                reservedBytes += control->essentialFrameBytes;
+            }
+        }
+    }
+
+    // On tight frames, reserve the solid toolbar fill and leave room for
+    // the regular controls and labels before spending words on its bevels.
+    const bool omitDecoration = fullFrameBytes > kFrameControlBytes;
+    if (!omitDecoration)
+        reservedBytes = 0;
+
     // Controls are drawn in the reverse of the order they were created in.
     uint32_t controlBytes = 0;
     for (int8_t i = controlsCount - 1; i >= 0; i--)
@@ -855,15 +879,21 @@ uint32_t cDisplay::composeFrame()
         {
             continue;
         }
-        if (controlBytes + control->ramSize > kFrameControlBytes)
+        uint32_t bytes = control->ramSize;
+        if (omitDecoration && control->essentialFrameBytes)
+        {
+            bytes = control->essentialFrameBytes;
+            reservedBytes -= bytes;
+        }
+        if (controlBytes + bytes + reservedBytes > kFrameControlBytes)
         {
             // Left out, as before; smaller controls after it may still fit.
             displayList::overflows++;
             continue;
         }
-        memcpy(&frameWords[count], fragments.words(control->fragment), control->ramSize);
-        count += control->ramSize / 4;
-        controlBytes += control->ramSize;
+        memcpy(&frameWords[count], fragments.words(control->fragment), bytes);
+        count += bytes / sizeof(uint32_t);
+        controlBytes += bytes;
     }
 
     frameWords[count++] = FT_DISPLAY();

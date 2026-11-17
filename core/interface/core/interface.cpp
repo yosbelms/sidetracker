@@ -225,9 +225,6 @@ void Interface::doStartTasks()
     }
     interfaceGlobals.currentFirmwareBuild = platform->getSystemInfo()->buildId;
 
-    ThemeManager::init(platform);
-    refreshThemeAndFontMenuOptions();
-
     songTimer.initControls();
     mtPopups.initPopupsDisplayControls();
     mtMenuPopup.initPopupsDisplayControls();
@@ -235,8 +232,6 @@ void Interface::doStartTasks()
     ModuleBase::keyboardManager.initControls();
     ModuleBase::keyboardManager.init(platform->getLeds(), platform->getTimer());
 
-    ThemeManager::applyTheme(mtConfig.general.theme);
-    ThemeManager::applyFont(mtConfig.general.font);
     initStartScreen();
 
     if (!fileSystem->isSdCardInserted())
@@ -263,6 +258,13 @@ void Interface::processStartScreen()
             // koniec ekranu startowego
             destroyStartScreen();
             hideDisplayNoSdCard();
+
+            // Keep the splash on the stock palette and font until the project is ready.
+            ThemeManager::init(platform);
+            refreshThemeAndFontMenuOptions();
+            ThemeManager::applyTheme(mtConfig.general.theme);
+            ThemeManager::applyFont(mtConfig.general.font);
+
             operatingMode = mtOperatingModeRun;
             display.setModulesControlDestroyPoint();
 #ifdef TRACKER_MINI

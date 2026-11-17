@@ -2,10 +2,12 @@
 """Apply custom themes through Config and check the resulting display."""
 
 from pathlib import Path
+import json
 import shutil
 import struct
 import sys
 import tempfile
+import wave
 
 from desktop_perf_fx_check import run
 
@@ -22,6 +24,55 @@ def pixel(bitmap, x, y):
     row = height - 1 - y if height > 0 else y
     start = offset + row * stride + x * pixel_bytes
     return int.from_bytes(bitmap[start:start + 3], "little")
+
+
+def check_win98_waveform(binary, card):
+    with wave.open(str(card / "waveform.wav"), "wb") as sample:
+        sample.setparams((1, 2, 44100, 0, "NONE", "not compressed"))
+        sample.writeframes(struct.pack("<hh", -16000, 16000) * 22050)
+
+    playback = card / "playback.bmp"
+    run(binary, card, f"""import 0 /waveform.wav
+button S. Playback
+wait 300
+snapshot {playback}
+button S. Editor
+wait 300
+""")
+    for view, path in (("Sample Editor", card / "screen.bmp"), ("Sample Playback", playback)):
+        bmp = path.read_bytes()
+        # The selection adds its tint to the waveform. Sample a row away from
+        # the center line to distinguish an actual waveform from a flat line.
+        assert sum(pixel(bmp, x, 200) == 0x1828BC for x in range(50, 550)) > 100, view
+
+
+def check_win98_toolbar(binary, card):
+    theme_file = card / "Themes" / "Win98.json"
+    theme = json.loads(theme_file.read_text())
+    # Give the screen and the toolbar different colors so gaps are measurable.
+    theme["background"] = "#008684"
+    theme_file.write_text(json.dumps(theme))
+
+    instrument = card / "instrument.bmp"
+    config = card / "config.bmp"
+    run(binary, card, f"""button I. Params
+wait 300
+snapshot {instrument}
+button Config
+wait 300
+snapshot {config}
+button S. Playback
+wait 300
+""")
+    for view, path in (
+        ("Instrument Parameters", instrument),
+        ("Config", config),
+        ("Sample Playback", card / "screen.bmp"),
+    ):
+        bmp = path.read_bytes()
+        assert pixel(bmp, 0, 70) == 0x008684, f"{view} teal page"
+        for x, y in ((0, 424), (0, 479), (799, 424), (799, 479), (30, 426), (790, 426)):
+            assert pixel(bmp, x, y) == 0xC0C0C0, f"{view} toolbar at ({x}, {y})"
 
 
 def check(binary, card, name):
@@ -46,6 +97,9 @@ def check(binary, card, name):
     # Reopen the same card and boot with the saved theme and font.
     run(binary, card, "wait 300\n")
     assert (card / "screen.bmp").read_bytes() == themed, f"{name} reboot"
+    if name == "Win98":
+        check_win98_waveform(binary, card)
+        check_win98_toolbar(binary, card)
     run(binary, card, OPEN_THEME + "button Up\n" * 3 + "button 7\nbutton Pattern\nwait 300\n")
     assert pixel((card / "screen.bmp").read_bytes(), 796, 4) == 0x080808, "return to Original"
 

@@ -1,4 +1,5 @@
 #include "FT812.h"
+#include "DisplayList.h"
 
 #include "commonControls.h"
 #include "display.h"
@@ -97,17 +98,33 @@ void cBgLabel::update()
 
     //------------------------------------------
 
-    // background
-    API_COLOR(colors[1]);
-
-    API_BEGIN(RECTS);
-    API_VERTEX2F(border_x + 1, border_y);
-    API_VERTEX2F(border_x + width - 2, border_y + height);
-    API_END();
-
     const auto& theme = display.getTheme();
     if (theme.beveledControls)
     {
+        const int left = border_x < 0 ? 0 : border_x;
+        const int top = border_y > 0 ? border_y - 1 : 0;
+        const int fillWidth = border_x + width - left;
+        const int fillHeight = border_y + height + 1 - top;
+        if (fillWidth <= 0 || fillHeight <= 0)
+            return;
+
+        // Clear just the toolbar rectangle, independently of the preceding controls.
+        API_SAVE_CONTEXT();
+        API_SCISSOR_XY(left, top);
+        API_SCISSOR_SIZE(fillWidth, fillHeight);
+        API_COLOR_MASK(1, 1, 1, 0);
+        API_BLEND_FUNC(ONE, ZERO); // The desktop clear also uses the current blend.
+        API_CLEAR_COLOR(colors[1]);
+        API_CLEAR(1, 0, 0);
+        API_RESTORE_CONTEXT();
+        essentialFrameBytes = displayList::capturedWords() * sizeof(uint32_t);
+
+        API_SAVE_CONTEXT();
+        API_SCISSOR_XY(left, top);
+        API_SCISSOR_SIZE(fillWidth, fillHeight);
+        API_COLOR_MASK(1, 1, 1, 0);
+        API_COLOR_A(255);
+        API_BLEND_FUNC(SRC_ALPHA, ONE_MINUS_SRC_ALPHA);
         API_COLOR(theme.bevelColors[0]);
         API_LINE_WIDTH(8);
         API_BEGIN(LINES);
@@ -121,12 +138,19 @@ void cBgLabel::update()
         {
             if (index != 8 && (value & (1 << index)) == 0)
                 continue;
-            drawBeveledFrame(theme, border_x + start * buttonWidth + 2, border_y + 3,
+            drawBeveledEdges(theme, border_x + start * buttonWidth + 2, border_y + 3,
                              (index - start) * buttonWidth - 4, height - 5, false);
             start = index;
         }
+        API_RESTORE_CONTEXT();
         return;
     }
+
+    API_COLOR(colors[1]);
+    API_BEGIN(RECTS);
+    API_VERTEX2F(border_x + 1, border_y);
+    API_VERTEX2F(border_x + width - 2, border_y + height);
+    API_END();
 
     API_COLOR(colors[0]);
     API_LINE_WIDTH(8);

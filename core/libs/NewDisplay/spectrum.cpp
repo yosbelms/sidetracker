@@ -75,7 +75,9 @@ void cSpectrum::update()
 {
     // Data resolution and display width are independent. Sample Editor
     // stretches its existing 600-point data across the full 800-pixel screen.
-    const unsigned dataWidth = spectrum ? std::min<unsigned>(spectrum->width, 600) : 0;
+    // Playback and other views without an explicit data width use their control width.
+    const unsigned dataWidth =
+      spectrum ? std::min<unsigned>(spectrum->width != 0 ? spectrum->width : width, 600) : 0;
     const auto screenX = [&](unsigned index) {
         return posX + (dataWidth > 1 ? index * (width - 1) / (dataWidth - 1) : 0);
     };

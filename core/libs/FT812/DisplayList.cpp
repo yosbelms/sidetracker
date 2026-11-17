@@ -115,9 +115,14 @@ void capture(uint32_t* buffer, uint32_t capacityWords)
     overflow = false;
 }
 
+uint32_t capturedWords()
+{
+    return first ? static_cast<uint32_t>(cursor - first) : 0;
+}
+
 uint32_t finish()
 {
-    uint32_t words = overflow ? 0 : (uint32_t)(cursor - first);
+    uint32_t words = overflow ? 0 : capturedWords();
     if (overflow)
     {
         overflows++;

@@ -226,18 +226,17 @@ void Interface::showDisplayFileTransferMode()
 {
     strControlProperties prop;
     prop.x = 400;
-    prop.y = 240;
+    prop.y = 225;
     prop.w = 240;
-    prop.h = 25;
-    prop.colors = display.getTheme().noSdInfoTextColors;
-    prop.style = (controlStyleCenterY | controlStyleCenterX | controlStyleShow);
+    prop.h = 30;
+    prop.colors = display.getTheme().configItemEditorTextLabelColors;
+    prop.style = controlStyleCenterY | controlStyleCenterX | controlStyleFont4 | controlStyleShow;
     prop.text = usbStorageModeText;
-    noSdTextControl = display.createControl<cSimpleText>(&prop);
+    noSdTextControl = display.createControl<cLabel>(&prop);
 
     display.refreshControl(noSdTextControl);
 
     prop.style = controlStyleFont1 | controlStyleShow;
-    prop.colors = display.getTheme().configItemEditorTextLabelColors;
     prop.value = 3;
     prop.x = 100;
     prop.y = 300;
