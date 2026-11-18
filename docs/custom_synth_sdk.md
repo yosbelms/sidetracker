@@ -4,7 +4,7 @@ The **Polyend Community Edition Synth Plugin SDK** ([`synth-plugin-sdk/`](../syn
 
 ---
 
-SideTracker adds **MINI**, a three-oscillator ladder monosynth with low-note priority, and **OBER**, a two-oscillator polysynth with PWM, hard sync, cross-modulation, and SEM morphing. OBER offers up to four voices or **Mono Legato** in its Voice section. Both share the Tracker's eight-voice pool. Copy `SD/Synths/` from the release to the root of the card and reboot to load the engines, then use **Synth → Load** for patches.
+SideTracker adds **MINI**, a Minimoog emulation with three oscillators, a ladder filter, and low-note priority, and **OBER**, an Oberheim-style polysynth emulation with two oscillators, PWM, hard sync, cross-modulation, and SEM filter morphing. OBER offers up to four voices or **Mono Legato** in its Voice section. Both share the Tracker's eight-voice pool. Copy `SD/Synths/` from the release to the root of the card and reboot to load the engines, then use **Synth → Load** for patches.
 
 Run `python3 tools/port_analog_synth_presets.py` with the donor source folders under `temp/` to generate `build/SideTrackerAnalogPresets.zip`. The pack contains 200 FMini-1 presets for MINI and 100 presets for OBER, including 70 converted OberVave sounds and 30 original SideTracker sounds. The archive contains individual Tracker `.patch` files under `Patches/MINI/` and `Patches/OBER/`. Copy the `Patches` folder to the SD-card root, select the synth, and open **Load**. The conversion maps supported synth controls. Donor arpeggiators, FX sends, and voice stacking are omitted. The archive includes the donor licenses.
 
@@ -15,7 +15,7 @@ is independently implemented; the donor code is used only as a sound reference.
 
 ### J106
 
-**J106** is a Juno-style synth with a shared saw, pulse and sub oscillator, a resonant four-pole low-pass filter, four high-pass settings, ADSR or gate amplification, and stereo Chorus I, II, and I+II. It supports up to six voices from Tracker's shared eight-voice pool. The LFO can follow project tempo. Use Tracker's sequencer, Delay and Reverb with J106.
+**J106** emulates the Roland Juno-106 with a shared saw, pulse and sub oscillator, a resonant four-pole low-pass filter, four high-pass settings, ADSR or gate amplification, and stereo Chorus I, II, and I+II. It supports up to six voices from Tracker's shared eight-voice pool. The LFO can follow project tempo. Use Tracker's sequencer, Delay and Reverb with J106.
 
 On **Tracker+ and Tracker Mini**, copy `SD/Synths/J106.psyn` and `SD/Patches/J106/` from the release bundle to the matching folders on your SD card, then reboot. In a synth slot, select **J106** under **I. Params → Model**, then press **Load**. The 100 factory patches go from **Ebony Sub**, **Cedar Keys**, and **Wide Strings** to tempo-synced **Bar Scanner**, percussive **Felt Kick**, and evolving **Polar Wind**.
 

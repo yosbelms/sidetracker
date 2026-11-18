@@ -2,7 +2,7 @@
 
 SideTracker is a fork of Polyend Tracker Community Edition (Tracker CE). [Upstream repository](https://github.com/polyend/tracker-ce)
 
-It adds a live Performance FX rack, Performance FX sequencing in patterns, and a redesigned Sample Editor with reusable effect chains. Tracker+ and Tracker Mini also gain the MINI, OBER, and J106 synth engines. J106 is a Juno-style polysynth with stereo chorus and 100 factory patches.
+It adds a live Performance FX rack, Performance FX sequencing in patterns, and a redesigned Sample Editor with reusable effect chains. Tracker+ and Tracker Mini also gain **MINI**, a Minimoog emulation, **OBER**, an Oberheim-style emulation, and **J106**, a Roland Juno-106 emulation with stereo chorus and 100 factory patches.
 
 ### Download SideTracker
 
