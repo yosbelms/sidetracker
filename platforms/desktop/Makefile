@@ -69,7 +69,7 @@ $(OUT)/%.o: %.cpp Makefile $(ROOT)/version.mk
 
 $(OUT)/synth-plugin-sdk/chip.o: $(ROOT)/synth-plugin-sdk/engines/chip.cpp Makefile
 	@mkdir -p $(@D)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -I$(ROOT)/synth-plugin-sdk/include -c $< -o $@
 
 -include $(OBJS:.o=.d) $(HOST:.o=.d) $(CHIP_OBJ:.o=.d)
 .PHONY: all check sd

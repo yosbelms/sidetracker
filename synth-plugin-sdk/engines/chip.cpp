@@ -4,6 +4,7 @@
 #include "psyn/psyn_cpp_bridge.h"
 #endif
 #include "PolySynth/sdk/SynthVoiceSDK.h"
+#include "psyn/psyn_random.h"
 
 #include <algorithm>
 #include <array>
@@ -1216,6 +1217,11 @@ class ChiptuneSynthVoice : public sdk::CustomSynthVoice<ChiptuneSynthVoice, Chip
 };
 
 #ifdef TRACKER_DESKTOP
+void randomizeChiptunePatch(Patch& patch, uint32_t seed)
+{
+    ChiptuneSynthVoice::randomizePatch(patch, seed);
+}
+
 std::unique_ptr<InstrumentType> createChiptuneSynth()
 {
     return std::make_unique<InstrumentType>(InstrumentType{

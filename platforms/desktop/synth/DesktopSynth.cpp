@@ -381,6 +381,18 @@ class DesktopSynth final : public Synth
         return ids;
     }
 
+    bool supportsRandomizePatch(int id) override
+    {
+        return id == *InstrumentTypeId::kChiptuneSynth;
+    }
+
+    bool randomizePatch(int id, Patch& patch, uint32_t seed) override
+    {
+        if (!supportsRandomizePatch(id)) return false;
+        randomizeChiptunePatch(patch, seed);
+        return true;
+    }
+
     std::vector<std::string_view> getInstrumentTypeNames() override
     {
         std::vector<std::string_view> names;
