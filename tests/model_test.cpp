@@ -48,7 +48,10 @@ TEST(Strings, NaturalSortingOrdersNumbersAndIgnoresCase)
 {
     EXPECT_TRUE(compareStrings("sample2.wav", "sample10.wav"));
     EXPECT_FALSE(compareStrings("sample10.wav", "sample2.wav"));
-    EXPECT_TRUE(compareStrings("BASS", "bass"));
+    EXPECT_FALSE(compareStrings("BASS", "bass"));
+    EXPECT_FALSE(compareStrings("bass", "BASS"));
+    EXPECT_FALSE(compareStrings("bass", "bass"));
+    EXPECT_FALSE(compareStrings("", ""));
     EXPECT_TRUE(compareStrings("", "bass"));
     EXPECT_FALSE(compareStrings("bass", ""));
 }
