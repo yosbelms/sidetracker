@@ -5,6 +5,7 @@
 #include "themeBevel.h"
 #include "trackerControl.h"
 
+#include <algorithm>
 #include <cstring>
 
 static void Number2Bitmaps(int16_t x, int16_t y, uint8_t font_x, uint8_t font_y, int16_t number);
@@ -329,6 +330,14 @@ void cTracker::update()
         paramCount = 4;
     }
 
+    const uint8_t activeTracks =
+      (tracks->tracksCount > 0 && tracks->tracksCount <= strTrackerPattern::kTrackCount)
+        ? tracks->tracksCount
+        : strTrackerPattern::kTrackCount;
+    const uint8_t remainingTracks =
+      (tracks->firstVisibleTrack < activeTracks) ? (activeTracks - tracks->firstVisibleTrack) : 0;
+    columnsCount = std::min<uint8_t>(columnsCount, remainingTracks);
+
     if (tracks->popupMode & 1)
     {
         rowCount = 8;
@@ -491,6 +500,15 @@ void cTracker::lines()
         API_VERTEX2F(x, posY);
         API_VERTEX2F(x, posY + height);
     }
+    if (columnsCount > 0)
+    {
+        x = rightOffset + tracksWidth * columnsCount;
+        if (x < (799 - leftOffset))
+        {
+            API_VERTEX2F(x, posY);
+            API_VERTEX2F(x, posY + height);
+        }
+    }
 
     API_END();
 }
@@ -516,7 +534,11 @@ void cTracker::playHead()
         int16_t phx1 = 1;
         uint16_t phw = 798;
 
-        if (tracks->playheadStartTrack > 0 || tracks->playheadEndTrack < 7)
+        const uint8_t activeTracks =
+          (tracks->tracksCount > 0 && tracks->tracksCount <= strTrackerPattern::kTrackCount)
+            ? tracks->tracksCount
+            : strTrackerPattern::kTrackCount;
+        if (tracks->playheadStartTrack > 0 || (tracks->playheadEndTrack + 1) < activeTracks)
         {
             int16_t phx2;
             if (tracks->playheadStartTrack < tracks->playheadEndTrack)
@@ -530,7 +552,7 @@ void cTracker::playHead()
                 phx2 = tracks->playheadStartTrack;
             }
 
-            if (phx1 > (tracks->firstVisibleTrack + columnsCount) ||
+            if (phx1 >= (tracks->firstVisibleTrack + columnsCount) ||
                 phx2 < tracks->firstVisibleTrack)
             {
                 return;
@@ -540,7 +562,13 @@ void cTracker::playHead()
             phx1 = phx1 < (leftOffset + 1) ? leftOffset + 1 : phx1;
 
             phx2 = leftOffset + (phx2 + 1 - tracks->firstVisibleTrack) * tracksWidth;
-            phx2 = phx2 > (800 - rightOffset - 1) ? 800 - rightOffset - 1 : phx2;
+            const int16_t maxPhx2 =
+              std::min<int16_t>(800 - rightOffset - 1, leftOffset + columnsCount * tracksWidth - 1);
+            phx2 = phx2 > maxPhx2 ? maxPhx2 : phx2;
+            if (phx2 <= phx1)
+            {
+                return;
+            }
 
             phw = phx2 - phx1;
         }
@@ -616,9 +644,11 @@ void cTracker::calculateSelection()
         select2_x = select2_x - tracks->firstVisibleTrack;
         select2_x = rightOffset + select2_x * tracksWidth + tracksWidth - 2;
 
-        if (select2_x > 800 - rightOffset - 4)
+        const int16_t maxSelect2X =
+          std::min<int16_t>(800 - rightOffset - 4, rightOffset + columnsCount * tracksWidth - 2);
+        if (select2_x > maxSelect2X)
         {
-            select2_x = 800 - rightOffset - 4;
+            select2_x = maxSelect2X;
         }
 
         select1_y = select1_y - tracks->actualStep + 7;
@@ -745,7 +775,7 @@ void cTracker::selection()
 
     // aktualnie modyfikowany step
     if (tracks->selectState && tracks->actualTrack >= tracks->firstVisibleTrack &&
-        tracks->actualTrack <= tracks->firstVisibleTrack + columnsCount)
+        tracks->actualTrack < tracks->firstVisibleTrack + columnsCount)
     {
         uint16_t select_x =
           rightOffset + (tracks->actualTrack - tracks->firstVisibleTrack) * tracksWidth + 2;
@@ -925,7 +955,7 @@ void cTracker::drawRowNumbers(uint16_t* rowNumbers, bool showTrackEndLines)
 // tracks numbers
 void cTracker::tracksNumbers()
 {
-    if (!tracks->showTrackNames)
+    if (!tracks->showTrackNames || columnsCount == 0)
     {
         return;
     }

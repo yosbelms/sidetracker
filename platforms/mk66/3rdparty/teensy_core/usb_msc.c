@@ -25,7 +25,10 @@ static msc_state_t msc_state = MSC_STATE_IDLE;
 static uint8_t msc_media_ready = 0;
 
 static uint32_t cbw_tag = 0;
-static uint32_t cbw_data_len = 0;
+static uint32_t cbw_data_len = 0;   // bytes of the data phase still to transfer (the residue)
+static uint32_t cbw_total_len = 0;  // dCBWDataTransferLength
+static uint8_t  cbw_dir_in = 0;     // the host expects data from the device
+static uint8_t  cbw_zlp_sent = 0;
 static uint8_t  cbw_status = 0;
 
 static uint32_t cur_lba = 0;
@@ -99,8 +102,34 @@ static int send_bytes(const uint8_t *src, uint32_t len)
 	return 1;
 }
 
+static int send_zlp(void)
+{
+	usb_packet_t *pkt = usb_malloc();
+	if (!pkt) {
+		return 0;
+	}
+	pkt->len = 0;
+	usb_tx(MSC_TX_ENDPOINT, pkt);
+	return 1;
+}
+
 static void send_csw(void)
 {
+	// Bulk-Only Transport: when the host expects more data than the device
+	// sent (a failed or unsupported command, or a short reply), the data
+	// phase must end before the CSW. Without this the host takes the CSW as
+	// data, waits for a CSW that never comes and only recovers after a
+	// timeout: Windows took 60 s to start the drive. A short packet already
+	// ends it; otherwise end it with a zero-length packet.
+	if (cbw_dir_in && cbw_data_len > 0 && !cbw_zlp_sent &&
+	    ((cbw_total_len - cbw_data_len) % 64) == 0) {
+		if (!send_zlp()) {
+			msc_state = MSC_STATE_SEND_CSW;
+			return;
+		}
+		cbw_zlp_sent = 1;
+	}
+
 	uint8_t csw[13];
 	write_le32(&csw[0], CSW_SIGNATURE);
 	write_le32(&csw[4], cbw_tag);
@@ -137,6 +166,9 @@ static void handle_cbw(const uint8_t *cbw)
 
 	cbw_tag = read_le32(&cbw[4]);
 	cbw_data_len = read_le32(&cbw[8]);
+	cbw_total_len = cbw_data_len;
+	cbw_dir_in = (cbw[12] & 0x80) != 0;
+	cbw_zlp_sent = 0;
 	const uint8_t *cdb = &cbw[15];
 	const uint8_t opcode = cdb[0];
 
@@ -220,6 +252,43 @@ static void handle_cbw(const uint8_t *cbw)
 		case 0x1A: { // MODE SENSE (6)
 			uint8_t mode[4] = { 0x03, 0x00, 0x00, 0x00 };
 			uint32_t len = cbw_data_len < 4 ? cbw_data_len : 4;
+			if (len > 0) {
+				send_bytes(mode, len);
+				cbw_data_len -= len;
+			}
+			send_csw();
+			break;
+		}
+
+		case 0x23: { // READ FORMAT CAPACITIES (Windows asks removable drives for it)
+			if (!msc_media_ready) {
+				set_sense(0x02, 0x3A, 0x00);
+				cbw_status = 1;
+				send_csw();
+				break;
+			}
+			uint32_t sector_count = 0;
+			sd_disk_ioctl(SDDISK, GET_SECTOR_COUNT, &sector_count);
+			uint8_t caps[12];
+			memset(caps, 0, sizeof(caps));
+			caps[3] = 8;                        // capacity list length
+			write_be32(&caps[4], sector_count); // number of blocks
+			caps[8] = 0x02;                     // formatted media
+			caps[9] = (uint8_t)(MSC_SECTOR_SIZE >> 16);
+			caps[10] = (uint8_t)(MSC_SECTOR_SIZE >> 8);
+			caps[11] = (uint8_t)MSC_SECTOR_SIZE;
+			uint32_t len = cbw_data_len < sizeof(caps) ? cbw_data_len : sizeof(caps);
+			if (len > 0) {
+				send_bytes(caps, len);
+				cbw_data_len -= len;
+			}
+			send_csw();
+			break;
+		}
+
+		case 0x5A: { // MODE SENSE (10): header only, not write-protected
+			uint8_t mode[8] = { 0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+			uint32_t len = cbw_data_len < sizeof(mode) ? cbw_data_len : sizeof(mode);
 			if (len > 0) {
 				send_bytes(mode, len);
 				cbw_data_len -= len;

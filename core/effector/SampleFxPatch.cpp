@@ -15,12 +15,23 @@ static uint32_t get32(const uint8_t* p)
 {
     return uint32_t(p[0]) | uint32_t(p[1]) << 8 | uint32_t(p[2]) << 16 | uint32_t(p[3]) << 24;
 }
+size_t patchFileSize(const ChainDefinition& chain)
+{
+    for (unsigned i = 0; i <= chain.count && i <= kMaxStages; ++i)
+    {
+        const Node& node = i ? chain.stages[i - 1] : chain.source;
+        for (unsigned p = 0; p < node.count && p < kMaxParams; ++p)
+            if (parameterString(node, p)[0]) return kPatchStringFileBytes;
+    }
+    return kPatchFileBytes;
+}
+
 bool encodePatch(const ChainDefinition& r, uint8_t* bytes, size_t size)
 {
-    if (size != kPatchFileBytes || !validChain(r)) return false;
+    if (size != patchFileSize(r) || !validChain(r)) return false;
     memset(bytes, 0, size);
     memcpy(bytes, kPatchMagic, sizeof(kPatchMagic) - 1);
-    bytes[4] = kPatchVersion;
+    bytes[4] = size == kPatchFileBytes ? kPatchVersion : 2;
     bytes[5] = r.count;
     bytes[6] = r.qualityResolved;
     bytes[7] = r.mix;
@@ -34,6 +45,9 @@ bool encodePatch(const ChainDefinition& r, uint8_t* bytes, size_t size)
         put32(p + 5, n.fingerprint);
         memcpy(p + 9, n.filename, 42);
         p[99] = n.quality;
+        if (size == kPatchStringFileBytes)
+            memcpy(bytes + kPatchFileBytes + i * kParameterStringBytes,
+                   n.parameterStrings, kParameterStringBytes);
         for (unsigned j = 0; j < kMaxParams; ++j)
         {
             uint32_t bits;
@@ -45,33 +59,45 @@ bool encodePatch(const ChainDefinition& r, uint8_t* bytes, size_t size)
                                  fingerprint(bytes, 12)));
     return true;
 }
-bool decodePatch(const uint8_t* bytes, size_t size, ChainDefinition& r)
+static void readNode(const uint8_t* bytes, size_t size, unsigned index, Node& node)
 {
-    if (size != kPatchFileBytes || memcmp(bytes, kPatchMagic, sizeof(kPatchMagic) - 1) ||
-        bytes[4] != kPatchVersion || bytes[6] > 1 || bytes[7] > 100 ||
-        get32(bytes + 12) != fingerprint(bytes + 16, size - 16, fingerprint(bytes, 12))) return false;
-    ChainDefinition candidate;
-    candidate.count = bytes[5];
-    candidate.mix = bytes[7];
-    candidate.qualityResolved = bytes[6];
-    candidate.generatorFrames = get32(bytes + 8);
-    for (unsigned i = 0; i <= kMaxStages; ++i)
+    const auto* p = bytes + 16 + index * 100;
+    node.effect = p[0]; node.count = p[1]; node.bypass = p[2] != 0;
+    node.flags = p[3] | uint16_t(p[4]) << 8;
+    node.fingerprint = get32(p + 5);
+    memcpy(node.filename, p + 9, 42);
+    node.quality = p[99];
+    memset(node.parameterStrings, 0, sizeof(node.parameterStrings));
+    if (size == kPatchStringFileBytes)
+        memcpy(node.parameterStrings, bytes + kPatchFileBytes + index * kParameterStringBytes,
+               kParameterStringBytes);
+    for (unsigned j = 0; j < kMaxParams; ++j)
     {
-        Node& n = i ? candidate.stages[i - 1] : candidate.source;
-        const auto* p = bytes + 16 + i * 100;
-        n.effect = p[0]; n.count = p[1]; n.bypass = p[2] != 0;
-        n.flags = p[3] | uint16_t(p[4]) << 8;
-        n.fingerprint = get32(p + 5);
-        memcpy(n.filename, p + 9, 42);
-        n.quality = p[99];
-        for (unsigned j = 0; j < kMaxParams; ++j)
-        {
-            uint32_t bits = get32(p + 51 + j * 4);
-            memcpy(&n.params[j], &bits, 4);
-        }
+        uint32_t bits = get32(p + 51 + j * 4);
+        memcpy(&node.params[j], &bits, 4);
     }
-    if (!validChain(candidate)) return false;
-    r = candidate;
+}
+
+bool decodePatch(const uint8_t* bytes, size_t size, ChainDefinition& chain)
+{
+    if ((size != kPatchFileBytes && size != kPatchStringFileBytes) ||
+        memcmp(bytes, kPatchMagic, sizeof(kPatchMagic) - 1) ||
+        bytes[4] != (size == kPatchFileBytes ? kPatchVersion : 2) ||
+        bytes[5] > kMaxStages || bytes[6] > 1 || bytes[7] > 100 || !get32(bytes + 8) ||
+        get32(bytes + 12) != fingerprint(bytes + 16, size - 16, fingerprint(bytes, 12)))
+        return false;
+    for (unsigned i = 0; i <= bytes[5]; ++i)
+    {
+        Node node;
+        readNode(bytes, size, i, node);
+        if (!validNode(node, i)) return false;
+    }
+    chain.count = bytes[5];
+    chain.mix = bytes[7];
+    chain.qualityResolved = bytes[6];
+    chain.generatorFrames = get32(bytes + 8);
+    for (unsigned i = 0; i <= kMaxStages; ++i)
+        readNode(bytes, size, i, i ? chain.stages[i - 1] : chain.source);
     return true;
 }
 }

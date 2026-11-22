@@ -82,10 +82,10 @@ def main():
         if not isinstance(bank, list):
             parser.error("The FM-106 bank must contain a JSON list")
         presets = list(convert_bank(bank))
-        folder = args.sd / "Patches" / "J106" / "FM-106"
+        folder = args.sd / "System/Synths/Patches" / "J106" / "FM-106"
     else:
         presets = json.loads((ROOT / "patches" / "j106" / "patches.json").read_text()).items()
-        folder = args.sd / "Patches" / "J106"
+        folder = args.sd / "System/Synths/Patches" / "J106"
     write_patches(folder, ENGINE_ID, schema, presets, macros=macros)
 
 

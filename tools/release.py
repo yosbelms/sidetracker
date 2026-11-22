@@ -70,10 +70,10 @@ def verify_archive(path, version):
                 raise ValueError(f"Invalid or mismatched firmware: {name}")
         for folder, suffix in (("Themes", ".json"), ("Fonts", ".ptfont")):
             for source in (ROOT / folder.lower()).glob(f"*{suffix}"):
-                if bundle.read(f"SD/{folder}/{source.name}") != source.read_bytes():
+                if bundle.read(f"SD/System/{folder}/{source.name}") != source.read_bytes():
                     raise ValueError(f"Archive contains the wrong {source.name}")
         for effect in (ROOT / "editor-fx-sdk/effects").glob("*.c"):
-            if not bundle.getinfo(f"SD/Effects/{effect.stem}.ptfx").file_size:
+            if not bundle.getinfo(f"SD/System/Effects/{effect.stem}.ptfx").file_size:
                 raise ValueError(f"Empty effect plugin: {effect.stem}")
     print(f"Verified {path.name}", flush=True)
 

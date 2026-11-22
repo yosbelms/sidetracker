@@ -1,6 +1,7 @@
 #include "instrumentEditor/instrumentEditor.h"
 #if GUI_HANDLE_SYNTH
 
+#include "TrackerImpl.h"
 #include "core/interfacePopups.h"
 #include "fileBrowser/GlobalFileBrowser.h"
 #include "mtPadBoard.h"
@@ -44,6 +45,8 @@ static void functSynthShift(uint8_t state);
 
 void cInstrumentEditor::exitSynthEditor()
 {
+    commitPendingSynthModel();
+
     if (!isSynthInstrument(mtProject.values.lastUsedInstrument))
     {
         return;
@@ -97,9 +100,14 @@ void cInstrumentEditor::changeSynthParamValue(int value, ValueChangeSource sourc
 {
     bool invert = source != kEncoder || interfaceGlobals.invertValForList;
 
+    if (selectedPlace[mtInstEditModeSynth] != 0)
+    {
+        commitPendingSynthModel();
+    }
+
     switch (selectedPlace[mtInstEditModeSynth])
     {
-        case 0: changeSynthModel(invert ? -value : value); break;
+        case 0: changeSynthModel(invert ? -value : value, source == kEncoder); break;
         case 1: changeSynthPolyphony(value); break;
         case 2: changeSynthGain(value); break;
         case 3: changeSynthPanning(value); break;
@@ -110,11 +118,13 @@ void cInstrumentEditor::changeSynthParamValue(int value, ValueChangeSource sourc
 
 static void functSynthMiniMiddle(uint8_t state)
 {
+    IE->commitPendingSynthModel();
     IE->synthCommonPreviewButtonFunct(state);
 }
 
 static void functSynthPads(uint8_t pad, uint8_t state, int16_t)
 {
+    IE->commitPendingSynthModel();
     IE->playSynthNoteByPad(pad, state);
 }
 
@@ -250,6 +260,7 @@ static std::string extractLeafPatchName(std::string pName)
 
 static void functSynthLoad()
 {
+    IE->commitPendingSynthModel();
     int syntPartIdx = instrumentIdxToMidiChannel(mtProject.values.lastUsedInstrument) - 1;
     assert(syntPartIdx >= 0 && syntPartIdx < kSynthInstrumentsCount);
 
@@ -433,6 +444,7 @@ static void functSynthLoad()
 
 static void functSynthEditPatch()
 {
+    IE->commitPendingSynthModel();
     sequencer.stopManualNotes();
     IE->mode = mtInstEditModeSynthPatchEdit;
     IE->lightUpPadBoard();
@@ -440,7 +452,7 @@ static void functSynthEditPatch()
     IE->setSynthPatchEditorScreenFunct();
 }
 
-void cInstrumentEditor::changeSynthModel(int16_t value)
+void cInstrumentEditor::changeSynthModel(int16_t value, bool deferCommit)
 {
     int syntPartIdx = mtProject.values.lastUsedInstrument - SYNTH_INSTRUMENTS_START_IDX;
     assert(syntPartIdx >= 0 && syntPartIdx < kSynthInstrumentsCount);
@@ -448,20 +460,101 @@ void cInstrumentEditor::changeSynthModel(int16_t value)
     const auto& synthTypes = synth->getSynthTypes();
     int modelMaxValue = std::max<int>(0, static_cast<int>(synthTypes.size()) - 1);
 
-    const int previousModel = synth->getInstrumentTypeIdx(syntPartIdx);
+    if (synthTypes.empty())
+    {
+        return;
+    }
+    if (pendingSynthModelCommit && pendingSynthModelPart != syntPartIdx)
+    {
+        commitPendingSynthModel();
+    }
+
+    const int previousModel = pendingSynthModelCommit
+        ? pendingSynthModelIndex : synth->getInstrumentTypeIdx(syntPartIdx);
     const int model = IE->rollListOver && previousModel + value > modelMaxValue
         ? 0 : std::clamp(previousModel + value, 0, modelMaxValue);
-    if (previousModel == model) return;
-    mtProject.values.synthPart[syntPartIdx].synthType = synth->modelSetting(model);
-    synth->setInstrumentType(syntPartIdx, synthTypes.at(model));
+    if (previousModel == model)
+    {
+        return;
+    }
+
+    pendingSynthModelCommit = true;
+    pendingSynthModelPart = static_cast<int8_t>(syntPartIdx);
+    pendingSynthModelIndex = model;
+    showSynthModel(syntPartIdx);
+    if (deferCommit)
+    {
+        pendingSynthModelTimestampMs =
+          TrackerImpl::getInstance()->getPlatform()->getTimer()->millis();
+        return;
+    }
+
+    commitPendingSynthModel();
+}
+
+void cInstrumentEditor::updatePendingSynthModel()
+{
+    if (!pendingSynthModelCommit)
+    {
+        return;
+    }
+
+    uint32_t nowMs = TrackerImpl::getInstance()->getPlatform()->getTimer()->millis();
+    if (nowMs - pendingSynthModelTimestampMs >= kSynthModelCommitDelayMs)
+    {
+        commitPendingSynthModel();
+    }
+}
+
+void cInstrumentEditor::commitPendingSynthModel()
+{
+    if (!pendingSynthModelCommit)
+    {
+        return;
+    }
+
+    pendingSynthModelCommit = false;
+    int syntPartIdx = pendingSynthModelPart;
+    pendingSynthModelPart = -1;
+
+    if (syntPartIdx < 0 || syntPartIdx >= kSynthInstrumentsCount)
+    {
+        return;
+    }
+
+    const auto& synthTypes = synth->getSynthTypes();
+    if (synthTypes.empty())
+    {
+        return;
+    }
+
+    int targetIdx =
+      clamp<int>(pendingSynthModelIndex, 0, static_cast<int>(synthTypes.size()) - 1);
+    if (synth->getInstrumentTypeIdx(syntPartIdx) == targetIdx)
+    {
+        return;
+    }
+
+    sequencer.stopManualNotes();
+    mtProject.values.synthPart[syntPartIdx].synthType = synth->modelSetting(targetIdx);
+    synth->setInstrumentType(syntPartIdx, synthTypes.at(targetIdx));
+    synth->savePatchToWorkspace(syntPartIdx);
 
     changeSynthPolyphony(0);
 
-    showSynthModel(syntPartIdx);
+    synth->initSynthPartMacrosValues(syntPartIdx, mtProject.values.synthPart[syntPartIdx]);
+    engine.refreshSynthInstrumentParams(mtProject.values.synthPart[syntPartIdx], syntPartIdx);
 
-    initCurrentPatch();
-    lightUpPadBoard();
+    polystrncpy(mtProject.values.synthPart[syntPartIdx].patchName,
+                synth->getPatchName(syntPartIdx).c_str(),
+                sizeof(SynthPartSettings::patchName));
+
     newFileManager.setProjectStructChanged();
+    mtPopups.show(0, "Init patch loaded");
+
+    showSynthModel(syntPartIdx);
+    showSynthPatchName(syntPartIdx);
+    lightUpPadBoard();
 }
 
 void cInstrumentEditor::changeSynthPolyphony(int16_t value)
@@ -789,6 +882,27 @@ void cInstrumentEditor::initCurrentPatch()
     IE->showSynthPatchName(syntPartIdx);
 }
 
+void cInstrumentEditor::randomizeCurrentPatch()
+{
+    int syntPartIdx = mtProject.values.lastUsedInstrument - SYNTH_INSTRUMENTS_START_IDX;
+    assert(syntPartIdx >= 0 && syntPartIdx < kSynthInstrumentsCount);
+
+    if (!IE->getSynth()->randomizePatch(syntPartIdx))
+    {
+        return;
+    }
+
+    polystrncpy(mtProject.values.synthPart[syntPartIdx].patchName,
+                IE->getSynth()->getPatchName(syntPartIdx).c_str(),
+                sizeof(SynthPartSettings::patchName));
+
+    newFileManager.setProjectStructChanged();
+
+    mtPopups.show(0, "Patch randomized");
+
+    IE->showSynthPatchName(syntPartIdx);
+}
+
 // ------------------------------------------------------------------------------------------
 // ------------------------------       GUI     ---------------------------------------------
 // ------------------------------------------------------------------------------------------
@@ -958,7 +1072,9 @@ void cInstrumentEditor::showSynthParamsScreen()
 
 void cInstrumentEditor::showSynthModel(uint8_t synthPart)
 {
-    display.setControlValue(modelListControl, synth->getInstrumentTypeIdx(synthPart));
+    display.setControlValue(modelListControl,
+        pendingSynthModelCommit && pendingSynthModelPart == synthPart
+            ? pendingSynthModelIndex : synth->getInstrumentTypeIdx(synthPart));
     display.refreshControl(modelListControl);
     titleBar->showCurrentInstrumentOnRightLabel();
 }

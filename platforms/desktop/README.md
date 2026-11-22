@@ -28,7 +28,7 @@ Hold **Instrument** and select one of the first three entries for MINI, OBER,
 or CHIP. Open **I. Params → Model** to choose J106. Use **Load** to browse the 100 bundled J106 patches, or **Edit** to shape a patch.
 With both donor source folders under `temp/`, `make desktop` generates the full
 MINI and OBER presets as individual `.patch` files in
-`build/SD/Patches/`. The simulator opens them automatically.
+`build/SD/System/Synths/Patches/`. The simulator opens them automatically.
 Files in the virtual SD card's `Patches/MINI/` and `Patches/OBER/` directories
 take precedence. Copy the generated `Patches/` directory to the SD root to use
 the presets on Tracker+ or Mini hardware.

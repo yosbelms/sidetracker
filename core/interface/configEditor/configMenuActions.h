@@ -18,6 +18,8 @@ void setSendsMode();
 void setHeadroomMode();
 void setSnapToZeroMode();
 void setRenderFaderBypass();
+void applyProjectMaxTracks();
+void setMaxTracks();
 
 void setMetronomValues();
 void setSlaveClockCompValue();

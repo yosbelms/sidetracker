@@ -13,6 +13,8 @@
 #include "stpalette/Profiling.h"
 #include "Tracker.h"
 #include "Platform.h"
+#include "SdPaths.h"
+#include "fileBrowser/GlobalFileBrowser.h"
 
 #include <algorithm>
 #include <cmath>
@@ -36,7 +38,10 @@ constexpr unsigned kActionsButton = 4;
 constexpr unsigned kMixButton = 6;
 constexpr unsigned kValueButton = 7;
 constexpr char kTempDir[] = "Workspace/FxChainTemp";
-constexpr char kPatchDir[] = "/Effects/Patches";
+std::string patchDir(FileSystem* fs)
+{
+    return SdPaths::effectsDir(fs) + "/Patches";
+}
 constexpr char kPatchExtension[] = ".patch";
 
 bool supported(uint8_t effect)
@@ -118,10 +123,16 @@ class EffectBackend : public Backend
             effect = sampleEditorEffect[node.effect];
             return node.count == effectDisplayConstantParams[node.effect].paramsNumber;
         }
+        if (execute)
+        {
+            PtfxLoader::clearSelectedFiles();
+            for (unsigned p = 0; p < node.count; ++p)
+                PtfxLoader::setSelectedFilePath(p, parameterString(node, p));
+        }
         int index = findPlugin(node);
         if (index < 0) { message = "Plugin missing: remove or bypass"; return false; }
-        char path[64];
-        snprintf(path, sizeof(path), "/Effects/%s", node.filename);
+        char path[96];
+        snprintf(path, sizeof(path), "%s/%s", SdPaths::effectsDir(fs).c_str(), node.filename);
         uint32_t hash;
         if (!fileFingerprint(fs, path, hash) || hash != node.fingerprint)
         { message = "Plugin changed: remove and add again"; return false; }
@@ -129,6 +140,20 @@ class EffectBackend : public Backend
                     : !PtfxManager::loadPluginMetadata(index)) return false;
         const auto& header = PtfxManager::getActiveHeader();
         if (header.num_params != node.count || header.flags != node.flags) return false;
+        if (execute)
+        {
+            for (unsigned p = 0; p < node.count; ++p)
+            {
+                const auto& parameter = header.params[p];
+                if (parameter.display_type == PARAM_FILE &&
+                    !strcmp(parameter.unit, ".wav") && parameterString(node, p)[0] &&
+                    !PtfxLoader::loadSecondaryWavFile(parameterString(node, p)))
+                {
+                    message = "Cannot load effect WAV";
+                    return false;
+                }
+            }
+        }
         effect = &sampleEditorModular;
         return true;
     }
@@ -225,11 +250,19 @@ class LivePluginLoader : public RealtimePluginLoader
     const PtfxHostApi* hostApi() override { return PtfxLoader::getHostApi(); }
     bool load(const Node& node, RealtimePlugin& plugin, RealtimeArena& arena) override
     {
-        char path[64];
-        snprintf(path, sizeof(path), "/Effects/%s", node.filename);
+        char path[96];
+        snprintf(path, sizeof(path), "%s/%s", SdPaths::effectsDir(fs).c_str(), node.filename);
         uint32_t hash;
         if (!fileFingerprint(fs, path, hash) || hash != node.fingerprint ||
             !PtfxLoader::readHeader(path, plugin.header)) return false;
+        // File and text host state is shared. Prepare these stages offline so
+        // duplicate instances retain their own inputs and no SD access reaches audio.
+        for (unsigned p = 0; p < plugin.header.num_params; ++p)
+        {
+            const auto type = plugin.header.params[p].display_type;
+            if (type == PARAM_TEXT || type == PARAM_FILE || type == PARAM_SAVE_FILE)
+                return false;
+        }
         const uint32_t codeBytes = plugin.header.code_size + plugin.header.bss_size;
         auto* code = static_cast<uint8_t*>(arena.allocate(codeBytes));
         plugin.scratch = arena.allocate(plugin.header.scratch_size);
@@ -289,6 +322,8 @@ class ChainScreen
     uint8_t generatorDryChannels = 1;
     char mixText[12] = {};
     bool savingPatch = false;
+    bool editingText = false;
+    unsigned stringParameter = 0;
     static constexpr unsigned kSavedPatchLimit = 32;
     static constexpr unsigned kPatchFilenameBytes = kMaxPatchNameBytes + sizeof(kPatchExtension);
     unsigned savedPatchCount = 0;
@@ -470,6 +505,8 @@ class ChainScreen
     void shiftColumn(int delta);
     void editValue(int delta);
     void editMix(int delta);
+    void editString();
+    void finishText(bool save);
     void hideColumns();
     bool ensureSchema();
     void drawColumns(bool pageChanged, unsigned previousCount);
@@ -529,10 +566,23 @@ bool ChainScreen::pluginNode(unsigned index, Node& n)
     n.flags = h.flags;
     n.count = h.num_params;
     snprintf(n.filename, sizeof(n.filename), "%s", entry->filename);
-    char path[64];
-    snprintf(path, sizeof(path), "/Effects/%s", n.filename);
+    char path[96];
+    snprintf(path, sizeof(path), "%s/%s", SdPaths::effectsDir(fs).c_str(), n.filename);
     if (!fileFingerprint(fs, path, n.fingerprint)) return false;
-    for (unsigned i = 0; i < n.count; ++i) n.params[i] = h.params[i].default_val;
+    for (unsigned i = 0; i < n.count; ++i)
+    {
+        n.params[i] = h.params[i].default_val;
+        const auto& parameter = h.params[i];
+        if (parameter.display_type == PARAM_TEXT)
+        {
+            const unsigned offset = uint8_t(parameter.unit[0]) | unsigned(uint8_t(parameter.unit[1])) << 8;
+            const char* text = reinterpret_cast<const char*>(PtfxLoader::getCodeBuffer() + offset);
+            if (offset >= h.code_size || !memchr(text, 0, h.code_size - offset) ||
+                !setParameterString(n, i, text))
+                return false;
+            n.params[i] = text[0] ? 1 : 0;
+        }
+    }
     return true;
 }
 
@@ -544,7 +594,7 @@ void ChainScreen::scanSavedPatches()
     static_assert(kMenuRows > kSavedPatchLimit);
     constexpr size_t suffixLength = sizeof(kPatchExtension) - 1;
     int found = kSavedPatchLimit;
-    fs->listDirContents(kPatchDir, FileSystem::kFiles, [](const char* name) {
+    fs->listDirContents(patchDir(fs).c_str(), FileSystem::kFiles, [](const char* name) {
         const size_t length = strlen(name);
         return length > suffixLength && length - suffixLength <= kMaxPatchNameBytes &&
             !strchr(name, '/') && !strchr(name, '\\') &&
@@ -909,6 +959,21 @@ void ChainScreen::drawColumns(bool pageChanged, unsigned previousCount)
             display.refreshControl(valuesControl);
             snprintf(valueText, sizeof(valueText), "%s", valuePointers[selectedValue]);
         }
+        else if (n.effect == kPlugin && (d.displayType[param] == 't' ||
+                 d.displayType[param] == 'w' || d.displayType[param] == 's'))
+        {
+            const char* text = parameterString(n, param);
+            if (d.displayType[param] != 't' && strrchr(text, '/')) text = strrchr(text, '/') + 1;
+            snprintf(valueText, sizeof(valueText), "%s", text[0] ? text :
+                d.displayType[param] == 't' ? "Edit..." : "Choose...");
+            valuePointers[0] = valueText;
+            valuesList.data = valuePointers; valuesList.length = 1;
+            valuesList.linesCount = 1; valuesList.start = 0;
+            valuesList.lineWidthMax = activeColumn == 3 ? 78 : 0;
+            valuesList.lineTextLenMax = sizeof(valueText) - 1;
+            display.setControlData(valuesControl, &valuesList);
+            display.setControlShow(valuesControl); display.refreshControl(valuesControl);
+        }
         else display.setControlShow(valueBar);
     }
     else if (available)
@@ -988,6 +1053,9 @@ void ChainScreen::editValue(int delta)
     if (!ensureSchema()) return;
     Node& n = node();
     unsigned i = parameterIndex();
+    if (i < n.count && n.effect == kPlugin &&
+        (schema().displayType[i] == 't' || schema().displayType[i] == 'w' ||
+         schema().displayType[i] == 's')) return;
     if(i<n.count) {
         const auto& d=schema();
         if(std::clamp(n.params[i]+delta*d.changeStep[i],d.downConstrain[i],d.upConstrain[i])==n.params[i]) return;
@@ -1074,7 +1142,7 @@ void ChainScreen::choose()
     {
         if (focus == 0) addSelectedEffect();
         else if (focus == 1) { selected = 0; show(Actions); }
-        else if (ensureSchema()) { focus = 3; show(Chain); }
+        else if (ensureSchema()) { focus = 3; editString(); }
         return;
     }
     if (page == Actions)
@@ -1122,8 +1190,8 @@ void ChainScreen::measureCpu()
     auto clock=[](void* t) -> uint32_t {return static_cast<Timer*>(t)->clockCycles();};
     unsigned ticksPerUs=timer->clockCyclesPerUs();
 #endif
-    fs->mkdir(0,"/Effects");
-    auto [ok,file]=fs->openFile("/Effects/STPaletteCPU.csv",FileSystem::kWriteCreateNew);
+    SdPaths::ensureDir(fs, SdPaths::effectsDir(fs));
+    auto [ok,file]=fs->openFile((SdPaths::effectsDir(fs) + "/STPaletteCPU.csv").c_str(),FileSystem::kWriteCreateNew);
     if(!ok){error("Cannot save CPU report");return;}
     static const char heading[]="category,type,quality,processing_quality,channels,max_ticks,average_ticks,ticks_per_us,arena_bytes\n";
     bool success=fs->writeFile(heading,sizeof(heading)-1,file)==sizeof(heading)-1;
@@ -1137,7 +1205,7 @@ void ChainScreen::measureCpu()
     }
     fs->closeFile(file);
     schemaReady=false;
-    snprintf(notice,sizeof(notice),success?"Saved Effects/STPaletteCPU.csv":"CPU measurement failed");
+    snprintf(notice,sizeof(notice),success?"Saved System/Effects/STPaletteCPU.csv":"CPU measurement failed");
     focus=1;show(Chain);
 }
 
@@ -1146,8 +1214,23 @@ void ChainScreen::removeOrReset()
     if (busy() || page != Chain) return;
     if (focus == 3 && ensureSchema())
     {
-        changed(true);
         unsigned i = parameterIndex();
+        if (node().effect == kPlugin && i < node().count &&
+            (schema().displayType[i] == 't' || schema().displayType[i] == 'w' ||
+             schema().displayType[i] == 's'))
+        {
+            changed();
+            Node defaults;
+            if (pluginNode(findPlugin(node()), defaults))
+            {
+                setParameterString(node(), i, parameterString(defaults, i));
+                node().params[i] = defaults.params[i];
+            }
+            schemaReady = false;
+            show(Chain);
+            return;
+        }
+        changed(true);
         if(stpalette::contains(node().effect) && i==stpalette::Type) changed();
         if (i < node().count) node().params[i] = stpalette::contains(node().effect)?stpalette::defaults(node().effect).params[i]:node().effect == kPlugin ?
             PtfxManager::getActiveHeader().params[i].default_val : effectDefaultParamsTable[node().effect].parameter[i];
@@ -1189,7 +1272,7 @@ void ChainScreen::input(unsigned button)
     else if (button == 1) addSelectedEffect();
     else if (button == kApplyButton) preview(Apply);
     else if (button == kActionsButton) { focus = 1; selected = 0; show(Actions); }
-    else if (button == kValueButton && ensureSchema()) { focus = 3; show(Chain); }
+    else if (button == kValueButton && ensureSchema()) { focus = 3; editString(); }
 }
 
 void ChainScreen::playPrepared()
@@ -1199,6 +1282,109 @@ void ChainScreen::playPrepared()
     instrumentPlayer[0].clearInterfacePlayingEndFlag();
     mtPadBoard.startNoteWithoutInstrument(60, addresses, audio.frames, DEFAULT_INSTRUMENT_VOLUME, INTERFACE_BUTTON_PREVIEW);
     playing = true;
+    show(Chain);
+}
+
+void ChainScreen::editString()
+{
+    const unsigned parameter = parameterIndex();
+    if (node().effect != kPlugin || parameter >= node().count)
+    { show(Chain); return; }
+    const auto descriptor = PtfxManager::getActiveHeader().params[parameter];
+    if (descriptor.display_type != PARAM_TEXT && descriptor.display_type != PARAM_FILE &&
+        descriptor.display_type != PARAM_SAVE_FILE)
+    { show(Chain); return; }
+    stopAudio();
+    if (descriptor.display_type == PARAM_TEXT)
+    {
+        stringParameter = parameter;
+        editingText = true;
+        hideColumns();
+        editor->keyboardManager.fillName(parameterString(node(), parameter));
+        const unsigned limit = uint8_t(descriptor.unit[2]);
+        editor->keyboardManager.activateKeyboard(limit ? std::min(limit, 64u) : 64);
+        editor->ip->clearAll();
+        editor->setViewSwitchFunctions();
+        auto& input = *editor->ip;
+        input.setPadsGlobal([](uint8_t pad, uint8_t state, int16_t) {
+            screen.editor->keyboardManager.onPadChange(pad, state);
+        });
+        input.setButtonObj(interfaceButtonLeft, buttonPress, [] { screen.editor->keyboardManager.makeMove('a'); });
+        input.setButtonObj(interfaceButtonRight, buttonPress, [] { screen.editor->keyboardManager.makeMove('d'); });
+        input.setButtonObj(interfaceButtonUp, buttonPress, [] { screen.editor->keyboardManager.makeMove('w'); });
+        input.setButtonObj(interfaceButtonDown, buttonPress, [] { screen.editor->keyboardManager.makeMove('s'); });
+        input.setPotObj(interfacePot0, [](int16_t delta) {
+            if (delta) screen.editor->keyboardManager.makeMove(delta < 0 ? 'a' : 'd');
+        });
+        auto enter = [] { screen.editor->keyboardManager.confirmKey(); };
+        input.setButtonObj(interfaceButtonInsert, buttonPress, enter);
+        input.setButtonObj(interfaceButtonShift, buttonPress, enter);
+        input.setButtonObj(interfaceButtonMiniMiddle, buttonPress, enter);
+        input.setButtonObj(interfaceButton0, buttonPress, enter);
+        input.setButtonObj(interfaceButtonDelete, buttonPress, [] { screen.editor->keyboardManager.makeBackspace(); });
+        input.setButtonObj(interfaceButton1, buttonPress, [] { screen.editor->keyboardManager.fillName(""); });
+        input.setButtonObj(interfaceButton0 + kBackButton, buttonPress, [] { screen.finishText(false); });
+        input.setButtonObj(interfaceButton7, buttonPress, [] { screen.finishText(true); });
+        for (unsigned i = 0; i < 8; ++i)
+        {
+            display.setControlText(editor->label[i], i == 0 ? "Enter" : i == 1 ? "Clear" :
+                i == kBackButton ? "Back" : i == 7 ? "Confirm" : "");
+            display.setControlText2(editor->label[i], "");
+            display.setControlValue(editor->label[i], 0);
+            display.setControlShow(editor->label[i]);
+            display.refreshControl(editor->label[i]);
+        }
+        display.synchronizeRefresh();
+        return;
+    }
+
+    const unsigned stage = selectedNode;
+    GlobalFileBrowserConfig config;
+    config.mode = descriptor.display_type == PARAM_SAVE_FILE
+        ? GlobalFileBrowserConfig::Mode::kSaveGenericFile
+        : GlobalFileBrowserConfig::Mode::kLoadGenericFile;
+    config.title = std::string(descriptor.display_type == PARAM_SAVE_FILE ? "Save " : "Load ") + descriptor.label;
+    config.initialDirectory = "/";
+    config.extensionFilter = descriptor.unit;
+    config.defaultFileName = "effect";
+    config.contextKey = "se_chain_file";
+    config.returnModule = editor;
+    config.returnModuleOptions = 1;
+    config.onConfirm = [stage, parameter](const std::string& path) {
+        Node& node = stage ? screen.definition.stages[stage - 1] : screen.definition.source;
+        if (!setParameterString(node, parameter, path.c_str()))
+            snprintf(screen.notice, sizeof(screen.notice), "Effect file paths are too long");
+        else node.params[parameter] = path.empty() ? 0 : 1;
+        sampleChainOpen(screen.editor);
+        screen.selectedNode = screen.stageSelection = stage;
+        screen.parameterSelection = parameter;
+        screen.focus = 3;
+        screen.schemaReady = false;
+        screen.show(ChainScreen::Chain);
+    };
+    config.onCancel = [stage, parameter] {
+        sampleChainOpen(screen.editor);
+        screen.selectedNode = screen.stageSelection = stage;
+        screen.parameterSelection = parameter;
+        screen.focus = 3;
+        screen.show(ChainScreen::Chain);
+    };
+    sampleChainDeferEditorAction([config] { openGlobalFileBrowser(config); });
+}
+
+void ChainScreen::finishText(bool save)
+{
+    if (save)
+    {
+        changed();
+        if (!setParameterString(node(), stringParameter, editor->keyboardManager.getName()))
+            snprintf(notice, sizeof(notice), "Effect text is too long");
+        else node().params[stringParameter] = parameterString(node(), stringParameter)[0] ? 1 : 0;
+    }
+    editor->keyboardManager.deactivateKeyboard();
+    editingText = false;
+    schemaReady = false;
+    toolbarReady = false;
     show(Chain);
 }
 
@@ -1397,25 +1583,25 @@ void ChainScreen::patchFile(unsigned slot, bool save)
         return;
     }
     if (!slot || slot > savedPatchCount) { error("Choose a saved patch"); return; }
-    char path[80], temp[84], backup[84];
+    char path[96], temp[100], backup[100];
     const char* filename = menuPointers[slot - 1];
     const char* extension = filename + strlen(filename) + 1;
     if (save)
     {
-        fs->mkdir(0, "/Effects");
-        fs->mkdir(0, kPatchDir);
+        SdPaths::ensureDir(fs, patchDir(fs));
     }
-    snprintf(path, sizeof(path), "%s/%s.%s", kPatchDir, filename, extension);
+    snprintf(path, sizeof(path), "%s/%s.%s", patchDir(fs).c_str(), filename, extension);
     snprintf(temp, sizeof(temp), "%s.tmp", path);
     snprintf(backup, sizeof(backup), "%s.bak", path);
     // Recover an interrupted replacement before attempting another read/write.
     if (!fs->exists(path) && fs->exists(backup)) fs->rename(backup, path);
-    uint8_t bytes[kPatchFileBytes];
+    __NOINIT(EXTERNAL_RAM) static uint8_t bytes[kPatchStringFileBytes];
+    size_t byteCount = save ? patchFileSize(definition) : 0;
     if (save)
     {
-        if (!encodePatch(definition, bytes, sizeof(bytes)) || !openIo(temp, FileSystem::kWriteCreateNew))
+        if (!encodePatch(definition, bytes, byteCount) || !openIo(temp, FileSystem::kWriteCreateNew))
         { error("Cannot save patch"); return; }
-        bool ok = fs->writeFile(bytes, sizeof(bytes), io) == int32_t(sizeof(bytes));
+        bool ok = fs->writeFile(bytes, byteCount, io) == int32_t(byteCount);
         closeIo();
         if (!ok) { fs->remove(temp); error("Patch write failed"); return; }
         fs->remove(backup);
@@ -1428,11 +1614,13 @@ void ChainScreen::patchFile(unsigned slot, bool save)
     else
     {
         if (!openIo(path, FileSystem::kRead)) { error("Patch not found"); return; }
-        ChainDefinition loaded;
-        bool ok = fs->getFileSize(io) == sizeof(bytes) && fs->readFile(bytes, sizeof(bytes), io) == int32_t(sizeof(bytes)) && decodePatch(bytes, sizeof(bytes), loaded);
+        byteCount = fs->getFileSize(io);
+        bool ok = byteCount <= sizeof(bytes) &&
+            fs->readFile(bytes, byteCount, io) == int32_t(byteCount) &&
+            decodePatch(bytes, byteCount, definition);
         closeIo();
         if (!ok) { error("Invalid or unsupported patch"); return; }
-        changed(); definition = loaded; stageSelection = 0; schemaReady = false; focus = 1;
+        changed(); stageSelection = 0; schemaReady = false; focus = 1;
         snprintf(notice, sizeof(notice), "Loaded %s", filename);
     }
     snprintf(patchName, sizeof(patchName), "%s", filename);
@@ -1563,6 +1751,8 @@ void ChainScreen::finishRender()
 
 void ChainScreen::leave()
 {
+    if (editingText) editor->keyboardManager.deactivateKeyboard();
+    editingText = false;
     haveDraft = !committed && (definition.count || definition.source.effect == kPlugin);
     draftSlot = sourceSlot;
     autoPreview = false;
@@ -1639,6 +1829,7 @@ void ChainScreen::finishRestore()
 
 void ChainScreen::update()
 {
+    if (editingText) return;
     if(open && livePlaying && live && liveTempo!=mtProject.values.globalTempo) {
         liveTempo=mtProject.values.globalTempo;
         DISABLE_AUDIO_INTERRUPTS(); live->setTempo(liveTempo); ENABLE_AUDIO_INTERRUPTS();

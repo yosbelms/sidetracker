@@ -8,6 +8,7 @@ namespace samplefx
 {
 constexpr unsigned kMaxStages = 8;
 constexpr unsigned kMaxParams = 12;
+constexpr unsigned kParameterStringBytes = 268;
 constexpr uint8_t kPlugin = 255;
 constexpr uint8_t kSample = 254;
 
@@ -21,6 +22,7 @@ struct Node
     uint32_t fingerprint = 0;
     char filename[42] = {};
     float params[kMaxParams] = {};
+    char parameterStrings[kParameterStringBytes] = {};
 };
 
 struct ChainDefinition
@@ -38,6 +40,9 @@ struct ChainDefinition
     bool duplicate(unsigned index);
 };
 
+const char* parameterString(const Node& node, unsigned index);
+bool setParameterString(Node& node, unsigned index, const char* value);
+bool validNode(const Node& node, unsigned index);
 bool validChain(const ChainDefinition& definition);
 uint32_t fingerprint(const void* bytes, size_t size, uint32_t hash = 2166136261u);
 

@@ -107,6 +107,11 @@ static const char* hostGetSelectedFilePath(uint8_t paramIndex)
     return PtfxLoader::getSelectedFilePath(paramIndex);
 }
 
+static const char* hostGetTextParam(uint8_t paramIndex)
+{
+    return PtfxLoader::getSelectedFilePath(paramIndex);
+}
+
 // Host API Function Pointer Table
 static const PtfxHostApi s_ptfxHostApi = {
     .sample_rate             = 44100,
@@ -130,6 +135,7 @@ static const PtfxHostApi s_ptfxHostApi = {
     .write_file              = hostWriteFile,
     .get_secondary_sample    = hostGetSecondarySample,
     .get_selected_file_path  = hostGetSelectedFilePath,
+    .get_text_param          = hostGetTextParam,
 };
 
 bool PtfxLoader::loadSecondaryWavFile(const char* filepath)

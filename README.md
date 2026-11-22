@@ -106,14 +106,15 @@ make sd
 make clean
 ```
 
-Builds stage files for the SD card in `build/SD/`. Merge its `Effects/` and
-`Patches/` folders into the SD card root. Effects patches go in `Effects/Patches/`,
-and `make ptfx` stages the plugins directly in `Effects/`. For J106, copy
-`Synths/J106.psyn` and `Patches/J106/` from the release SD bundle to your card,
+Builds stage files for the SD card in `build/SD/`. Copy its `System/` folder
+to the SD card root. Effects plugins go in `System/Effects/`, chain patches in
+`System/Effects/Patches/`, and synth patches in `System/Synths/Patches/`.
+For J106, the SD bundle includes `System/Synths/J106.psyn` and
+`System/Synths/Patches/J106/`; copy both to the matching folders on your card,
 then reboot. Select **J106** in **I. Params → Model** and press **Load** to
 browse the patches. [Synth guide](docs/custom_synth_sdk.md#j106).
 
-MINI and OBER patches go in `Patches/MINI/` and `Patches/OBER/` when their
+MINI and OBER patches go in `System/Synths/Patches/MINI/` and `System/Synths/Patches/OBER/` when their
 donor sources are available.
 
 Build the complete release ZIP with `make release-zip`. It contains the three model-specific firmware files and a fresh `SD/` folder. Copy the contents of `SD/` to your card, using the matching file from `SD/Firmware/` for your model. The ZIP is published as an asset on [GitHub Releases](https://github.com/yosbelms/sidetracker/releases).

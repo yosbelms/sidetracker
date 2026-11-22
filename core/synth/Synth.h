@@ -46,6 +46,7 @@ class Synth
                                                 polysynth::InstrumentTypeId::kOberSynth,
                                                 polysynth::InstrumentTypeId::kJ106Synth };
     static constexpr auto kInitPatchName = "Init";
+    static constexpr auto kRandomPatchName = "Random";
 
     Synth();
     ~Synth();
@@ -59,6 +60,8 @@ class Synth
     bool savePatch(int part, const char* name);
     bool savePatch(int part);
     void initPatch(int part);
+    [[nodiscard]] bool supportsRandomizePatch(int part) const;
+    bool randomizePatch(int part);
     bool loadPatchFromWorkspace(int part, std::optional<std::string> overrideName = std::nullopt);
     void savePatchToWorkspace(int part);
     void saveDirtyWorkspacePatches();
@@ -141,6 +144,7 @@ class Synth
     std::shared_ptr<polysynth::PatchStore> patchStoreWorkspace;
     std::unique_ptr<MidiAdapter> midiAdapter;
     FileSystem* filesystem;
+    Platform* platformPtr = nullptr;
     std::vector<polysynth::InstrumentTypeId> synthTypes;
     std::vector<PluginTypeInfo> pluginTypes;
 

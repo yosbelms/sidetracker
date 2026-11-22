@@ -1,14 +1,14 @@
 # Polyend Custom Synth Engine & `.psyn` Plugin SDK - Developer Guide
 
-The **Polyend Community Edition Synth Plugin SDK** ([`synth-plugin-sdk/`](../synth-plugin-sdk/) + [`synth/include/PolySynth/sdk/`](../synth/include/PolySynth/sdk/)) lets developers create standalone, relocatable `.psyn` synthesizer engines loaded directly from `/Synths/*.psyn` on the microSD card, **without recompiling the firmware** and with full cross-device binary compatibility across IMX powered Polyend devices (`ARMv7E-M` Cortex-M7 @ 600 MHz, Thumb-2, VFPv5 hard-float).
+The **Polyend Community Edition Synth Plugin SDK** ([`synth-plugin-sdk/`](../synth-plugin-sdk/) + [`synth/include/PolySynth/sdk/`](../synth/include/PolySynth/sdk/)) lets developers create standalone, relocatable `.psyn` synthesizer engines loaded directly from `/System/Synths/*.psyn` (or `/.system/Synths/*.psyn`) on the microSD card, **without recompiling the firmware** and with full cross-device binary compatibility across IMX powered Polyend devices (`ARMv7E-M` Cortex-M7 @ 600 MHz, Thumb-2, VFPv5 hard-float).
 
 ---
 
-SideTracker adds **MINI**, a Minimoog emulation with three oscillators, a ladder filter, and low-note priority, and **OBER**, an Oberheim-style polysynth emulation with two oscillators, PWM, hard sync, cross-modulation, and SEM filter morphing. OBER offers up to four voices or **Mono Legato** in its Voice section. Both share the Tracker's eight-voice pool. Copy `SD/Synths/` from the release to the root of the card and reboot to load the engines, then use **Synth → Load** for patches.
+SideTracker adds **MINI**, a Minimoog emulation with three oscillators, a ladder filter, and low-note priority, and **OBER**, an Oberheim-style polysynth emulation with two oscillators, PWM, hard sync, cross-modulation, and SEM filter morphing. OBER offers up to four voices or **Mono Legato** in its Voice section. Both share the Tracker's eight-voice pool. Copy the release's `SD/System/` folder to the root of the card and reboot to load the engines, then use **Synth → Load** for patches.
 
-Run `python3 tools/port_analog_synth_presets.py` with the donor source folders under `temp/` to generate `build/SideTrackerAnalogPresets.zip`. The pack contains 200 FMini-1 presets for MINI and 100 presets for OBER, including 70 converted OberVave sounds and 30 original SideTracker sounds. The archive contains individual Tracker `.patch` files under `Patches/MINI/` and `Patches/OBER/`. Copy the `Patches` folder to the SD-card root, select the synth, and open **Load**. The conversion maps supported synth controls. Donor arpeggiators, FX sends, and voice stacking are omitted. The archive includes the donor licenses.
+Run `python3 tools/port_analog_synth_presets.py` with the donor source folders under `temp/` to generate `build/SideTrackerAnalogPresets.zip`. The pack contains 200 FMini-1 presets for MINI and 100 presets for OBER, including 70 converted OberVave sounds and 30 original SideTracker sounds. The archive contains individual Tracker `.patch` files under `Patches/MINI/` and `Patches/OBER/`. Copy the `Patches` folder to `/System/Synths/` on the SD card, select the synth, and open **Load**. The conversion maps supported synth controls. Donor arpeggiators, FX sends, and voice stacking are omitted. The archive includes the donor licenses.
 
-`make sd` stages both collections in `build/SD/Patches/` when the donor folders
+`make sd` stages both collections in `build/SD/System/Synths/Patches/` when the donor folders
 are present. The release includes the converted patches, their GPL-3.0-only
 source data and licenses, and the conversion tools. The MINI and OBER DSP
 is independently implemented; the donor code is used only as a sound reference.
@@ -17,15 +17,15 @@ is independently implemented; the donor code is used only as a sound reference.
 
 **J106** emulates the Roland Juno-106 with a shared saw, pulse and sub oscillator, a resonant four-pole low-pass filter, four high-pass settings, ADSR or gate amplification, and stereo Chorus I, II, and I+II. It supports up to six voices from Tracker's shared eight-voice pool. The LFO can follow project tempo. Use Tracker's sequencer, Delay and Reverb with J106.
 
-On **Tracker+ and Tracker Mini**, copy `SD/Synths/J106.psyn` and `SD/Patches/J106/` from the release bundle to the matching folders on your SD card, then reboot. In a synth slot, select **J106** under **I. Params → Model**, then press **Load**. The 100 factory patches go from **Ebony Sub**, **Cedar Keys**, and **Wide Strings** to tempo-synced **Bar Scanner**, percussive **Felt Kick**, and evolving **Polar Wind**.
+On **Tracker+ and Tracker Mini**, copy `SD/System/Synths/J106.psyn` and `SD/System/Synths/Patches/J106/` from the release bundle to the matching folders on your SD card, then reboot. In a synth slot, select **J106** under **I. Params → Model**, then press **Load**. The 100 factory patches go from **Ebony Sub**, **Cedar Keys**, and **Wide Strings** to tempo-synced **Bar Scanner**, percussive **Felt Kick**, and evolving **Polar Wind**.
 
 For local builds, `make psyn` stages the plugin and `make sd` stages the patches under `build/SD/`.
 
-J106 uses independent DSP, with [FM-106 1.02](https://github.com/PatttF/fm-106/tree/7129ecaf00f8303888896f614a7099bb64e35656) as a sound and control reference. To convert the supplied local factory bank, run `python3 tools/generate_j106_patches.py --fm106-bank temp/fm-106-1.02/tests/factory_presets.json`. The resulting patches are under `build/SD/Patches/J106/FM-106/`. The converter maps the synth voice and chorus controls. The release bundles the original J106 patches.
+J106 uses independent DSP, with [FM-106 1.02](https://github.com/PatttF/fm-106/tree/7129ecaf00f8303888896f614a7099bb64e35656) as a sound and control reference. To convert the supplied local factory bank, run `python3 tools/generate_j106_patches.py --fm106-bank temp/fm-106-1.02/tests/factory_presets.json`. The resulting patches are under `build/SD/System/Synths/Patches/J106/FM-106/`. The converter maps the synth voice and chorus controls. The release bundles the original J106 patches.
 
 ## Table of Contents
 
-1. [Architecture Overview (`PsynLoader` & `/Synths/*.psyn`)](#1-architecture-overview-psynloader--synthspsyn)
+1. [Architecture Overview (`PsynLoader` & `/System/Synths/*.psyn`)](#1-architecture-overview-psynloader--systemsynthspsyn)
 2. [SDK Headers & Two Authoring Modes](#2-sdk-headers--two-authoring-modes)
 3. [Voice Lifecycle & Audio Rendering Model](#3-voice-lifecycle--audio-rendering-model)
 4. [Step-by-Step Tutorial: Building & Packaging a `.psyn` Engine](#4-step-by-step-tutorial-building--packaging-a-psyn-engine)
@@ -39,7 +39,7 @@ J106 uses independent DSP, with [FM-106 1.02](https://github.com/PatttF/fm-106/t
 
 ---
 
-## 1. Architecture Overview (`PsynLoader` & `/Synths/*.psyn`)
+## 1. Architecture Overview (`PsynLoader` & `/System/Synths/*.psyn`)
 
 All synthesizer engines in `tracker-ce` (built-in factory engines `ACD`, `FAT`, `VAP`, `WTFM`, `PERC`, `DIRT`, the open-source reference engine `CHIP`, as well as any third-party community engine) are distributed and loaded dynamically as standalone **`.psyn`** plugins on the SD card:
 
@@ -53,7 +53,7 @@ All synthesizer engines in `tracker-ce` (built-in factory engines `ACD`, `FAT`, 
 │                  │                                     │                   │
 │  ┌───────────────▼─────────────────────────────────────▼────────────────┐  │
 │  │                    libPolySynth.a + PsynLoader                       │  │
-│  │  • Scans /Synths/*.psyn headers at boot                              │  │
+│  │  • Scans /System/Synths/*.psyn headers at boot                       │  │
 │  │  • Preloads engines up to kMaxPreloadBytes into the SDRAM arena      │  │
 │  │  • Loads additional engines on demand & LRU-evicts inactive engines  │  │
 │  │  • Shares SamplePool across all active sample-based voices           │  │
@@ -61,7 +61,7 @@ All synthesizer engines in `tracker-ce` (built-in factory engines `ACD`, `FAT`, 
 └─────────────────────────────────────┼──────────────────────────────────────┘
                                       │
                    ┌──────────────────▼──────────────────┐
-                   │     SD Card (/Synths/*.psyn)        │
+                   │  SD Card (/System/Synths/*.psyn)    │
                    │  • Built using synth-plugin-sdk/    │
                    │  • C++20 (psyn_cpp_bridge.h)        │
                    │  • or Pure C (psyn_plugin.h)        │
@@ -69,7 +69,7 @@ All synthesizer engines in `tracker-ce` (built-in factory engines `ACD`, `FAT`, 
 ```
 
 ### Key Architectural Facts
-* **Zero Firmware Changes Needed:** Drop any compiled `MYENGINE.psyn` onto the SD card under `/Synths/`. `PsynLoader` ([`synth/source/synths/PsynLoader.h`](../synth/source/synths/PsynLoader.h), [`PsynLoader.cpp`](../synth/source/synths/PsynLoader.cpp)) discovers `.psyn` headers automatically at boot and [`SynthEditor`](../core/interface/instrumentEditor/SynthEditor.cpp) populates the model selector dynamically from `synth->getSynthTypes()`.
+* **Zero Firmware Changes Needed:** Drop any compiled `MYENGINE.psyn` onto the SD card under `/System/Synths/`. `PsynLoader` ([`synth/source/synths/PsynLoader.h`](../synth/source/synths/PsynLoader.h), [`PsynLoader.cpp`](../synth/source/synths/PsynLoader.cpp)) discovers `.psyn` headers automatically at boot and [`SynthEditor`](../core/interface/instrumentEditor/SynthEditor.cpp) populates the model selector dynamically from `synth->getSynthTypes()`.
 * **Dedicated Synth SDRAM Pool (`PSYN_RAM_POOL_SIZE`):** Defined in [`core/source/mtStructs.h`](../core/source/mtStructs.h) — see [`docs/memory_map.md`](memory_map.md#4-synthesizer-sdram-pool-psyn_ram_pool_size--imx) for exact pool, arena, boot-preload, and shared `SamplePool` capacities:
   * **`.psyn` Executable & Heap Arena (`PsynLoader::kArenaSize`):** Holds relocated plugin code, `.rodata`, `.data`, `.bss`, `.init_array` constructors, per-engine `slot_alloc` allocations, and `load_wav_file` buffers. Boot preloading caches engines up to `kMaxPreloadBytes`; remaining `.psyn` plugins load lazily when selected, with **LRU eviction** of inactive engines when headroom is needed.
   * **Synth `SamplePool` (`initSamplePool(...)`):** Shared reference-counted SDRAM pool for engine `SampleSlot` assets (custom sample-based `.psyn` engines) with content deduplication across instruments and patches.
@@ -86,7 +86,8 @@ Recommended for full-featured engines sharing code cleanly with Polyend's `Patch
 
 | Header | Purpose |
 | :--- | :--- |
-| [`synth-plugin-sdk/include/psyn/psyn_cpp_bridge.h`](../synth-plugin-sdk/include/psyn/psyn_cpp_bridge.h) | Translates any `polysynth::InstrumentVoice` subclass into the C `.psyn` plugin ABI via `PSYN_REGISTER_CPP_VOICE(VoiceClass)`. |
+| [`synth-plugin-sdk/include/psyn/psyn_cpp_bridge.h`](../synth-plugin-sdk/include/psyn/psyn_cpp_bridge.h) | Translates any `polysynth::InstrumentVoice` subclass into the C `.psyn` plugin ABI via `PSYN_REGISTER_CPP_VOICE(VoiceClass)` (including compile-time detection of `tickIdle()` and `static void randomizePatch(Patch&, uint32_t)`). |
+| [`synth-plugin-sdk/include/psyn/psyn_random.h`](../synth-plugin-sdk/include/psyn/psyn_random.h) | Lightweight zero-allocation `psyn::Rng` (`xorshift32`) helper with `range()`, `expRange()`, `powRange()`, `rangeInt()`, `chance()`, and `choice()` for engine-side patch randomization. |
 | [`synth/include/PolySynth/sdk/SynthVoiceSDK.h`](../synth/include/PolySynth/sdk/SynthVoiceSDK.h) | Header-only C++20 base class `CustomSynthVoice`, `ParamHelper`, math helpers, standard `MidiCCs`, and formatters. |
 | [`synth/include/PolySynth/sdk/InstrumentVoice.h`](../synth/include/PolySynth/sdk/InstrumentVoice.h) | Pure virtual voice interface (`onMidiEvent`, `onParamChange`, `renderVoiceAudio`, `renderPostProcessAudio`, `hasPostProcess`, `tickIdle`, `hasTickIdle`, note query methods). |
 | [`synth/include/PolySynth/sdk/InstrumentType.h`](../synth/include/PolySynth/sdk/InstrumentType.h) | Engine factory interface (`createMetadata`, `createVoice`). |
@@ -98,7 +99,7 @@ Recommended for full-featured engines sharing code cleanly with Polyend's `Patch
 ### Mode B: Pure C (`psyn_plugin.h`)
 | Header | Purpose |
 | :--- | :--- |
-| [`synth-plugin-sdk/include/psyn/psyn_plugin.h`](../synth-plugin-sdk/include/psyn/psyn_plugin.h) | Self-contained 128-byte `PsynHeader` (`PSYN_MAGIC = 0x4E595350`, `PSYN_API_VERSION = 1`, `PSYN_FLAG_HAS_SAMPLE_SLOTS = 0x0001`, `PSYN_FLAG_SUPPORTS_IDLE_SLEEP = 0x0002`, `PSYN_FLAG_HAS_VOICE_TICK_IDLE = 0x0004`), `PsynHostApi` callbacks, `PsynPluginApi` vtable (plus optional `voice_tick_idle` when `PSYN_FLAG_HAS_VOICE_TICK_IDLE` is set), and `psyn_plugin_entry(const PsynHostApi* host)`. |
+| [`synth-plugin-sdk/include/psyn/psyn_plugin.h`](../synth-plugin-sdk/include/psyn/psyn_plugin.h) | Self-contained 128-byte `PsynHeader` (`PSYN_MAGIC = 0x4E595350`, `PSYN_API_VERSION = 1`, `PSYN_FLAG_HAS_SAMPLE_SLOTS = 0x0001`, `PSYN_FLAG_SUPPORTS_IDLE_SLEEP = 0x0002`, `PSYN_FLAG_HAS_VOICE_TICK_IDLE = 0x0004`, `PSYN_FLAG_HAS_RANDOMIZE_PATCH = 0x0008`), `PsynHostApi` callbacks, `PsynPluginApi` vtable (plus optional `voice_tick_idle` and `randomize_patch` extensions), and `psyn_plugin_entry(const PsynHostApi* host)`. |
 
 ---
 
@@ -106,7 +107,7 @@ Recommended for full-featured engines sharing code cleanly with Polyend's `Patch
 
 The Tracker audio engine supports **3 active synth slots** (`SYN 1`, `SYN 2`, `SYN 3`) sharing up to **8 voices total**:
 
-1. **Discovery & Initialization**: On SD mount, `PsynLoader` reads the 128-byte `PsynHeader` from every `.psyn` file in `/Synths/` (falling back to `/Synth/`), registers its `InstrumentType`, and creates `/SynthSamples/<CODE_NAME>/` if `PSYN_FLAG_HAS_SAMPLE_SLOTS` is set.
+1. **Discovery & Initialization**: On SD mount, `PsynLoader` reads the 128-byte `PsynHeader` from every `.psyn` file in `/System/Synths/` (or `/.system/Synths/`), registers its `InstrumentType`, and creates `/System/Synths/Samples/<CODE_NAME>/` if `PSYN_FLAG_HAS_SAMPLE_SLOTS` is set.
 2. **Activation & Instantiation**: When a user selects the engine or loads a `.patch`, `PsynLoader` relocates the `.psyn` ELF sections into the SDRAM arena ([`PsynLoader::kArenaSize`](memory_map.md#4-synthesizer-sdram-pool-psyn_ram_pool_size--imx), if not already resident), calls static `.init_array` constructors, and constructs active voices (`create_voice`).
 3. **Parameter Synchronization**: Changing a knob, macro, or loading a patch triggers `onParamChange(paramId, newValue)` (or `voice_on_param_change` in C).
 4. **MIDI Delivery**: Pattern notes, pads, and external MIDI trigger `onMidiEvent(ctx, event)` (or `CustomSynthVoice::onNoteOn` / `onNoteOff`).
@@ -227,7 +228,7 @@ Compile with `arm-none-eabi-g++` targeting Cortex-M7 hard-float with relocations
 # Quick test build of the bundled reference engine (CHIP.psyn -> synth-plugin-sdk/build/CHIP.psyn):
 make -C synth-plugin-sdk
 
-# Or bundle all factory + open-source .psyn engines into build/Synths/:
+# Or bundle all factory + open-source .psyn engines into build/SD/System/Synths/:
 # (also downloadable ready-to-use from the `polyend-tracker-ce-synths` CI artifact / GitHub Releases)
 make psyn
 
@@ -246,14 +247,15 @@ python3 synth-plugin-sdk/tools/psyn_builder.py \
     --renders-aux 0 \
     --has-sample-slots 0 \
     --supports-idle-sleep 1 \
-    --has-voice-tick-idle 0
+    --has-voice-tick-idle 0 \
+    --has-randomize-patch 1
 ```
 
 > [!TIP]
-> Always set `--type-id-wave 0` and `--type-id-play-tracker 0` for new third-party engines (`PsynLoader` hashes `code_name` into a deterministic runtime `InstrumentTypeId` `0x100+` that never collides with factory IDs), and pass `--supports-idle-sleep 1` whenever your voice implements `isActive()` (plus `--has-voice-tick-idle 1` if it also overrides `tickIdle()`; see [Section 10.5](#10-real-time-audio-cpu--memory-guidelines)).
+> Always set `--type-id-wave 0` and `--type-id-play-tracker 0` for new third-party engines (`PsynLoader` hashes `code_name` into a deterministic runtime `InstrumentTypeId` `0x100+` that never collides with factory IDs), pass `--supports-idle-sleep 1` whenever your voice implements `isActive()` (plus `--has-voice-tick-idle 1` if it also overrides `tickIdle()`; see [Section 10.5](#10-real-time-audio-cpu--memory-guidelines)), and pass `--has-randomize-patch 1` if your engine implements `static void randomizePatch(Patch&, uint32_t)` (C++) or `randomize_patch(void* host_patch, uint32_t seed)` (C) to enable **`Shift + Randomize Patch`** in the Synth Patch Editor.
 
 ### Step 3: Deploy onto SD Card
-Copy the `.psyn` binary to `/Synths/MYSYN.psyn` and any preset patches to `/Patches/MYSYN/*.patch`. Reboot or re-enter the Synth menu — your new engine appears automatically in the Synth model selector (`SynthEditor`).
+Copy the `.psyn` binary to `/System/Synths/MYSYN.psyn` and any preset patches to `/System/Synths/Patches/MYSYN/*.patch`. Reboot or re-enter the Synth menu — your new engine appears automatically in the Synth model selector (`SynthEditor`).
 
 ---
 
@@ -269,7 +271,7 @@ Engines can play `.wav` samples or wavetables directly from the shared **`4 MB` 
       .type = Patch::Metadata::SampleSlot::Type::kSample, // or kWaveTable
       .section = 0,
       .subsection = 0,
-      .defaultSamplePath = "/SynthSamples/MYSYN/Init.wav",
+      .defaultSamplePath = "MYSYN/Init.wav",
   });
 
   metadata.layoutFlat.sections[0].elements.push_back({
@@ -295,10 +297,10 @@ Engines can play `.wav` samples or wavetables directly from the shared **`4 MB` 
   ```
 * **Pure C**: Call `PsynSampleData sd; if (host->patch_get_sample(host_patch, slot_id, &sd) && sd.ready)` to access `sd.data` (`const int16_t*`), `sd.size`, `sd.channels`, `sd.sample_rate`, and `sd.wave_size`.
 
-### 3. Auto-Created Sample Directories & Path Fallback
-* **On Tracker+ / Tracker Mini & Play / Play+:** Whenever `PsynLoader` discovers any built-in sample engine or any `.psyn` engine carrying `PSYN_FLAG_HAS_SAMPLE_SLOTS`, it automatically ensures `/SynthSamples/<CODE_NAME>/` exists on the SD card (`PsynLoader::ensurePluginSampleFolder`). Keeping synth samples under `/SynthSamples/` prevents cluttering users' `/Samples/` tracker instrument libraries.
+### 3. Auto-Created Sample Directories & Path Resolution
+* **On Tracker+ / Tracker Mini:** Whenever `PsynLoader` discovers any built-in sample engine or any `.psyn` engine carrying `PSYN_FLAG_HAS_SAMPLE_SLOTS`, it automatically ensures `/System/Synths/Samples/<CODE_NAME>/` exists on the SD card (`PsynLoader::ensurePluginSampleFolder`).
 * **On Polyend Synth:** Auto-created engine folders live under `/Samples/<CODE_NAME>/`.
-* **Path Resolution:** [`core/synth/FileSystemAdapter.cpp`](../core/synth/FileSystemAdapter.cpp) resolves sample reads starting with `/SynthSamples/` and falls back cleanly across `/Samples/`, `/`, and `/Patches/`.
+* **Path Resolution:** [`core/synth/FileSystemAdapter.cpp`](../core/synth/FileSystemAdapter.cpp) resolves relative sample reads under `/System/Synths/Samples/` and absolute paths anywhere on the SD card.
 
 ---
 
@@ -330,12 +332,12 @@ void    (*free_wav_file)(int16_t* pcm_data);
 
 Both synth **Patch Load / Save As** ([`SynthEditor.cpp`](../core/interface/instrumentEditor/SynthEditor.cpp)) and **Sample Slot `.wav` Pickers** ([`SynthPatchEditor.cpp`](../core/interface/instrumentEditor/SynthPatchEditor.cpp)) run through the unified [`GlobalFileBrowser`](global_file_browser.md):
 
-* **Synth Patch Browser (`/Patches/<patch_folder>/*.patch`):**
+* **Synth Patch Browser (`/System/Synths/Patches/<patch_folder>/*.patch`):**
   * Displays parsed `.patch` metadata in the Details pane via `onDescribeItem()` using immediate FatFs handle cleanup (`closeFile(fh)` with `deleteOnClose = true`) and a 1-entry `PatchWireInfo` cache so scrolling rapidly never leaks FatFs file handles.
   * Silences active synth voices (`silencePart(syntPartIdx)`) cleanly before loading the next patch so sustained tails never freeze while reading SD data.
   * Forwards Tracker pad events (`onPadEvent`) for polyphonic pad auditioning directly inside the browser.
 * **Sample Slot WAV Browser (`kLoadWav`):**
-  * Selecting any `SampleSlot` in `SynthPatchEditor` opens `GlobalFileBrowser` in `kLoadWav` mode (defaulting to `/SynthSamples/<CODE_NAME>/`), providing built-in `.wav` metadata, preview playback with adjustable Preview Vol, and `Left`-arrow jump-to-top navigation.
+  * Selecting any `SampleSlot` in `SynthPatchEditor` opens `GlobalFileBrowser` in `kLoadWav` mode (defaulting to `/System/Synths/Samples/<CODE_NAME>/`), providing built-in `.wav` metadata, preview playback with adjustable Preview Vol, and `Left`-arrow jump-to-top navigation.
 
 ---
 

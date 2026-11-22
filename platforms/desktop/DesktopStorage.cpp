@@ -1,4 +1,5 @@
 #include "DesktopStorage.h"
+#include "SdPaths.h"
 #include <algorithm>
 #include <cctype>
 #include <cstring>
@@ -19,7 +20,7 @@ DesktopStorage::DesktopStorage(fs::path path) : root(fs::absolute(path).lexicall
 #ifdef TRACKER_DESKTOP_PLUS
     const std::unique_ptr<char, decltype(&SDL_free)> basePath(SDL_GetBasePath(), SDL_free);
     if (basePath)
-        packagedPatches = fs::path(basePath.get()) / "../SD/Patches";
+        packagedPatches = fs::path(basePath.get()) / "../SD/System/Synths/Patches";
 #endif
 }
 
@@ -31,6 +32,7 @@ DesktopStorage::~DesktopStorage()
 
 bool DesktopStorage::remount()
 {
+    SdPaths::resetCache();
     for (auto* handle : handles)
         closeFile(handle, false);
     std::error_code error;
@@ -77,7 +79,7 @@ fs::path DesktopStorage::resolveForRead(const char* path) const
 
 fs::path DesktopStorage::resolvePackagedPatchFolder(const fs::path& local) const
 {
-    if (packagedPatches.empty() || local.parent_path() != root / "Patches")
+    if (packagedPatches.empty() || local.parent_path() != root / "System/Synths/Patches")
         return {};
     const auto name = local.filename();
     return name == "MINI" || name == "OBER" ? packagedPatches / name : fs::path{};
@@ -263,7 +265,6 @@ bool matches(const fs::directory_entry& item, FileSystem::enListFileFilter filte
         case FileSystem::enListFileFilter_wave_inst: return extension == ".wav" || extension == ".pti";
         case FileSystem::enListFileFilter_firmware: return extension == ".ptf";
         case FileSystem::enListFileFilter_mod: return extension == ".mod" || extension == ".it";
-        case FileSystem::enListFileFilter_game: return extension == ".nes";
         default: return false;
     }
 }

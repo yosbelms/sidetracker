@@ -47,7 +47,7 @@ wait 300
 
 
 def check_win98_toolbar(binary, card):
-    theme_file = card / "Themes" / "Win98.json"
+    theme_file = card / "System/Themes" / "Win98.json"
     theme = json.loads(theme_file.read_text())
     # Give the screen and the toolbar different colors so gaps are measurable.
     theme["background"] = "#008684"
@@ -76,11 +76,11 @@ wait 300
 
 
 def check(binary, card, name):
-    (card / "Themes").mkdir(parents=True)
-    shutil.copy(ROOT / "themes" / f"{name}.json", card / "Themes")
+    (card / "System/Themes").mkdir(parents=True)
+    shutil.copy(ROOT / "themes" / f"{name}.json", card / "System/Themes")
     script = OPEN_THEME + "button Down\n" * 3 + "button 7\n"
-    (card / "Fonts").mkdir()
-    shutil.copy(ROOT / "fonts" / f"{name}.ptfont", card / "Fonts")
+    (card / "System/Fonts").mkdir(parents=True)
+    shutil.copy(ROOT / "fonts" / f"{name}.ptfont", card / "System/Fonts")
     script += "button Down\nbutton Right\nbutton Down\nbutton Down\nbutton 7\n"
     run(binary, card, script + "button Pattern\nwait 300\n")
     themed = (card / "screen.bmp").read_bytes()

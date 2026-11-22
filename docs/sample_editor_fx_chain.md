@@ -15,7 +15,7 @@ The Chain view uses the Sample Loader’s browser-and-slots arrangement, followe
 
 Effects occupies 3/8 of the screen, Chain and Parameter each occupy 2/8, and Value occupies the final 1/8 at the right edge.
 
-Four native STPalette entries—Character, Movement, Diffusion, and Texture—each expose six algorithms through Type. Each instance runs only its selected Type. Type lists use the Value column; Sync and Tail appear only where relevant. The chain row displays the category and selected Type. Native preview and Render share their DSP and resolved quality profiles. Economy mode is selected when the budget requires it; original Tracker timing estimates still require hardware calibration. A STPalette stage's Insert menu offers Measure CPU, saving a selected-Type report to `/Effects/STPaletteCPU.csv`. See [Native STPalette](../core/effector/stpalette/README.md).
+Four native STPalette entries—Character, Movement, Diffusion, and Texture—each expose six algorithms through Type. Each instance runs only its selected Type. Type lists use the Value column; Sync and Tail appear only where relevant. The chain row displays the category and selected Type. Native preview and Render share their DSP and resolved quality profiles. Economy mode is selected when the budget requires it; original Tracker timing estimates still require hardware calibration. A STPalette stage's Insert menu offers Measure CPU, saving a selected-Type report to `/System/Effects/STPaletteCPU.csv`. See [Native STPalette](../core/effector/stpalette/README.md).
 
 Left/Right moves between columns. Up/Down and the encoder select entries; in Value, the encoder changes the value. Browsing Effects never replaces a chain stage or changes its settings. **Add** appends the browsed effect and keeps focus in the browser, so several effects can be added quickly. Repeated Add creates independent instances. Select a stage in Chain and press the physical **Insert** key to open its context menu for bypass, duplicate, replacement, removal, and chain operations. **Delete** removes the selected chain stage; in Value it restores the parameter default.
 
@@ -57,7 +57,7 @@ The chain browser contains amplifier, overdrive, delay, bitcrusher, chorus, flan
 
 Open **Actions** or press physical **Insert** while focused on Chain. **Save Patch** saves the chain settings, including source, stage order, parameters, bypass, Mix, and any resolved quality profiles. Choose a numbered destination such as `Patch01` or replace a listed patch. **Load Patch** replaces the working chain with the saved settings. A patch with the current sample as its source uses the selected sample.
 
-The browser lists up to 32 `.patch` files in `/Effects/Patches/` and displays their filenames without extensions. The format is PTPR v1. To reuse a PTPR v1 `.ptpreset` file, copy it to `/Effects/Patches/` and change its extension to `.patch`.
+The browser lists up to 32 `.patch` files in `/System/Effects/Patches/` and displays their filenames without extensions. Numeric-only chains use PTPR v1. Chains with plugin text or file paths use PTPR v2; both versions load normally. To reuse a PTPR v1 `.ptpreset` file, copy it to `/System/Effects/Patches/` and change its extension to `.patch`.
 
 The [STPalette showcase pack](../patches/stpalette/README.md) provides ready-to-load patches covering all 24 native algorithms, with descriptive filenames and a guide to their settings.
 
@@ -67,7 +67,7 @@ To generate the SD files and the ZIP, run this from the repository root:
 make sd
 ```
 
-The generator reads `patches/stpalette/patches.json` and validates the settings with the native effects registry. It stages files such as `build/SD/Effects/Patches/Worn Cassette.patch` and creates `build/STPaletteShowcase.zip`. The portable core library builds automatically.
+The generator reads `patches/stpalette/patches.json` and validates the settings with the native effects registry. It stages files such as `build/SD/System/Effects/Patches/Worn Cassette.patch` and creates `build/STPaletteShowcase.zip`. The portable core library builds automatically.
 
 Copy the pack’s `Effects` folder to the SD-card root, preserving any existing files with the same names before replacing them. Open **Load Patch** and select the patch by name.
 

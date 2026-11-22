@@ -8,6 +8,38 @@
 
 namespace samplefx
 {
+const char* parameterString(const Node& node, unsigned index)
+{
+    if (index >= kMaxParams) return "";
+    const char* current = node.parameterStrings;
+    const char* end = current + sizeof(node.parameterStrings);
+    for (unsigned i = 0; i <= index; ++i)
+    {
+        const auto* terminator = static_cast<const char*>(memchr(current, 0, end - current));
+        if (!terminator) return "";
+        if (i == index) return current;
+        current = terminator + 1;
+    }
+    return "";
+}
+
+bool setParameterString(Node& node, unsigned index, const char* value)
+{
+    if (index >= kMaxParams || !value) return false;
+    char strings[kParameterStringBytes] = {};
+    size_t used = 0;
+    for (unsigned i = 0; i < kMaxParams; ++i)
+    {
+        const char* text = i == index ? value : parameterString(node, i);
+        const size_t length = strlen(text) + 1;
+        if (length > sizeof(strings) - used) return false;
+        memcpy(strings + used, text, length);
+        used += length;
+    }
+    memcpy(node.parameterStrings, strings, sizeof(strings));
+    return true;
+}
+
 bool ChainDefinition::add(const Node& node)
 {
     if (count >= kMaxStages || node.effect == kSample || (node.flags & 1)) return false;
@@ -42,23 +74,35 @@ uint32_t fingerprint(const void* bytes, size_t size, uint32_t hash)
     while (size--) { hash ^= *p++; hash *= 16777619u; }
     return hash;
 }
+bool validNode(const Node& n, unsigned index)
+{
+    if (n.count > kMaxParams || !memchr(n.filename, 0, sizeof(n.filename))) return false;
+    const char* text = n.parameterStrings;
+    const char* end = text + sizeof(n.parameterStrings);
+    for (unsigned p = 0; p < kMaxParams; ++p)
+    {
+        const auto* terminator = static_cast<const char*>(memchr(text, 0, end - text));
+        if (!terminator) return false;
+        if (*text && (n.effect != kPlugin || p >= n.count)) return false;
+        text = terminator + 1;
+    }
+    if (n.effect == kPlugin)
+    {
+        if(n.quality) return false;
+        if (!n.filename[0] || strchr(n.filename, '/') || strchr(n.filename, '\\')) return false;
+        if (bool(n.flags & 1) != (index == 0)) return false;
+    }
+    else if (stpalette::contains(n.effect)) { if (!index || !stpalette::valid(n)) return false; }
+    else if ((index == 0 ? n.effect != kSample : n.effect >= 17) || n.flags != 0 || n.quality) return false;
+    for (unsigned p = 0; p < n.count; ++p) if (!std::isfinite(n.params[p])) return false;
+    return true;
+}
+
 bool validChain(const ChainDefinition& r)
 {
     if (r.count > kMaxStages || !r.generatorFrames || r.mix > 100) return false;
     for (unsigned i = 0; i <= r.count; ++i)
-    {
-        const Node& n = i ? r.stages[i - 1] : r.source;
-        if (n.count > kMaxParams || !memchr(n.filename, 0, sizeof(n.filename))) return false;
-        if (n.effect == kPlugin)
-        {
-            if(n.quality) return false;
-            if (!n.filename[0] || strchr(n.filename, '/') || strchr(n.filename, '\\')) return false;
-            if (bool(n.flags & 1) != (i == 0)) return false;
-        }
-        else if (stpalette::contains(n.effect)) { if (!i || !stpalette::valid(n)) return false; }
-        else if ((i == 0 ? n.effect != kSample : n.effect >= 17) || n.flags != 0 || n.quality) return false;
-        for (unsigned p = 0; p < n.count; ++p) if (!std::isfinite(n.params[p])) return false;
-    }
+        if (!validNode(i ? r.stages[i - 1] : r.source, i)) return false;
     return true;
 }
 void Runner::invalidate()

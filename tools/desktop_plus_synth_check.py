@@ -61,7 +61,7 @@ def check_badge(path, label, x, y, width, height, striped=False):
 
 
 def check_bundled_patches(binary, card):
-    patches = binary.parent.parent / "SD" / "Patches"
+    patches = binary.parent.parent / "SD" / "System/Synths/Patches"
     for part, (model, count) in enumerate((("MINI", 200), ("OBER", 100))):
         folder = patches / model
         if not folder.is_dir():
@@ -71,7 +71,7 @@ def check_bundled_patches(binary, card):
             raise AssertionError(f"Expected {count} {model} patches, found {len(names)}")
         if uppercase := sorted(name for name in names if name.isupper()):
             raise AssertionError(f"All-uppercase {model} patch names: {uppercase}")
-        shutil.copytree(folder, card / "Patches" / model)
+        shutil.copytree(folder, card / "System/Synths/Patches" / model)
         commands = (select_part(part) + "button 6\nwait 250\nbutton Down\n"
                     + "button Down\nwait 25\n" * (count - 1)
                     + """reset-audio-peak
@@ -89,11 +89,11 @@ button 7
 
 def check_j106(binary, card):
     patch_name = "Wide Strings"
-    bundled_patch = binary.parent.parent / "SD" / "Patches" / "J106" / f"{patch_name}.patch"
+    bundled_patch = binary.parent.parent / "SD" / "System/Synths/Patches" / "J106" / f"{patch_name}.patch"
     if not bundled_patch.is_file():
         raise AssertionError(f"Missing bundled J106 patch: {bundled_patch}")
 
-    folder = card / "Patches" / "J106"
+    folder = card / "System/Synths/Patches" / "J106"
     folder.mkdir(parents=True)
     shutil.copyfile(bundled_patch, folder / bundled_patch.name)
     # The left four pads in each Patch Editor row select sections.
@@ -128,7 +128,7 @@ wait 12000
 
 
 def check(binary, card):
-    patches = card / "Patches" / "MINI"
+    patches = card / "System/Synths/Patches" / "MINI"
     patches.mkdir(parents=True)
     patch_name = "1 Desktop Pulse"
     saved_patch = patches / f"{patch_name}.patch"

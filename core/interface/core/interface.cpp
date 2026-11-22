@@ -225,6 +225,7 @@ void Interface::doStartTasks()
     }
     interfaceGlobals.currentFirmwareBuild = platform->getSystemInfo()->buildId;
 
+    randomNameGenerator.init(platform->getFileSystem());
     songTimer.initControls();
     mtPopups.initPopupsDisplayControls();
     mtMenuPopup.initPopupsDisplayControls();

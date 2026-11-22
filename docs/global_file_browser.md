@@ -204,7 +204,7 @@ Pass a `GlobalFileBrowserConfig` struct to `GlobalFileBrowser::open(cfg)` (or `o
 void openIrPicker(ModuleBase* caller) {
     GlobalFileBrowser::loadFile(
         "Load Impulse Response",
-        "/Effects/IRs",
+        "/System/Effects/IRs",
         ".ir",
         caller,
         [](const std::string& fullPath) {
@@ -218,7 +218,7 @@ void openIrPicker(ModuleBase* caller) {
 ```cpp
 GlobalFileBrowser::saveFile(
     "Save Effect Preset",
-    "/Effects/Presets/MyPlugin",
+    "/System/Effects/Presets/MyPlugin",
     "InitPreset",
     ".ptp",
     caller,
@@ -233,7 +233,7 @@ GlobalFileBrowser::saveFile(
 GlobalFileBrowserConfig cfg;
 cfg.mode = GlobalFileBrowserConfig::Mode::kLoadGenericFile;
 cfg.title = "Load Synth Patch";
-cfg.initialDirectory = "/Patches";
+cfg.initialDirectory = "/System/Synths/Patches";
 cfg.extensionFilter = ".patch";
 cfg.contextKey = "synth_patch_load";
 cfg.returnModule = returnMod;

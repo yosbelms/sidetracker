@@ -290,7 +290,7 @@ def main():
         source_license = ROOT / "LICENSE-SideTracker.txt"
     copy_if_different(source_license, args.output / "Source" / "LICENSE-SideTracker.txt")
     (args.output / "README.txt").write_text(
-        "Copy Patches to the SD card root. Select MINI or OBER, then Load in the Synth editor.\n"
+        "Copy Patches to System/Synths on the SD card. Select MINI or OBER, then Load in the Synth editor.\n"
         "200 presets adapted from FMini-1 2.5.12 by Guilherme Ruppert.\n"
         "https://github.com/ruppert/fmini-1/tree/be48549213d9177336007d2df477aeb0bbad96f6\n"
         "70 presets adapted from OberVave 3.3.2 by zvenson.\n"
@@ -314,7 +314,7 @@ def main():
             relative = patch.relative_to(args.output)
             package.write(patch, relative)
             if args.sd is not None:
-                destination = args.sd / relative
+                destination = args.sd / "System/Synths" / relative
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(patch, destination)
     print(f"Pack: {archive}")

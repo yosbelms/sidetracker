@@ -54,7 +54,7 @@ def main():
         str(root / "tools/generate_stpalette_patches.cpp"),
         str(root / "build/host-tests-release/libcore.a"), "-pthread", "-o", str(binary),
     ], check=True)
-    directory = pack / "Effects/Patches"
+    directory = pack / "System/Effects/Patches"
     subprocess.run([str(binary), str(directory)], input="\n".join(lines) + "\n",
                    text=True, check=True)
     archive = root / "build/STPaletteShowcase.zip"

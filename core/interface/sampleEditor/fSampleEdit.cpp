@@ -1994,7 +1994,7 @@ static void functPlay()
     }
 
     mtPadBoard.startNoteWithoutInstrument(
-      60,
+      60 + SE->editorInstrument->tuneResample,
       addresses,
       SE->currentEffect->processedFrames(),
       vol,
@@ -2202,6 +2202,17 @@ void cSampleEditor::loadModularEffectUI(const PtfxHeader& header)
             s_modularChangeStep[i] = 1.0f;
             s_modularDisplayMult[i] = 1.0f;
             s_modularDisplayType[i] = (validItems > 0) ? 'l' : 'd';
+        }
+        else if (p.display_type == PARAM_TEXT || p.display_type == PARAM_FILE ||
+                 p.display_type == PARAM_SAVE_FILE)
+        {
+            s_modularUnits[i] = nullptr;
+            s_modularUpConstrain[i] = 1;
+            s_modularDownConstrain[i] = 0;
+            s_modularChangeStep[i] = 0;
+            s_modularDisplayMult[i] = 1;
+            s_modularDisplayType[i] = p.display_type == PARAM_TEXT ? 't' :
+                p.display_type == PARAM_SAVE_FILE ? 's' : 'w';
         }
         else
         {

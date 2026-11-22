@@ -68,6 +68,7 @@ void Sequencer::init()
 
 void Sequencer::update()
 {
+    processPendingMidiProgramChange();
     updatePatternManagment();
 }
 void Sequencer::initAfterReadConfig()
@@ -377,7 +378,7 @@ AUDIO_CORE_FLASH void Sequencer::play_microStep(int row)
     //			to reszta sie nie wykonuje
     // ************************************
 
-    if (!playerRow.isActive)
+    if (row >= getProjectMaxTracks() || !playerRow.isActive)
         return;
     if (isTrackEngineMuted(row))
         return;
@@ -1561,6 +1562,38 @@ void Sequencer::stopAllOpenNotes(void)
     liveRecHeldNotesCount = 0;
 }
 
+void Sequencer::onMaxTracksChanged(uint8_t maxTracks)
+{
+    for (int tr = maxTracks; tr < kAllTracks; tr++)
+    {
+        stopOpenNoteOnTrack(tr);
+        player.track[tr].roll.reset();
+        if (player.selectionMode)
+        {
+            player.track[tr].isActive = 0;
+        }
+    }
+
+    liveRecHeldNotesCount = 0;
+
+    if (player.isPlay && player.selectionMode)
+    {
+        bool anyVisibleActive = false;
+        for (int tr = 0; tr < maxTracks; tr++)
+        {
+            if (player.track[tr].isActive != 0)
+            {
+                anyVisibleActive = true;
+                break;
+            }
+        }
+        if (!anyVisibleActive)
+        {
+            stop();
+        }
+    }
+}
+
 void Sequencer::stopOpenNoteOnTrack(int track, bool leaveStepOpen)
 {
     assert(track >= 0);
@@ -1655,6 +1688,76 @@ void Sequencer::stop(void)
     for (int trackIdx = 0; trackIdx < kAllTracks; trackIdx++)
     {
         player.track[trackIdx].stepSent.note = STEP_NOTE_EMPTY;
+    }
+}
+
+void Sequencer::requestStoppedPatternSwitch(uint8_t patternNumber)
+{
+    player.midiProgramChange_pendingStoppedPattern =
+      clamp<int>(patternNumber, PATTERN_INDEX_MIN, PATTERN_INDEX_MAX);
+}
+
+void Sequencer::processPendingMidiProgramChange()
+{
+    if (player.midiProgramChange_pendingStoppedPattern == 0)
+    {
+        return;
+    }
+
+    if (newFileManager.getStatus() != fmIdle)
+    {
+        return;
+    }
+
+    DISABLE_GLOBAL_INTERRUPTS();
+    uint8_t targetPattern = player.midiProgramChange_pendingStoppedPattern;
+    player.midiProgramChange_pendingStoppedPattern = 0;
+    ENABLE_GLOBAL_INTERRUPTS();
+
+    if (targetPattern == 0)
+    {
+        return;
+    }
+
+    if (isPlay())
+    {
+        sequencialSwitch_queuePattern(targetPattern);
+        return;
+    }
+
+    sequencialSwitch_Reset();
+    setOnGlobalStep(nullCallback);
+
+    if (targetPattern == mtProject.values.actualPattern)
+    {
+        return;
+    }
+
+    if (mtInterface.isPatternScreenActive())
+    {
+        patternEditor.setActualPattern(targetPattern);
+    }
+    else
+    {
+        if (getSeqState() != SEQ_STATE_PLAY_PERFORMANCE)
+        {
+            newFileManager.saveWorkspacePatternNow(mtProject.values.actualPattern);
+        }
+
+        mtProject.values.actualPattern = targetPattern;
+        newFileManager.loadWorkspacePatternNow(mtProject.values.actualPattern);
+
+        DISABLE_GLOBAL_INTERRUPTS();
+        switchRamPatternsNow();
+        ENABLE_GLOBAL_INTERRUPTS();
+
+        if (mtInterface.isPerformanceModeScreenActive())
+        {
+            for (uint8_t a = 0; a < kPerformanceTracks; a++)
+            {
+                mtProject.perfTracksPatterns[a] = mtProject.values.actualPattern;
+            }
+        }
     }
 }
 
@@ -1958,7 +2061,13 @@ void Sequencer::switchRowStep(uint8_t row) // przełączamy stepy w zależności
             reset_actual_pos();
             switchRamPatternsNow();
 
+            uint16_t pendingPattern = player.sequencialSwitch_pendingPattern;
             sequencialSwitch_Reset();
+            if (pendingPattern > 0)
+            {
+                player.sequencialSwitch_pattern = pendingPattern;
+                player.sequencialSwitch_isArmed = true;
+            }
         }
         else if (player.songMode)
         {
@@ -2707,9 +2816,11 @@ AUDIO_CORE_FLASH void Sequencer::handleNoteOn(
     }
     else if (isRec())
     {
+        const int maxTracks = getProjectMaxTracks();
         int8_t singleArmedTrack = getSingleArmedTrack();
-        int startTrack = (singleArmedTrack >= 0) ? singleArmedTrack : getActualTrack();
-        int endTrack = (singleArmedTrack >= 0) ? (singleArmedTrack + 1) : kAllTracks;
+        int startTrack = (singleArmedTrack >= 0) ? singleArmedTrack
+                                                 : std::min<int>(getActualTrack(), maxTracks - 1);
+        int endTrack = (singleArmedTrack >= 0) ? (singleArmedTrack + 1) : maxTracks;
 
         if (singleArmedTrack >= 0)
         {
@@ -2867,10 +2978,11 @@ AUDIO_CORE_FLASH void Sequencer::handleNoteOn(
     else // czyli playMode / dogrywanie / wgrywanie akordów w edit
     {
         int instrument = mtProject.values.lastUsedInstrument;
+        const int maxTracks = getProjectMaxTracks();
 
-        for (int tryIdx = 0; tryIdx < kAllTracks; tryIdx++)
+        for (int tryIdx = 0; tryIdx < maxTracks; tryIdx++)
         {
-            int trackIdx = (sel->firstTrack + tryIdx) % kAllTracks;
+            int trackIdx = (sel->firstTrack + tryIdx) % maxTracks;
 
             if (isSampleInstrument(instrument) && !isSampleTrack(trackIdx))
             {
@@ -3109,7 +3221,7 @@ void Sequencer::handleNoteOff(byte channel, // pochodzenie grida np. GRID_OUTSID
                         continue;
                     }
 
-                    if (wasRecOpen && !player.preRecMetronomeActive)
+                    if (tr < getProjectMaxTracks() && wasRecOpen && !player.preRecMetronomeActive)
                     {
                         strPattern::strTrack::strStep* step =
                           &currentPattern->track[tr].step[destinationStep];
@@ -3523,6 +3635,37 @@ void Sequencer::sequencialSwitch_changeNextPattern(int8_t delta)
       clamp<int>(player.sequencialSwitch_pattern + delta, PATTERN_INDEX_MIN, PATTERN_INDEX_MAX);
 }
 
+void Sequencer::sequencialSwitch_queuePattern(uint8_t patternNumber)
+{
+    uint16_t clampedPattern = clamp<int>(patternNumber, PATTERN_INDEX_MIN, PATTERN_INDEX_MAX);
+
+    DISABLE_GLOBAL_INTERRUPTS();
+    player.midiProgramChange_pendingStoppedPattern = 0;
+    if (player.sequencialSwitch_loaded)
+    {
+        // A pattern is already preloading/preloaded for the imminent end-of-pattern switch.
+        // Defer this new request until immediately after that switch completes.
+        player.sequencialSwitch_pendingPattern = clampedPattern;
+        ENABLE_GLOBAL_INTERRUPTS();
+        return;
+    }
+
+    player.sequencialSwitch_pendingPattern = 0;
+    player.sequencialSwitch_pattern = clampedPattern;
+
+    if (!newFileManager.isPatternLoading() && !isLastPatternStep())
+    {
+        player.sequencialSwitch_isArmed = true;
+        player.onGlobalStep = nullCallback;
+    }
+    else
+    {
+        player.sequencialSwitch_isArmed = false;
+        player.onGlobalStep = cbkSequencialSwitch_SetReady;
+    }
+    ENABLE_GLOBAL_INTERRUPTS();
+}
+
 // uzbraja sequencialSwitch
 void Sequencer::sequencialSwitch_SetReady()
 {
@@ -3549,6 +3692,7 @@ void cbkSequencialSwitch_SetReady()
 AUDIO_CORE_RAM void Sequencer::sequencialSwitch_Reset()
 {
     player.sequencialSwitch_pattern = 0;
+    player.sequencialSwitch_pendingPattern = 0;
     player.sequencialSwitch_isArmed = 0;
     player.sequencialSwitch_loaded = 0;
 }
@@ -3583,7 +3727,8 @@ void Sequencer::toogleRecArmedOnTrack(uint8_t track)
 int8_t Sequencer::getSingleArmedTrack()
 {
     int8_t armedTrack = -1;
-    for (int tr = 0; tr < kAllTracks; tr++)
+    const int maxTracks = getProjectMaxTracks();
+    for (int tr = 0; tr < maxTracks; tr++)
     {
         if (player.track[tr].isRecordingArmed)
         {

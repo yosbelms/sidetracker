@@ -25,7 +25,7 @@ struct GlobalFileBrowserConfig
 
     Mode mode = Mode::kLoadWav;
     std::string title = "Load File";
-    std::string initialDirectory = "/Samples";
+    std::string initialDirectory = "/";
     std::string defaultFileName = "sample";
     std::string extensionFilter = ".wav";
     ModuleBase* returnModule = nullptr;
@@ -189,6 +189,8 @@ class cGlobalFileBrowser : public ModuleBase
     char previewVolumeText[24]{};
     char inspectorText[4][64]{};
     char confirmInfoText[128]{};
+    // The popup keeps the pointer it is given and draws from it later.
+    char deleteDeniedText[64]{};
     char pendingEnteredName[64]{};
     std::string pendingSavePath;
     int secondaryListPos = 0;

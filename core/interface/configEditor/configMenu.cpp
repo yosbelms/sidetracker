@@ -17,18 +17,8 @@
 
 // clang-format off
 
-constexpr uint8_t projectMenuGroupCount = 10;
-
-#ifdef TRACKER_MINI
-constexpr uint8_t baseMenuGroupCount = 8;
-constexpr uint8_t generalMenuGroupCount = 8;
-#else
-constexpr uint8_t baseMenuGroupCount = 7;
-constexpr uint8_t generalMenuGroupCount = 11;
-#endif
-
 // baza baz
-cMenuGroup menuBase(menuBase, 0, baseMenuGroupCount);
+cMenuGroup menuBase(menuBase, 0);
 //=====================================================================================================================================
 //=====================================================================================================================================
 //=====================================================================================================================================
@@ -37,20 +27,20 @@ cMenuGroup menuBase(menuBase, 0, baseMenuGroupCount);
 
 // grupy glowne
 
-cMenuGroup menuProject(menuBase, "Project Settings", projectMenuGroupCount);
-cMenuGroup menuGeneral(menuBase, "General", generalMenuGroupCount);
-cMenuGroup menuMidi(menuBase, "MIDI", 11);
+cMenuGroup menuProject(menuBase, "Project Settings");
+cMenuGroup menuGeneral(menuBase, "General");
+cMenuGroup menuMidi(menuBase, "MIDI");
 
-cMenuGroup menuUsb(menuBase, "USB", 2);
+cMenuGroup menuUsb(menuBase, "USB");
 
-cMenuGroup menuMetro(menuBase, "Metronome", 5);
-cMenuGroup menuFirmware(menuBase, "Firmware", 4);
+cMenuGroup menuMetro(menuBase, "Metronome");
+cMenuGroup menuFirmware(menuBase, "Firmware");
 
 #ifdef TRACKER_MINI
-cMenuGroup menuFunctionButtons(menuBase, "Fn buttons binding", 8);
+cMenuGroup menuFunctionButtons(menuBase, "Fn buttons binding");
 #endif
 
-cMenuGroup menuCredits(menuBase, "Info", 4);
+cMenuGroup menuCredits(menuBase, "Info");
 
 // elementy/////////
 
@@ -65,6 +55,7 @@ const strItemTypeListTextWithAction setupSendsMode{ &mtProject.values.sendsMode,
 const strItemTypeListTextWithAction setupHeadroomMode{ &mtProject.values.isHeadroomEnabled, 2, onOffStateTexts, setHeadroomMode };
 const strItemTypeListTextWithAction setupSnapToZeroMode{ &mtProject.values.isSnapToZeroEnabled, 2, onOffStateTexts, setSnapToZeroMode };
 const strItemTypeListTextWithAction setupRenderFaderBypass{ &mtProject.bypassRenderTrackFaders, 2, onOffStateTexts, setRenderFaderBypass };
+const strItemTypeListTextWithAction setupMaxTracks{ &mtProject.values.maxTracksMode, kMaxTracksModeCount, maxTracksTexts, setMaxTracks };
 
 cMenuItem melPatternDiv(menuProject, "Pattern divider", pattDivDesc, menuTypeItemListValues, &setupPatternDiv);
 cMenuItem melPadsScale(menuProject, "Notes scale", scaleDesc,  menuTypeItemListTextWithAction, &setupPadsScale);
@@ -76,6 +67,7 @@ cMenuItem melSendsMode(menuProject, "Sends mode", sendsDesc,  menuTypeItemListTe
 cMenuItem melHeadroomMode(menuProject, "Extra headroom", headroomDesc,  menuTypeItemListTextWithAction, &setupHeadroomMode);
 cMenuItem melSnapToZeroMode(menuProject, "Snap to zero", snapToZeroDesc,  menuTypeItemListTextWithAction, &setupSnapToZeroMode);
 cMenuItem melRenderFaderBypass(menuProject, "Render fader bypass", renderFaderBypassDesc, menuTypeItemListTextWithAction, &setupRenderFaderBypass);
+cMenuItem melMaxTracks(menuProject, "Max tracks", maxTracksDesc, menuTypeItemListTextWithAction, &setupMaxTracks);
 
 // general
 const strItemTypeListTextWithAction setupRadioRegion{ &mtConfig.general.radioRegion, 4, radioRegion, setRadioRegion };
@@ -98,6 +90,7 @@ const strItemTypeListText setupHexMode{ &mtConfig.general.numberingMode, std::si
 const strItemTypeListText setupPadPreviewInPatternEdit{ &mtConfig.general.padPreviewInPatternEdit, 3, padPreviewInPatternEditTexts };
 const strItemTypeListText setupPatternArrangement{ &mtConfig.general.patternArrangement, 3, patternArrangementTexts };
 const strItemTypeListText setupPatternInfo{ &mtConfig.general.patternInfo, 3, patternInfoTexts };
+const strItemTypeListText setupNoteDisplayMode{ &mtConfig.general.noteDisplayMode, std::size(noteDisplayModeTexts), noteDisplayModeTexts };
 
 #ifndef TRACKER_MINI
 cMenuItem melRadioReg(menuGeneral,
@@ -159,6 +152,11 @@ cMenuItem melPatternInfo(menuGeneral,
                          patternInfo,
                          menuTypeItemListText,
                          &setupPatternInfo);
+cMenuItem melNoteDisplayMode(menuGeneral,
+                             "Note display",
+                             noteDisplayModeDesc,
+                             menuTypeItemListText,
+                             &setupNoteDisplayMode);
 
 //==================================================================================================================================================================
 // Metroneome
@@ -201,6 +199,10 @@ const strItemTypeListText notesOutModeSetup{ &mtConfig.midi.notesOutMode, 4, mid
 const strItemTypeListText notesInChanneletup{ &mtConfig.midi.notesInChannel, 17, notesChannel };
 const strItemTypeListText ccInModeSetup{ &mtConfig.midi.ccInMode, 4, midiIn };
 const strItemTypeListText ccInChannelSetup{ &mtConfig.midi.ccInChannel, 17, notesChannel };
+const strItemTypeListText programChangeInModeSetup{ &mtConfig.midi.programChangeInMode, 4, midiIn };
+const strItemTypeListText programChangeInChannelSetup{ &mtConfig.midi.programChangeInChannel,
+                                                       17,
+                                                       notesChannel };
 const strItemTypeListText middleCSetup{ &mtConfig.midi.middleC, 4, middleC };
 const strItemTypeListTextWithAction slaveClockCompSetup{ &mtConfig.midi.slaveClockComp, std::size(slaveClockComp),  slaveClockComp, setSlaveClockCompValue };
 
@@ -229,6 +231,16 @@ cMenuItem melCCInChannel(menuMidi,
                          supportedCcInDesc,
                          menuTypeItemListText,
                          &ccInChannelSetup);
+cMenuItem melProgramChangeInMode(menuMidi,
+                                 "Program Change in",
+                                 programChangeInDesc,
+                                 menuTypeItemListText,
+                                 &programChangeInModeSetup);
+cMenuItem melProgramChangeInChannel(menuMidi,
+                                    "Program Change in ch.",
+                                    programChangeInDesc,
+                                    menuTypeItemListText,
+                                    &programChangeInChannelSetup);
 cMenuItem melMiddleC(menuMidi, "Middle C", nullptr, menuTypeItemListText, &middleCSetup);
 cMenuItem melSlaveClockComp(menuMidi,
                             "Clock sync correction",
@@ -528,8 +540,8 @@ void cConfigEditor::changeMenuListPosition(uint8_t list, int16_t value, uint8_t)
 
         if (menuBase.selectedItem + value < 0)
             menuBase.selectedItem = 0;
-        else if (menuBase.selectedItem + value > menuBase.childsCount - 1)
-            menuBase.selectedItem = menuBase.childsCount - 1;
+        else if (menuBase.selectedItem + value > menuBase.getCount() - 1)
+            menuBase.selectedItem = menuBase.getCount() - 1;
         else
             menuBase.selectedItem += value;
 
@@ -548,7 +560,7 @@ void cConfigEditor::changeMenuListPosition(uint8_t list, int16_t value, uint8_t)
         uint8_t start_position = submenu->selectedItem;
 
         uint8_t* item_selected = &submenu->selectedItem;
-        uint8_t item_max = submenu->childsCount - 1;
+        uint8_t item_max = submenu->getCount() - 1;
 
         if (*item_selected + value < 0)
             *item_selected = 0;
@@ -840,7 +852,7 @@ void cMenuGroup::executeItem()
 
 void cMenuGroup::reloadValues()
 {
-    for (uint8_t i = 0; i < childsCount; i++)
+    for (uint8_t i = 0; i < getCount(); i++)
     {
         if (childs[i] != nullptr && childs[i]->type == menuTypeItem)
         {

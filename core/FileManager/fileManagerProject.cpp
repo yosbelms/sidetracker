@@ -160,6 +160,10 @@ bool cFileManager::loadProjectFileFormFileStruct(strMtProject* project, strProje
     {
         fileValues.actualPattern = PATTERN_INDEX_MIN;
     }
+    if (fileValues.maxTracksMode >= kMaxTracksModeCount)
+    {
+        fileValues.maxTracksMode = kMaxTracksModeDefault;
+    }
 
     memcpy(&project->song, &pFile->projectDataAndHeader.project.song, sizeof(strSong));
     memcpy(&project->values, &pFile->projectDataAndHeader.project.values, sizeof(strMtValues));
@@ -419,6 +423,7 @@ void cFileManager::getDefaultValues(struct strMtValues* source)
 
     memset(source->synthPart, 0, sizeof(source->synthPart));
     source->recorderGainUsb = 0;
+    source->maxTracksMode = kMaxTracksModeDefault;
 }
 
 void cFileManager::getCurrentProjectPathWithName(char* path, int maxLen)

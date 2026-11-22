@@ -43,16 +43,18 @@ all: original plus mini
 
 psyn:
 	$(MAKE) -C "$(ROOT_DIR)/synth-plugin-sdk" sidetracker TOOLCHAIN="$(TOOLCHAIN)"
-	@mkdir -p "$(SD_DIR)/Synths"
-	@cp "$(SYNTH_DIR)"/prebuilt/*.psyn "$(SD_DIR)/Synths/"
-	@cp $(addprefix "$(ROOT_DIR)"/synth-plugin-sdk/build/,$(addsuffix .psyn,CHIP MINI OBER J106)) "$(SD_DIR)/Synths/"
+	@mkdir -p "$(SD_DIR)/System/Synths"
+	@cp "$(SYNTH_DIR)"/prebuilt/*.psyn "$(SD_DIR)/System/Synths/"
+	@cp $(addprefix "$(ROOT_DIR)"/synth-plugin-sdk/build/,$(addsuffix .psyn,CHIP MINI OBER J106)) "$(SD_DIR)/System/Synths/"
 
 sd:
-	@mkdir -p "$(SD_DIR)/Themes"
-	@cp "$(ROOT_DIR)"/themes/*.json "$(SD_DIR)/Themes/"
-	@mkdir -p "$(SD_DIR)/Fonts"
+	@mkdir -p "$(SD_DIR)"
+	@cp -R "$(ROOT_DIR)/sd-card/System" "$(SD_DIR)/"
+	@mkdir -p "$(SD_DIR)/System/Themes"
+	@cp "$(ROOT_DIR)"/themes/*.json "$(SD_DIR)/System/Themes/"
+	@mkdir -p "$(SD_DIR)/System/Fonts"
 	@cp "$(ROOT_DIR)/fonts/Win98.ptfont" "$(ROOT_DIR)/fonts/Win98-NOTICE.txt" \
-	    "$(ROOT_DIR)/fonts/Snes.ptfont" "$(ROOT_DIR)/fonts/Snes-OFL.txt" "$(SD_DIR)/Fonts/"
+	    "$(ROOT_DIR)/fonts/Snes.ptfont" "$(ROOT_DIR)/fonts/Snes-OFL.txt" "$(SD_DIR)/System/Fonts/"
 	python3 "$(ROOT_DIR)/tools/generate_stpalette_patches.py" --sd "$(SD_DIR)"
 	python3 "$(ROOT_DIR)/tools/generate_j106_patches.py" --sd "$(SD_DIR)"
 ifeq ($(words $(wildcard $(SYNTH_PATCH_INPUTS))),$(words $(SYNTH_PATCH_INPUTS)))
@@ -149,11 +151,11 @@ mini: sd synth-host psyn
 	@echo "-> Output: $(OUT_DIR)/$(MINI_PTF)"
 
 ptfx: sd
-	@mkdir -p "$(ROOT_DIR)/editor-fx-sdk/build/Effects" "$(SD_DIR)/Effects"
+	@mkdir -p "$(ROOT_DIR)/editor-fx-sdk/build/System/Effects" "$(SD_DIR)/System/Effects"
 	@set -e; for src in "$(ROOT_DIR)"/editor-fx-sdk/effects/*.c; do \
 		base=$$(basename "$$src" .c); \
-		python3 "$(ROOT_DIR)/editor-fx-sdk/ptfx_builder.py" "$$src" -o "$(ROOT_DIR)/editor-fx-sdk/build/Effects/$$base.ptfx" --toolchain "$(TOOLCHAIN)"; \
-		cp "$(ROOT_DIR)/editor-fx-sdk/build/Effects/$$base.ptfx" "$(SD_DIR)/Effects/"; \
+		python3 "$(ROOT_DIR)/editor-fx-sdk/ptfx_builder.py" "$$src" -o "$(ROOT_DIR)/editor-fx-sdk/build/System/Effects/$$base.ptfx" --toolchain "$(TOOLCHAIN)"; \
+		cp "$(ROOT_DIR)/editor-fx-sdk/build/System/Effects/$$base.ptfx" "$(SD_DIR)/System/Effects/"; \
 	done
 
 release-zip:
@@ -171,9 +173,9 @@ release-zip:
 		cmp "$$stage/$(ORIGINAL_PTF)" "$$stage/SD/Firmware/$(ORIGINAL_PTF)"; \
 		cmp "$$stage/$(PLUS_PTF)" "$$stage/SD/Firmware/$(PLUS_PTF)"; \
 		cmp "$$stage/$(MINI_PTF)" "$$stage/SD/Firmware/$(MINI_PTF)"; \
-		for engine in CHIP MINI OBER J106; do test -s "$$stage/SD/Synths/$$engine.psyn"; done; \
-		test -s "$$stage/SD/Patches/J106/Wide Strings.patch"; \
-		for theme in Snes Win98; do test -s "$$stage/SD/Themes/$$theme.json" && test -s "$$stage/SD/Fonts/$$theme.ptfont" || exit 1; done; \
+		for engine in CHIP MINI OBER J106; do test -s "$$stage/SD/System/Synths/$$engine.psyn"; done; \
+		test -s "$$stage/SD/System/Synths/Patches/J106/Wide Strings.patch"; \
+		for theme in Snes Win98; do test -s "$$stage/SD/System/Themes/$$theme.json" && test -s "$$stage/SD/System/Fonts/$$theme.ptfont" || exit 1; done; \
 		mkdir "$$stage/Licenses"; \
 		cp "$(ROOT_DIR)/LICENSE" "$(ROOT_DIR)/NOTICE.md" "$(SYNTH_DIR)/prebuilt/LICENSE-PROPRIETARY.txt" "$$stage/Licenses/"; \
 		test -s "$$stage/SideTrackerAnalogPresets.zip"; \

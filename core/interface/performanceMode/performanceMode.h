@@ -18,6 +18,7 @@ class cPerformanceMode : public ModuleBase
     uint8_t getCurrentModeIdx() override { return tracksPage; }
     void hideControlsUnderMiniMenu() override;
 
+    void onMaxTracksChanged(uint8_t maxTracks);
     void switchTracksPage();
     void toggleMute(uint8_t button);
     void showPerfFx();

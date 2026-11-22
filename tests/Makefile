@@ -21,7 +21,7 @@ endif
 # Add portable production modules here. Every *_test.cpp is discovered below.
 CORE_SOURCES := $(addprefix libs/Audio/,AudioStream.cpp filter_variable.cpp amplifier.cpp \
     monoToStereo.cpp dspApplyGain.cpp mixer.cpp effect_bitDepth.cpp record_queue.cpp analyze_rms.cpp) \
-    source/wavHeaderReader.cpp source/SdStream.cpp source/util_string.cpp source/scales.cpp \
+    source/wavHeaderReader.cpp source/SdPaths.cpp source/SdTextFile.cpp source/SdStream.cpp source/util_string.cpp source/scales.cpp \
     source/mtEnvelopeGenerator.cpp source/mtWavetableEnvelopes.cpp source/util_math.cpp \
     libs/ElapsedMillis/elapsedMillis.cpp AudioEngine/padToBeatNoteConverter.cpp AudioEngine/SampleFxPreview.cpp AudioEngine/PerfFx/PerfFx.cpp \
     AudioEngine/MasterSaturation.cpp AudioEngine/ExportQueues.cpp Exporter/MasterCapture.cpp \

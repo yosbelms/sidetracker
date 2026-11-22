@@ -687,3 +687,31 @@ TEST(SampleFxRealtime, MonoOutputMixDownmixesTheOriginalStereoDrySource)
     }
 }
 #endif
+
+TEST(PtfxValidation, AcceptsFileAndBoundedTextParameters)
+{
+    PtfxHeader header = {};
+    header.magic = PTFX_MAGIC;
+    header.format_version = 1;
+    header.code_offset = sizeof(header);
+    header.code_size = 80;
+    header.num_params = 3;
+    for (unsigned i = 0; i < header.num_params; ++i)
+        header.params[i].max_val = 1;
+    header.params[0].display_type = PARAM_FILE;
+    strcpy(header.params[0].unit, ".wav");
+    header.params[1].display_type = PARAM_SAVE_FILE;
+    strcpy(header.params[1].unit, ".wav");
+    auto& text = header.params[2];
+    text.display_type = PARAM_TEXT;
+    text.unit[0] = 8;
+    text.unit[2] = 64;
+    ASSERT_TRUE(ptfx::validateHeader(header, sizeof(header) + 80, 128, 128));
+    uint8_t code[80] = {};
+    memcpy(code + 8, "HELLO WORLD", 12);
+    EXPECT_TRUE(ptfx::validateStrings(header, code));
+    memset(code + 8, 'x', 65);
+    EXPECT_FALSE(ptfx::validateStrings(header, code));
+    text.unit[0] = 80;
+    EXPECT_FALSE(ptfx::validateHeader(header, sizeof(header) + 80, 128, 128));
+}

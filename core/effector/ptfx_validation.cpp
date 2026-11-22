@@ -16,15 +16,25 @@ bool ptfx::validateHeader(const PtfxHeader& h, size_t fileSize, uint32_t codeCap
         const auto& p = h.params[i];
         if (!memchr(p.label, 0, sizeof(p.label)) || !std::isfinite(p.min_val) ||
             !std::isfinite(p.max_val) || !std::isfinite(p.default_val) || !std::isfinite(p.step) ||
-            p.min_val > p.max_val || p.default_val < p.min_val || p.default_val > p.max_val || p.step <= 0) return false;
+            p.min_val > p.max_val || p.default_val < p.min_val || p.default_val > p.max_val || p.step < 0) return false;
         if (p.display_type == PARAM_LIST)
         {
             unsigned offset = uint8_t(p.unit[0]) | unsigned(uint8_t(p.unit[1])) << 8;
             unsigned count = uint8_t(p.unit[2]);
             if (!count || offset >= h.code_size || p.min_val != 0 || p.max_val != count - 1 || p.step != 1) return false;
         }
+        else if (p.display_type == PARAM_TEXT)
+        {
+            const unsigned offset = uint8_t(p.unit[0]) | unsigned(uint8_t(p.unit[1])) << 8;
+            if (offset >= h.code_size || uint8_t(p.unit[2]) > 64 ||
+                p.min_val != 0 || p.max_val != 1) return false;
+        }
+        else if (p.display_type == PARAM_FILE || p.display_type == PARAM_SAVE_FILE)
+        {
+            if (!memchr(p.unit, 0, sizeof(p.unit)) || p.min_val != 0 || p.max_val != 1) return false;
+        }
         else if ((p.display_type != PARAM_FLOAT && p.display_type != PARAM_INT) ||
-                 !memchr(p.unit, 0, sizeof(p.unit))) return false;
+                 p.step <= 0 || !memchr(p.unit, 0, sizeof(p.unit))) return false;
     }
     return true;
 }
@@ -33,6 +43,15 @@ bool ptfx::validateStrings(const PtfxHeader& h, const uint8_t* code)
     for (unsigned i = 0; i < h.num_params; ++i)
     {
         const auto& p = h.params[i];
+        if (p.display_type == PARAM_TEXT)
+        {
+            const unsigned offset = uint8_t(p.unit[0]) | unsigned(uint8_t(p.unit[1])) << 8;
+            if (offset >= h.code_size) return false;
+            const auto* end = static_cast<const uint8_t*>(memchr(code + offset, 0, h.code_size - offset));
+            const unsigned limit = uint8_t(p.unit[2]) ? uint8_t(p.unit[2]) : 64;
+            if (!end || size_t(end - (code + offset)) > limit) return false;
+            continue;
+        }
         if (p.display_type != PARAM_LIST) continue;
         unsigned offset = uint8_t(p.unit[0]) | unsigned(uint8_t(p.unit[1])) << 8;
         for (unsigned item = 0; item < uint8_t(p.unit[2]); ++item)

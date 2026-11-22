@@ -154,6 +154,12 @@ void cPerformanceMode::showTracks()
     for (uint8_t i = 0; i < 8; ++i)
     {
         const auto track = i + (tracksPage ? kSampleTracks : 0);
+        if (track >= getProjectMaxTracks())
+        {
+            display.setControlHide(label[i]);
+            display.refreshControl(label[i]);
+            continue;
+        }
         const bool muted = isPerfTrackMuted(track);
         display.setControlText(label[i], getPerfTrackName(track));
         display.setControlText2(label[i], muted ? "Unmute" : "Mute");

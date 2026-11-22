@@ -4,7 +4,7 @@ Twenty native STPalette patches for Sample Editor → Effects. Tailored as expre
 
 ## Install and load
 
-Copy `Effects/Patches/` from `build/SD/` or `build/STPaletteShowcase.zip` to the matching folder on your Tracker SD card or desktop virtual card. Each patch uses its descriptive filename, such as `Worn Cassette.patch` or `Radio Static.patch`. Preserve any file with the same name before replacing it.
+Copy `System/Effects/Patches/` from `build/SD/` or `build/STPaletteShowcase.zip` to the matching folder on your Tracker SD card or desktop virtual card. Each patch uses its descriptive filename, such as `Worn Cassette.patch` or `Radio Static.patch`. Preserve any file with the same name before replacing it.
 
 Load a sample, open **Sample Editor → Effects**, focus the **Chain** column, press physical **Insert**, choose **Load Patch**, then select the patch below (e.g. **Worn Cassette**, **Radio Static**). Press **Preview** to audition or **Apply** to update the current sample slot.
 
@@ -332,4 +332,4 @@ From the repository root:
 make sd
 ```
 
-The generator reads `patches.json`, preserves its names and settings, and writes the patches to `build/SD/Effects/Patches/` and `build/STPaletteShowcase.zip`. Python 3, Make and a C++20 host compiler are required.
+The generator reads `patches.json`, preserves its names and settings, and writes the patches to `build/SD/System/Effects/Patches/` and `build/STPaletteShowcase.zip`. Python 3, Make and a C++20 host compiler are required.

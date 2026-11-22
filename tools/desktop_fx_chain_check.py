@@ -130,7 +130,7 @@ def check_desktop_plugins(binary: Path, output: Path, input_wav: Path):
     with tempfile.TemporaryDirectory(prefix="ce-ptfx-ui-") as directory:
         card = Path(directory)
         (card / "input.wav").write_bytes(input_wav.read_bytes())
-        (card / "Effects").mkdir()
+        (card / "System/Effects").mkdir(parents=True)
         def plugin(payload, generator=False):
             header = bytearray(472)
             struct.pack_into("<IHH", header, 0, 0x58465450, 1, int(generator))
@@ -148,10 +148,10 @@ def check_desktop_plugins(binary: Path, output: Path, input_wav: Path):
                 header[150] = ord("l")
             return bytes(header) + payload
         valid = plugin(bytes(4) + b"Clean\0Warm\0Bright\0")
-        (card / "Effects/00_effect.ptfx").write_bytes(valid)
+        (card / "System/Effects/00_effect.ptfx").write_bytes(valid)
         # Discovery accepts its header, but image validation must reject it.
-        (card / "Effects/01_invalid.ptfx").write_bytes(plugin(bytes(4) + b"Clean\0Warm\0Bright"))
-        (card / "Effects/02_gen.ptfx").write_bytes(plugin(bytes(4), True))
+        (card / "System/Effects/01_invalid.ptfx").write_bytes(plugin(bytes(4) + b"Clean\0Warm\0Bright"))
+        (card / "System/Effects/02_gen.ptfx").write_bytes(plugin(bytes(4), True))
         script = card / "plugins.txt"
         audit = output / "sample-fx-plugins.tsv"
         script.write_text("""audit-frames PLUGIN_AUDIT
@@ -210,14 +210,14 @@ assert-chain closed
             capture_output=True, text=True, timeout=90)
         if result.returncode:
             raise RuntimeError(result.stdout + result.stderr)
-        saved = (card / "Effects/Patches/Patch01.patch").read_bytes()
+        saved = (card / "System/Effects/Patches/Patch01.patch").read_bytes()
         if saved[5] != 2:
             raise AssertionError("Desktop could not add repeated PTFX stages")
         for index, expected in [(1, (1.0, 0.0)), (2, (1.5, 1.0))]:
             node = 16 + index * 100
             if saved[node] != 255 or struct.unpack_from("<ff", saved, node + 51) != expected:
                 raise AssertionError("PTFX parameter/list edits were not preserved independently")
-        generated = (card / "Effects/Patches/Patch02.patch").read_bytes()
+        generated = (card / "System/Effects/Patches/Patch02.patch").read_bytes()
         if generated[16] != 255 or generated[19] != 1 or struct.unpack_from("<I", generated, 8)[0] != 48510:
             raise AssertionError("Desktop could not select/configure a PTFX generator")
         frames = audit.read_text()
@@ -414,10 +414,10 @@ assert-chain closed
                                 capture_output=True, text=True, timeout=90)
         if result.returncode:
             raise RuntimeError(result.stdout + result.stderr)
-        saved = (card / "Effects/Patches/Patch01.patch").read_bytes()
+        saved = (card / "System/Effects/Patches/Patch01.patch").read_bytes()
         if saved[:5] != b"PTPR\x01" or saved[5] != 2 or saved[116] != 35 or saved[216] != 32:
             raise AssertionError("Native category/Type patch was not saved as PTPR v1")
-        with (card / "Effects/STPaletteCPU.csv").open() as report:
+        with (card / "System/Effects/STPaletteCPU.csv").open() as report:
             rows = list(csv.DictReader(report))
         if len(rows) != 3 or any(row["category"] != "Character" or int(row["max_ticks"]) <= 0 for row in rows):
             raise AssertionError("Native CPU report did not include all quality profiles")
@@ -444,16 +444,16 @@ assert-chain closed
 
 def check_named_patches(binary: Path, output: Path):
     root = Path(__file__).resolve().parents[1]
-    staged = root / "build/SD/Effects/Patches"
+    staged = root / "build/SD/System/Effects/Patches"
     settings = json.loads((root / "patches/stpalette/patches.json").read_text())
     patches = {patch["name"]: patch for patch in settings["patches"]}
     with tempfile.TemporaryDirectory(prefix="ce-named-patches-") as directory:
         card = Path(directory)
-        saved = card / "Effects/Patches"
+        saved = card / "System/Effects/Patches"
         saved.mkdir(parents=True)
         for name in patches:
             (saved / f"{name}.patch").write_bytes((staged / f"{name}.patch").read_bytes())
-        legacy_dir = card / "Effects/Presets"
+        legacy_dir = card / "System/Effects/Presets"
         legacy_dir.mkdir()
         names = sorted(patches)
         edited = names[-1]
@@ -542,7 +542,7 @@ def check_chain_mix(binary: Path, output: Path):
                 raise AssertionError(f"Global {percent}% Mix did not blend the entire two-stage chain")
             if (card / "Workspace/instruments/instrument_01.pti").read_bytes()[-len(pcm):] != pcm:
                 raise AssertionError("Chain Mix changed the source sample")
-            if percent == 50 and (card / "Effects/Patches/Patch01.patch").read_bytes()[7] != 50:
+            if percent == 50 and (card / "System/Effects/Patches/Patch01.patch").read_bytes()[7] != 50:
                 raise AssertionError("Patch Mix was not saved")
             frames = audit.read_text()
             if f"\t{percent}%\n" not in frames:
@@ -555,7 +555,7 @@ def check_chain_mix(binary: Path, output: Path):
                     if len(fields) == 3 and (fields[2] == "Mix" or fields[2].endswith("%")) and fields[0] != "650":
                         raise AssertionError("Mix appeared outside its toolbar button")
             if percent == 50:
-                saved = (card / "Effects/Patches/Patch01.patch").read_bytes()
+                saved = (card / "System/Effects/Patches/Patch01.patch").read_bytes()
                 for index in (1, 2):
                     if struct.unpack_from("<f", saved, 16 + index * 100 + 51)[0] != 2:
                         raise AssertionError("Holding Mix changed an effect parameter")
@@ -563,7 +563,7 @@ def check_chain_mix(binary: Path, output: Path):
     # the cached wet audio and original snapshot, without blending twice.
     for kind in ("normalize", "latency"):
         with tempfile.TemporaryDirectory(prefix="ce-prepared-mix-") as directory:
-            card = Path(directory); saved = card / "Effects/Patches"; saved.mkdir(parents=True)
+            card = Path(directory); saved = card / "System/Effects/Patches"; saved.mkdir(parents=True)
             blob = bytearray(916); blob[:5] = b"PTPR\x01"; blob[5] = 1; blob[7] = 100
             struct.pack_into("<I", blob, 8, 44100)
             for index in range(9): blob[16 + index * 100] = 254
@@ -642,12 +642,12 @@ def check(binary: Path, output: Path):
             wav.writeframes(original)
         # A valid metadata-only plugin fixture makes the generator visible in
         # the browser. Its ARM payload is never executed by the desktop test.
-        (card / "Effects").mkdir()
+        (card / "System/Effects").mkdir(parents=True)
         plugin = bytearray(476)
         struct.pack_into("<IHH", plugin, 0, 0x58465450, 1, 1)
         plugin[8:8 + len(b"Catalog Generator")] = b"Catalog Generator"
         struct.pack_into("<III", plugin, 60, 0, 472, 4)
-        (card / "Effects/catalog_gen.ptfx").write_bytes(plugin)
+        (card / "System/Effects/catalog_gen.ptfx").write_bytes(plugin)
         # Reverse twice through Tools, append two effects from the independent
         # browser, and edit only the second. Browsing the generator must not
         # replace either stage or the source. Then save/load, bypass, and render.
@@ -807,7 +807,7 @@ assert-chain closed
             actual = (instruments / f"instrument_{index:02d}.pti").read_bytes()
             if actual[-len(expected):] != expected:
                 raise AssertionError(f"Instrument {index} audio differs")
-        definition = card / "Effects/Patches/Patch01.patch"
+        definition = card / "System/Effects/Patches/Patch01.patch"
         if not definition.is_file():
             raise AssertionError("Patch was not saved")
         saved = definition.read_bytes()

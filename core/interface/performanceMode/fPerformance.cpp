@@ -57,7 +57,7 @@ void releasePads()
 
 void cPerformanceMode::start(uint32_t options)
 {
-    tracksPage = options == 2;
+    tracksPage = options == 2 && getProjectMaxTracks() > kSampleTracks;
     moduleRefresh = 1;
     engine.getAudioOutput()->getPerfFx().setVisible(true);
 
@@ -90,8 +90,18 @@ void cPerformanceMode::stop()
     padsBacklight.clearGlobalPads(1, 1, 1);
 }
 
+void cPerformanceMode::onMaxTracksChanged(uint8_t maxTracks)
+{
+    if (maxTracks <= kSampleTracks)
+        tracksPage = 0;
+    if (moduleRefresh)
+        showTracks();
+}
+
 void cPerformanceMode::switchTracksPage()
 {
+    if (getProjectMaxTracks() <= kSampleTracks)
+        return;
     tracksPage ^= 1;
     showTracks();
     display.synchronizeRefresh();
@@ -100,6 +110,7 @@ void cPerformanceMode::switchTracksPage()
 void cPerformanceMode::toggleMute(uint8_t button)
 {
     const auto track = button + (tracksPage ? kSampleTracks : 0);
+    if (track >= getProjectMaxTracks()) return;
     if (track < kSampleTracks)
     {
         auto& mute = mtProject.values.trackMute[track];

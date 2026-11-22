@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstring>
 #include <vector>
+#include <string>
 
 using namespace samplefx;
 namespace
@@ -226,4 +227,54 @@ TEST_F(ChainTest, MissingOrAliasedBuffersAreRejectedBeforeProcessing)
     work[1][0] = work[0][0];
     EXPECT_FALSE(runner.start(definition, source, work, 16));
     EXPECT_TRUE(backend.begun.empty());
+}
+
+TEST_F(ChainTest, PluginStringsSurvivePatchReloadAndDuplicateIndependently)
+{
+    Node plugin;
+    plugin.effect = kPlugin;
+    plugin.count = 3;
+    plugin.flags = 2;
+    strcpy(plugin.filename, "file_effect.ptfx");
+    ASSERT_TRUE(setParameterString(plugin, 0, "/Samples/Room.wav"));
+    ASSERT_TRUE(setParameterString(plugin, 2, "Hello SideTracker"));
+    ASSERT_TRUE(definition.add(plugin));
+    ASSERT_TRUE(definition.duplicate(0));
+    ASSERT_TRUE(setParameterString(definition.stages[1], 2, "Different voice"));
+    EXPECT_STREQ(parameterString(definition.stages[0], 2), "Hello SideTracker");
+    EXPECT_EQ(patchFileSize(definition), kPatchStringFileBytes);
+    std::array<uint8_t, kPatchStringFileBytes> bytes;
+    ASSERT_TRUE(encodePatch(definition, bytes.data(), bytes.size()));
+    EXPECT_EQ(bytes[4], 2);
+    ChainDefinition restored;
+    ASSERT_TRUE(decodePatch(bytes.data(), bytes.size(), restored));
+    EXPECT_STREQ(parameterString(restored.stages[0], 0), "/Samples/Room.wav");
+    EXPECT_STREQ(parameterString(restored.stages[0], 2), "Hello SideTracker");
+    EXPECT_STREQ(parameterString(restored.stages[1], 2), "Different voice");
+}
+
+TEST_F(ChainTest, StringPoolOverflowAndCorruptPatchDoNotReplaceState)
+{
+    Node plugin;
+    plugin.effect = kPlugin;
+    plugin.flags = 2;
+    plugin.count = 2;
+    strcpy(plugin.filename, "file_effect.ptfx");
+    const std::string longestPath(255, 'a');
+    ASSERT_TRUE(setParameterString(plugin, 0, longestPath.c_str()));
+    const Node before = plugin;
+    EXPECT_FALSE(setParameterString(plugin, 1, "This exceeds the remaining pool"));
+    EXPECT_EQ(memcmp(&plugin, &before, sizeof(plugin)), 0);
+    ASSERT_TRUE(definition.add(plugin));
+    std::array<uint8_t, kPatchStringFileBytes> bytes;
+    ASSERT_TRUE(encodePatch(definition, bytes.data(), bytes.size()));
+    memset(bytes.data() + kPatchFileBytes + kParameterStringBytes, 'x', kParameterStringBytes);
+    const uint32_t hash = fingerprint(bytes.data() + 16, bytes.size() - 16,
+                                      fingerprint(bytes.data(), 12));
+    for (unsigned i = 0; i < 4; ++i) bytes[12 + i] = hash >> (i * 8);
+    ChainDefinition restored;
+    restored.mix = 37;
+    EXPECT_FALSE(decodePatch(bytes.data(), bytes.size(), restored));
+    EXPECT_EQ(restored.mix, 37);
+    EXPECT_EQ(restored.count, 0);
 }

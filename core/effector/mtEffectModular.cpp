@@ -97,7 +97,12 @@ uint32_t mtEffectModular::getExpectedProcessLength()
 {
     bool isGenerator = (m_flags & PTFX_FLAG_GENERATOR) != 0;
     if (isGenerator)
+    {
+        uint32_t requested = m_prependSamples + m_appendSamples;
+        if (requested > 0)
+            return requested;
         return (m_targetLength > 0) ? m_targetLength : 44100;
+    }
     uint64_t frames = uint64_t(confirmed[0].selection.length) + m_prependSamples + m_appendSamples;
     return frames > UINT32_MAX ? UINT32_MAX : uint32_t(frames);
 }

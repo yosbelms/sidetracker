@@ -1,5 +1,6 @@
 #include "ptfx_manager.h"
 #include "Platform.h"
+#include "SdPaths.h"
 #include "TrackerImpl.h"
 #include "mtAudioEngine.h"
 #include "sampleEditor/sampleEditor.h"
@@ -53,9 +54,10 @@ void PtfxManager::scanEffects(bool force)
     if (!fs || !fs->isSdCardInserted())
         return;
 
-    if (!fs->exists("/Effects"))
+    const auto effectsDir = SdPaths::effectsDir(fs);
+    if (!fs->exists(effectsDir.c_str()))
     {
-        fs->mkdir(0, "/Effects");
+        SdPaths::ensureDir(fs, effectsDir);
         s_scanned = true;
         return;
     }
@@ -68,7 +70,7 @@ void PtfxManager::scanEffects(bool force)
     int    filesCount = kMaxModularPlugins;
 
     fs->listDirContents(
-      "/Effects",
+      effectsDir.c_str(),
       FileSystem::DirContentType::kFiles,
       [](const char* name) {
           size_t len = strlen(name);
@@ -82,8 +84,8 @@ void PtfxManager::scanEffects(bool force)
 
     for (int i = 0; i < filesCount && s_pluginCount < kMaxModularPlugins; i++)
     {
-        char filepath[64];
-        snprintf(filepath, sizeof(filepath), "/Effects/%s", scanFileList[i]);
+        char filepath[96];
+        snprintf(filepath, sizeof(filepath), "%s/%s", effectsDir.c_str(), scanFileList[i]);
 
         PtfxHeader tempHeader;
         if (PtfxLoader::readHeader(filepath, tempHeader))
@@ -152,8 +154,8 @@ bool PtfxManager::loadPluginMetadata(uint16_t index)
     if (index >= s_pluginCount) return false;
     const PtfxEntry* entry = getPluginEntry(index);
     if (!entry) return false;
-    char path[64];
-    snprintf(path, sizeof(path), "/Effects/%s", entry->filename);
+    char path[96];
+    snprintf(path, sizeof(path), "%s/%s", SdPaths::effectsDir(TrackerImpl::getInstance()->getPlatform()->getFileSystem()).c_str(), entry->filename);
     PtfxHeader header;
     if (!PtfxLoader::readImage(path, header, PtfxLoader::getCodeBuffer(), PtfxLoader::getMaxCodeSize())) return false;
     s_activeHeader = header;
@@ -169,8 +171,8 @@ bool PtfxManager::loadPlugin(uint16_t index, mtEffectModular& modularEffect)
     if (!entry)
         return false;
 
-    char filepath[64];
-    snprintf(filepath, sizeof(filepath), "/Effects/%s", entry->filename);
+    char filepath[96];
+    snprintf(filepath, sizeof(filepath), "%s/%s", SdPaths::effectsDir(TrackerImpl::getInstance()->getPlatform()->getFileSystem()).c_str(), entry->filename);
 
     PtfxInitFunc         initFunc         = nullptr;
     PtfxSetParamFunc     setParamFunc     = nullptr;
