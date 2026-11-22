@@ -224,7 +224,11 @@ void readConfig()
     }
     else // normalny odczyt configu w nowej wersji
     {
-        const size_t limit = std::min<size_t>(mtConfig.header.totalSize, sizeof(mtConfig));
+        // The interim v11 writer stored two extra bytes in the final group.
+        // Allow that bounded extension even when the current struct has no tail padding.
+        const size_t legacyBytes = mtConfig.header.version == kInlinePerfFxMixVersion ? 2 : 0;
+        const size_t limit = std::min<size_t>(size_t(mtConfig.header.totalSize) + legacyBytes,
+                                               sizeof(mtConfig) + legacyBytes);
         size_t offset = offsetof(strMtConfig, audioCodecConfig);
         for (uint8_t i = 0; i < eepromStructsCount && offset + sizeof(uint16_t) <= limit; ++i)
         {
