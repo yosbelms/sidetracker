@@ -542,7 +542,20 @@ class ChainScreen
     void measureCpu();
 };
 
-ChainScreen screen;
+// Construct after the platform has initialized external RAM. The editor's
+// lists and chain settings do not need scarce internal audio memory.
+alignas(ChainScreen) __NOINIT(EXTERNAL_RAM) static uint8_t screenStorage[sizeof(ChainScreen)];
+ChainScreen& screen = *reinterpret_cast<ChainScreen*>(screenStorage);
+
+void initializeChainScreen()
+{
+    static bool initialized = false;
+    if (!initialized)
+    {
+        new (screenStorage) ChainScreen;
+        initialized = true;
+    }
+}
 void chainButton(uint8_t button) { screen.input(button - interfaceButton0); }
 void chainNavigate(int delta) { screen.navigate(delta); }
 void chainUp() { chainNavigate(-1); }
@@ -1986,11 +1999,12 @@ void ChainScreen::update()
 }
 }
 
-bool sampleChainHasDraft() { return screen.haveDraft && screen.draftSlot == mtProject.values.lastUsedInstrument; }
-unsigned sampleChainStageCount() { return screen.definition.count; }
-bool sampleChainIsOpen() { return screen.open && screen.visible; }
+bool sampleChainHasDraft() { initializeChainScreen(); return screen.haveDraft && screen.draftSlot == mtProject.values.lastUsedInstrument; }
+unsigned sampleChainStageCount() { initializeChainScreen(); return screen.definition.count; }
+bool sampleChainIsOpen() { initializeChainScreen(); return screen.open && screen.visible; }
 bool sampleChainUpdate()
 {
+    initializeChainScreen();
     if (screen.open) { screen.update(); return true; }
     if (screen.pendingEditorAction && newFileManager.getStatus() == fmIdle &&
         newFileManager.getCurrentOperation() == fmNoOperation)
@@ -2004,6 +2018,7 @@ bool sampleChainUpdate()
 }
 bool sampleChainDeferEditorAction(std::function<void()> action)
 {
+    initializeChainScreen();
     if (!screen.open) return false;
     screen.pendingEditorAction = std::move(action);
     screen.leave();
@@ -2011,6 +2026,7 @@ bool sampleChainDeferEditorAction(std::function<void()> action)
 }
 void sampleChainResetControls()
 {
+    initializeChainScreen();
     // Module switches destroy these controls. Recreate them on the next open.
     screen.control = screen.stagesControl = screen.parametersControl = -1;
     screen.valuesControl = screen.valueBar = screen.focusControl = screen.menuControl = -1;
@@ -2021,6 +2037,7 @@ void sampleChainResetControls()
 
 static void openChainSession(cSampleEditor* editor, bool visible)
 {
+    initializeChainScreen();
     if (screen.open || mtProject.values.lastUsedInstrument >= kSampleInstrumentsCount ||
         newFileManager.getCurrentOperation() != fmNoOperation) return;
     // The working areas are carved from the sample bank. Refuse overlap with any
@@ -2150,6 +2167,7 @@ void sampleChainOpen(cSampleEditor* editor)
 
 bool sampleChainPreview(cSampleEditor* editor)
 {
+    initializeChainScreen();
     if (screen.open) { screen.leave(); return true; }
     if (!screen.haveDraft || screen.draftSlot != mtProject.values.lastUsedInstrument) return false;
     openChainSession(editor, false);
