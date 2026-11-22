@@ -1620,7 +1620,10 @@ void ChainScreen::patchFile(unsigned slot, bool save)
             decodePatch(bytes, byteCount, definition);
         closeIo();
         if (!ok) { error("Invalid or unsupported patch"); return; }
-        changed(); stageSelection = 0; schemaReady = false; focus = 1;
+        const bool qualityResolved = definition.qualityResolved;
+        changed();
+        definition.qualityResolved = qualityResolved;
+        stageSelection = 0; schemaReady = false; focus = 1;
         snprintf(notice, sizeof(notice), "Loaded %s", filename);
     }
     snprintf(patchName, sizeof(patchName), "%s", filename);
