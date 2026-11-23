@@ -49,9 +49,14 @@ static constexpr uint32_t kFileNamesPoolBytes =
 
 static_assert(kSampleLoaderScratchBaseOffset >= kSdStreamReservedBytes,
               "Sample Loader scratch overlaps sdStream audio preview buffer");
-static_assert(kExplorerPtrsBytes == 32 * 1024, "Expected 32 KB pointer table");
+// Desktop pointers are wider; preserve the hardware layout checks and bound both layouts.
+static_assert(sizeof(char*) != 4 || kExplorerPtrsBytes == 32 * 1024,
+              "Expected 32 KB pointer table on hardware");
 static_assert(kFileSelectionBytes == 8 * 1024, "Expected 8 KB selection bitmap");
-static_assert(kFileNamesPoolBytes == 408 * 1024, "Expected 408 KB packed string pool");
+static_assert(kExplorerPtrsBytes + kFileSelectionBytes < kTotalSampleLoaderScratchBytes,
+              "Sample Loader scratch has no room for file names");
+static_assert(sizeof(char*) != 4 || kFileNamesPoolBytes == 408 * 1024,
+              "Expected 408 KB packed string pool on hardware");
 static_assert(kSampleLoaderScratchBaseOffset + kTotalSampleLoaderScratchBytes <=
                 SHARED_SCRATCH_MEMORY_SIZE,
               "Sample Loader scratch exceeds SHARED_SCRATCH_MEMORY_SIZE");
