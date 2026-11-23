@@ -92,9 +92,9 @@ From the repository root:
 make all
 
 # Or build a single target:
-make original   # -> build/PolyendTracker_ST_0.0.11.ptf
-make plus       # -> build/TrackerPlus_ST_0.0.11.ptf
-make mini       # -> build/TrackerMini_ST_0.0.11.ptf
+make original   # -> build/PolyendTracker_ST_0.0.12.ptf
+make plus       # -> build/TrackerPlus_ST_0.0.12.ptf
+make mini       # -> build/TrackerMini_ST_0.0.12.ptf
 
 # Build reference .ptfx Sample Editor effects:
 make ptfx
@@ -139,7 +139,7 @@ make bump-minor TARGET=all        # or TARGET=original | TARGET=plus | TARGET=mi
 
 ### 4. Flashing on Hardware & Emergency Recovery
 
-1. Copy the matching file from `build/SD/Firmware/` to the `/Firmware/` folder on your Tracker's microSD card. Use `PolyendTracker_ST_0.0.11.ptf`, `TrackerPlus_ST_0.0.11.ptf`, or `TrackerMini_ST_0.0.11.ptf` for your model.
+1. Copy the matching file from `build/SD/Firmware/` to the `/Firmware/` folder on your Tracker's microSD card. Use `PolyendTracker_ST_0.0.12.ptf`, `TrackerPlus_ST_0.0.12.ptf`, or `TrackerMini_ST_0.0.12.ptf` for your model.
 2. On the device, open **Config > Firmware > Firmware update**, select the `.ptf` file, and confirm.
 
 > **Bootloader Resilience & Emergency Firmware Recovery**:
