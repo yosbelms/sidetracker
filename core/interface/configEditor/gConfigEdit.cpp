@@ -138,6 +138,7 @@ void cConfigEditor::initDisplayControls()
     prop2.y = 29;
     prop2.w = 800 / 4 - 3;
     prop2.h = 394;
+    prop2.data = &configList;
     configListControl = display.createControl<cList>(&prop2);
 
     prop2.data = nullptr;
@@ -364,6 +365,8 @@ void cConfigEditor::showConfigList4(uint8_t list_width,
                                     uint8_t length,
                                     char** listText)
 {
+    // The SD asset scan may have changed the table since Config opened.
+    start = length == 0 ? 0 : (start < length ? start : length - 1);
     configListShown = 1;
     selectedConfigListPosition = start;
 

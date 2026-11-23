@@ -148,3 +148,7 @@ stpalette-bench-m4: $(BENCH_OUT)/stpalette_bench_m4.elf
 stpalette-bench-m4-build: $(BENCH_OUT)/stpalette_bench_m4.elf
 
 .PHONY: stpalette-bench stpalette-bench-m4 stpalette-bench-m4-build
+
+# UI regression: compile the real list renderer with a host text sink.
+$(OUT)/list_render_test.o $(OUT)/core/libs/NewDisplay/list.o: CPPFLAGS += -I$(CORE)/libs/NewDisplay -I$(CORE)/libs/FT812
+$(OUT)/list_render_test: $(OUT)/core/libs/NewDisplay/list.o

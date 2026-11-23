@@ -4,6 +4,12 @@ All notable changes to the **Polyend Tracker Community Edition (CE)** firmware a
 
 ---
 
+## SideTracker 0.0.13 — 2026-11-23
+
+- Fix Config freezes caused by invalid saved list values and font-list scrolling after an SD rescan.
+- Correct the Config choice-list data binding and initialize scrolling state.
+- Add sanitized Config and list-rendering regression tests. Confirmed the diagnostic fix on Tracker+.
+
 ## [1.0.0] - Initial Community Edition Release
 
 > **⚠️ Important :: Project Compatibility Notice:**

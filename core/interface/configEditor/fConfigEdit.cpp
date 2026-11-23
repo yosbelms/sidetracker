@@ -893,6 +893,9 @@ void firmwareUpgradeActivate()
 
 void cConfigEditor::changeConfigListPosition(int16_t value)
 {
+    if (configList.length == 0)
+        return;
+
     value = clamp<int>(value, -3, 3);
 
     if (selectedConfigListPosition + value < 0)

@@ -114,6 +114,19 @@ void cList::setData(void* data)
     list = (strList*)data;
     listAnimationStep = 0;
 
+    // Asset lists can shrink after an SD rescan. Do not animate from an
+    // expired selection: it can scroll beyond the available row pointers.
+    if (list->length == 0)
+    {
+        list->start = 0;
+        listPosition = 0;
+        barPos = textListPos = 0;
+        disableBar = 1;
+        return;
+    }
+    if (list->start >= list->length)
+        list->start = list->length - 1;
+
     if (list->start < 0)
     {
         list->start = 0;
@@ -163,7 +176,7 @@ void cList::setData(void* data)
 //--------------------------------------------------------------------------------
 void cList::update()
 {
-    if (list == nullptr)
+    if (list == nullptr || list->data == nullptr || list->linesCount == 0)
         return;
 
     Timer* timer = Tracker::getInstance()->getPlatform()->getTimer();
@@ -280,6 +293,8 @@ void cList::update()
         for (uint8_t i = 0; i < lines; i++)
         {
             uint16_t rowIdx = i + textListPos;
+            if (rowIdx >= list->length)
+                break;
             if (list->selectTab != NULL && list->selectTab[rowIdx])
             {
                 API_COLOR(colors[5] != colors[4] ? colors[5] : display.getTheme().red);
@@ -510,6 +525,8 @@ void cList::update()
                 for (int8_t i = 0; i < lines; i++)
                 {
                     uint16_t rowIdx = i + textListPos;
+                    if (rowIdx >= list->length)
+                        break;
                     if (list->selectTab != NULL && list->selectTab[rowIdx])
                     {
                         API_COLOR(colors[5] != colors[4] ? colors[5] : display.getTheme().red);
@@ -559,6 +576,8 @@ void cList::update()
                         table_offset = 0;
 
                     uint16_t rowIdx = i + table_offset;
+                    if (rowIdx >= list->length)
+                        break;
                     if (list->selectTab != NULL && list->selectTab[rowIdx])
                     {
                         API_COLOR(colors[5] != colors[4] ? colors[5] : display.getTheme().red);
@@ -604,6 +623,8 @@ void cList::update()
             for (uint8_t i = 0; i < lines; i++)
             {
                 uint16_t rowIdx = i + textListPos;
+                if (rowIdx >= list->length)
+                    break;
                 if (list->selectTab != NULL && list->selectTab[rowIdx])
                 {
                     API_COLOR(colors[5] != colors[4] ? colors[5] : display.getTheme().red);

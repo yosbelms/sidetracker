@@ -50,7 +50,7 @@ class cList : public cDisplayControl
 
     uint16_t textStyle;
 
-    strList* list;
+    strList* list = nullptr;
 
     int16_t listPosition;
 
@@ -61,9 +61,9 @@ class cList : public cDisplayControl
 
     int8_t listAnimationStep = 0;
 
-    uint32_t textScrollTime;
-    uint32_t textScrollTimeStart;
-    uint16_t textScrollItem;
+    uint32_t textScrollTime = 0;
+    uint32_t textScrollTimeStart = 0;
+    uint16_t textScrollItem = 0;
 };
 
 #endif

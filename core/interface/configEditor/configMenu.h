@@ -2,7 +2,7 @@
 #ifndef INTERFACE_CONFIGEDITOR_CONFIGMENU_H_
 #define INTERFACE_CONFIGEDITOR_CONFIGMENU_H_
 
-#include "configEditor/configMenuDefs.h"
+#include "configMenuDefs.h"
 #include "util_math.h"
 
 #include <cstdio>
@@ -148,6 +148,20 @@ class cMenuItem : public cMenuBase
 
     ~cMenuItem() {}
 
+    // Saved values are loaded after construction, and asset lists can shrink
+    // when the card changes. Displaying a value must not index an absent item.
+    template<class Setup>
+    static char* listValueText(const Setup* setup)
+    {
+        if (setup == nullptr || setup->value == nullptr || setup->ptrText == nullptr ||
+            *setup->value >= setup->count)
+        {
+            return const_cast<char*>(ptrEmptyName);
+        }
+        const char* text = setup->ptrText[*setup->value];
+        return const_cast<char*>(text != nullptr ? text : ptrEmptyName);
+    }
+
     char* getValue()
     {
         switch (itemType)
@@ -171,11 +185,9 @@ class cMenuItem : public cMenuBase
                 return ptrValueText;
             }
             case menuTypeItemListText:
-                return (char*)((strItemTypeListText*)itemSetup)
-                  ->ptrText[*((strItemTypeListText*)itemSetup)->value];
+                return listValueText(static_cast<const strItemTypeListText*>(itemSetup));
             case menuTypeItemListTextWithAction:
-                return (char*)((strItemTypeListTextWithAction*)itemSetup)
-                  ->ptrText[*((strItemTypeListTextWithAction*)itemSetup)->value];
+                return listValueText(static_cast<const strItemTypeListTextWithAction*>(itemSetup));
             case menuTypeItemLabel: return (char*)((strItemTypeLabel*)itemSetup)->text;
             case menuTypeItemLabelPtr: return (char*)*(((strItemTypeLabelPtr*)itemSetup)->text);
 
