@@ -23,8 +23,8 @@
 
 #include <cr_section_macros.h>
 
-__NOINIT(EXTERNAL_RAM) strTrackerPattern cPatternEditor::trackerPattern;
-__NOINIT(EXTERNAL_RAM) cPatternEditor::strFill cPatternEditor::fillData[6];
+strTrackerPattern cPatternEditor::trackerPattern;
+cPatternEditor::strFill cPatternEditor::fillData[6];
 
 cPatternEditor patternEditor;
 static cPatternEditor* PTE = &patternEditor;

@@ -8,7 +8,7 @@
 * **[Sample Editor, ST Effects & Presets](sample_editor)**
 * **[Custom Themes & Fonts](custom_themes_and_fonts)**
 * **[Wavetable Envelopes & LFOs](wavetable_envelopes)**
-* **[SD Card Image Viewer](image_viewer)**
+* **[File Manager & File Viewer](info_viewer)**
 * **[Modular Effects (.ptfx)](modular_effects_system)**
 * **[Sample-editor FX Chain](sample_editor_fx_chain)**
 

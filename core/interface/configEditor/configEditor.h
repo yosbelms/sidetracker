@@ -233,6 +233,8 @@ class cConfigEditor : public ModuleBase
     void closeCredits();
     void showCreditsControls();
     void hideCreditsControls();
+    void showInlineInfoPanel();
+    void hideInlineInfoPanel();
 
     ///-------------------------------
 

@@ -324,8 +324,7 @@ int DesktopStorage::createInstrumentsList(const char* path, char** list, uint8_t
 }
 
 int DesktopStorage::createFilesList(const char* path, uint8_t start, char** list, uint8_t count,
-                                    uint16_t budget, enListFileFilter filter, uint16_t skip,
-                                    uint16_t maxFiles, enListFileFilter folderFilter)
+                                    uint16_t budget, enListFileFilter filter)
 {
     const auto dir = resolve(path);
     std::error_code ec;
@@ -347,7 +346,7 @@ int DesktopStorage::createFilesList(const char* path, uint8_t start, char** list
         budget -= bytes;
         return true;
     };
-    for (size_t i = skip; i < names.size() && out < count; ++i)
+    for (size_t i = 0; i < names.size() && out < count; ++i)
     {
         const auto& name = names[i];
         if (!fs::is_directory(dir / name, ec))
@@ -356,18 +355,8 @@ int DesktopStorage::createFilesList(const char* path, uint8_t start, char** list
                 break;
             continue;
         }
-        const auto files = maxFiles ? entries(dir / name, [folderFilter](const auto& entry)
-                                            { return matches(entry, folderFilter); }).size() : 0;
-        if (!maxFiles || files <= maxFiles)
-        {
-            if (!append("/" + name))
-                break;
-            continue;
-        }
-        for (size_t offset = 0; offset < files; offset += maxFiles)
-            if (!append("/" + name + " (" + std::to_string(offset + 1) + "-" +
-                        std::to_string(offset + maxFiles) + ")"))
-                return out;
+        if (!append("/" + name))
+            break;
     }
     return out;
 }

@@ -166,7 +166,7 @@ class FakeFileSystem final : public FileSystem
     int createInstrumentsList(const char*, char**, uint8_t, uint32_t*) override { return kListError; }
     int countContainedFiles(const char*) override { return kListError; }
     int createFilesList(const char*, uint8_t, char**, uint8_t, uint16_t,
-                        enListFileFilter, uint16_t, uint16_t, enListFileFilter) override { return kListError; }
+                        enListFileFilter) override { return kListError; }
     void listDirContents(const char*, DirContentType, std::function<bool(const char*)>,
                          char*, int, int, int& count, char**) override { count = kListError; }
     int readNbFiles(const char*) override { return kListError; }

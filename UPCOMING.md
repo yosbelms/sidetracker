@@ -83,10 +83,20 @@
 	* **Instant `Shift + Init Patch` Randomization**: Holding **`[Shift]`** inside the **Synth Patch Editor** swaps Button 2 from **`Init / Patch`** to **`Randomize / Patch`**.
 	* **Engine-Owned Randomizer Hook**: Extended the Synth Engine SDK so all randomization logic can live inside the individual synth engine. Implemented curated patch randomizers across all bundled factory synths. See [`docs/custom_synth_sdk.md`](docs/custom_synth_sdk.md).
 
+18. **Offloading large texts to SD-Card & Secondary Font Offload (All 3 Devices)**
+	* Moved Config menu descriptions, Step FX help descriptions, and `Config → Info` text out of firmware Flash into human-readable files at `/System/Text/config_hints.txt`, `/System/Text/fx_hints.txt`, and `/System/info.txt` (rendered directly inline when highlighting `Info` in `Config`). Initial files provided in [`sd-card/System/`](sd-card/System/).
+	* Moved the secondary `"New"` (`Liberation Sans`) UI font out of firmware Flash into [`sd-card/System/Fonts/New.ptfont`](sd-card/System/Fonts/New.ptfont), keeping `"Original"` built-in as the fallback. Together, these offloads reclaim `~46.5–47.2 KB` of Flash across all 3 devices (bringing Original Tracker free Flash to `~143.8 KB`).
+
+19. **Dual-Pane File Manager & Built-In Image/Text Viewer (All 3 Devices)**
+	* Added a dedicated **2-pane File Manager** accessible from **`File → File Manager`** with independent left/right directory panes,
+	* Non-blocking folder copy, fast same-volume move, and recursive delete with progress bar, mid-operation **Cancel**, and collision prompts (**Overwrite / Skip / Rename / All: ON-OFF**).
+	* Added options in **`Config → General → File Manager`:** `Confirm all`, `Confirm delete`, `Never ask`. System folders are actively protected.
+	* Integrated the **File Viewer** directly into File Manager (**Button `View`** / **Enter**): opens any `.jpg`/`.jpeg` (`800 × 390` px) or text file (`.txt`, `.md`, `.json`, `.ini`, `.cfg`, `.log`, up to `128 KB` / `8,192` lines with `Up/Down/Jog` & `PgUp/PgDn`) from any folder, with sibling navigation (`Left/Right` / `<<` / `>>`). See [`docs/info_viewer.md`](docs/info_viewer.md).
+
 ### Changed & Fixed
 
 * **Unified `/System/` SD Card Layout & Hidden `/.system/` Support (All 3 Devices)**:
-	* Consolidated firmware-managed assets, plugins, synth data, and IMX config (`Effects`, `Envelopes`, `Fonts`, `Images`, `Snapshots`, `Synths/{Patches,Samples,*.psyn}`, `Text`, `Themes`, and `trackerConfig`) under `/System/` (automatically using `/.system/` if `/System/` is absent and `/.system/` exists; IMX reads legacy `/trackerConfig` as a fallback).
+	* Consolidated firmware-managed assets, plugins, synth data, and IMX config (`Effects`, `Envelopes`, `Fonts`, `Snapshots`, `Synths/{Patches,Samples,*.psyn}`, `Text`, `Themes`, `info.txt`, and `trackerConfig`) under `/System/` (automatically using `/.system/` if `/System/` is absent and `/.system/` exists; IMX reads legacy `/trackerConfig` as a fallback).
 	* Defaulted Sample Editor WAV load/export and Instrument Editor `.pti` save browsers to `/`, and made leading-dot files/folders (such as `.system` and `.Trash-1000`) consistently hidden in both Sample Loader and `GlobalFileBrowser`.
 	* Removed leftover dead `Games` browsing code from `FileManager` and SD drivers (~1.3 KB Flash reclaimed).
 
@@ -145,6 +155,7 @@
 	* **Safe Missing Pattern Fallback**: Selecting a missing or unreadable pattern for a Performance track now plays silence instead of triggering unexpected notes.
 
 * **Sample Loader, Sample Playback, Sample Editor & Sample Recorder Fixes (All 3 Devices)**:
+	* **Flat 8,192-Entry Sample Loader (No More 100-Item Virtual Folders)**: Replaced the legacy 100-item virtual-folder (`name (1-100)`) pagination in Sample Loader with a flat sorted directory browser, supporting up to **8,192 entries per folder**.
 	* **Sample Loader Folder, Import & `Delete Unused` Fixes**: Fixed opening folders with parentheses in their names (such as `Loops (120-140 BPM)`), handled unreadable or deeply nested folders safely, prevented multi-file imports from exceeding Slot 48 or available sample memory, fixed time labels above `100s` on the crop-import screen, fixed renaming instruments after a MIDI/Synth slot was active, and fixed `Delete unused` removing samples only used on the last step of a track, in Pattern 255, or in unsaved edits of the current pattern.
 	* **Sample Playback & Sample Editor Fixes**: Fixed `Add` slice jumbling slice markers after `Slice Evenly` or `Auto Slice`, improved zoomed waveform rendering when switching from a long sample to a short one, fixed the Sample Playback progress cursor lingering or tracking a previous instrument's long release tail after switching instruments, fixed low-quality (resampled) samples playing at the wrong speed/pitch during Sample Editor effect preview, and prevented MIDI/Synth slots from interfering with Sample Playback controls and MIDI CC.
 	* **Sample Recorder & FM Radio Fixes**: Pressing `Record` again now cancels a count-in waiting on a missing external clock, project samples reload reliably if recording is interrupted by standby or USB Storage, the previously selected instrument is always restored on exit, and FM radio tuning/scanning on Original Tracker and Tracker+ was hardened with tune timeouts, I2C bus recovery, seek state-machine guards, and exact channel stepping to prevent radio scanning freezes.

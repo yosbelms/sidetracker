@@ -39,7 +39,7 @@ public:
     int createInstrumentsList(const char*, char**, uint8_t, uint32_t*) override;
     int countContainedFiles(const char*) override;
     int createFilesList(const char*, uint8_t, char**, uint8_t, uint16_t,
-                        enListFileFilter, uint16_t, uint16_t, enListFileFilter) override;
+                        enListFileFilter) override;
     void listDirContents(const char*, DirContentType, std::function<bool(const char*)>,
                          char*, int, int, int&, char**) override;
     int readNbFiles(const char* path) override { return countContainedFiles(path); }
